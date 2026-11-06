@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Chores - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Chores</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0"><i class="bi bi-arrow-repeat"></i> Recurring chores</h2>
+    <a href="/calendar/chores/new" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New chore</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr><th>Description</th><th>Frequency</th><th>Next due</th>
+                <th>Last completed</th><th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for c in chores %}
+            <tr class="{{ 'table-secondary' if not c.is_active }}">
+                <td>
+                    {{ c.description }}
+                    {% if c.location %}<div class="text-muted small">{{ c.location }}</div>{% endif %}
+                    {% if not c.is_active %}<span class="badge bg-secondary">paused</span>{% endif %}
+                </td>
+                <td>{{ c.frequency }}</td>
+                <td>{{ c.next_due_date }}</td>
+                <td>{{ c.last_completed_at or "—" }}</td>
+                <td class="text-end">
+                    {% if c.is_active %}
+                    <form method="post" action="/calendar/chores/{{ c.id }}/complete" class="d-inline">
+                        <button class="btn btn-sm btn-outline-success" title="Mark done, advance next due date">
+                            <i class="bi bi-check-lg"></i> Done</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="/calendar/chores/{{ c.id }}/toggle" class="d-inline">
+                        <button class="btn btn-sm btn-outline-secondary">{{ 'Resume' if not c.is_active else 'Pause' }}</button>
+                    </form>
+                    <a href="/calendar/chores/{{ c.id }}/edit" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                    <form method="post" action="/calendar/chores/{{ c.id }}/delete" class="d-inline"
+                          onsubmit="return confirm('Delete this chore and its history?')">
+                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted">No chores yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}{{ garden.name }} - Garden{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/garden/">Gardens</a></li>
+        <li class="breadcrumb-item active">{{ garden.name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-flower2"></i> {{ garden.name }}</h2>
+    <div class="d-flex gap-2">
+        <a href="/agriculture/agronomy/garden/{{ garden.id }}/maintenance" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-list-check"></i> Plot Maintenance
+        </a>
+        {% if is_owner %}
+        <a href="/agriculture/agronomy/garden/{{ garden.id }}/edit" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil"></i> Edit
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if garden.location %}
+<p class="text-muted mb-2"><i class="bi bi-geo-alt"></i> {{ garden.location }}</p>
+{% endif %}
+{% if garden.description %}
+<p class="text-muted small mb-3">{{ garden.description }}</p>
+{% endif %}
+
+<!-- Condensed Crop List -->
+{% if crops %}
+<div class="table-responsive mb-3">
+    <table class="table table-sm table-hover align-middle mb-0" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr>
+                <th>Section</th>
+                <th>Crop</th>
+                <th>Variety</th>
+                <th>Planted</th>
+                <th>By</th>
+                <th>Mat.</th>
+                <th>Harvest</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for crop in crops %}
+            <tr class="{{ 'table-success' if crop.first_harvest_date else '' }}">
+                <td class="text-nowrap">{{ crop.plot_section or '' }}</td>
+                <td>
+                    <a href="/agriculture/agronomy/garden/{{ garden.id }}/crop/{{ crop.id }}" class="text-decoration-none fw-bold">
+                        {{ crop.crop }}
+                    </a>
+                </td>
+                <td class="text-muted">{{ crop.variety or '' }}</td>
+                <td class="text-nowrap">{{ crop.planting_date[5:7] ~ '/' ~ crop.planting_date[8:10] ~ '/' ~ crop.planting_date[0:4] if crop.planting_date else '' }}</td>
+                <td>{{ crop.planted_by or '' }}</td>
+                <td>{{ crop.days_to_maturity ~ 'd' if crop.days_to_maturity else '' }}</td>
+                <td class="text-nowrap">{% if crop.first_harvest_date %}{{ crop.first_harvest_date[5:7] ~ '/' ~ crop.first_harvest_date[8:10] ~ '/' ~ crop.first_harvest_date[0:4] }}{% if crop.last_harvest_date and crop.last_harvest_date != crop.first_harvest_date %}&ndash;{{ crop.last_harvest_date[5:7] ~ '/' ~ crop.last_harvest_date[8:10] ~ '/' ~ crop.last_harvest_date[0:4] }}{% endif %}{% endif %}</td>
+                <td class="text-end text-nowrap">
+                    {% if crop.notes %}
+                    <i class="bi bi-chat-left-text text-muted" title="{{ crop.notes }}"></i>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-secondary p-0 px-1 crop-edit-btn" data-crop='{{ {"id": crop.id|string, "plot_section": crop.plot_section or "", "crop": crop.crop, "variety": crop.variety or "", "planting_date": crop.planting_date if crop.planting_date else "", "planted_by": crop.planted_by or "", "days_to_maturity": crop.days_to_maturity|string if crop.days_to_maturity else "", "first_harvest_date": crop.first_harvest_date if crop.first_harvest_date else "", "last_harvest_date": crop.last_harvest_date if crop.last_harvest_date else "", "notes": crop.notes or ""} | tojson }}' title="Edit"><i class="bi bi-pencil"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info mb-3">No crops added yet.</div>
+{% endif %}
+
+<!-- Add Crop Form -->
+<div class="card mb-3">
+    <div class="card-header py-2">
+        <i class="bi bi-plus-circle"></i> Add Crop
+    </div>
+    <div class="card-body">
+        <form id="add-crop-form" class="row g-2 align-items-end">
+            <input type="hidden" id="crop-edit-id" value="">
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>Section</small></label>
+                <input type="text" class="form-control form-control-sm" name="plot_section" placeholder="A1">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Crop *</small></label>
+                <input type="text" class="form-control form-control-sm" name="crop" required placeholder="Tomato">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Variety</small></label>
+                <input type="text" class="form-control form-control-sm" name="variety" placeholder="Roma">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>Planted</small></label>
+                <input type="date" class="form-control form-control-sm" name="planting_date">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>By</small></label>
+                <input type="text" class="form-control form-control-sm" name="planted_by" placeholder="Name">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>Mat. (days)</small></label>
+                <input type="number" class="form-control form-control-sm" name="days_to_maturity" placeholder="75">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>1st Harvest</small></label>
+                <input type="date" class="form-control form-control-sm" name="first_harvest_date">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>Last Harvest</small></label>
+                <input type="date" class="form-control form-control-sm" name="last_harvest_date">
+            </div>
+            <div class="col-md-1">
+                <label class="form-label mb-0"><small>Notes</small></label>
+                <input type="text" class="form-control form-control-sm" name="notes" placeholder="Notes">
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="crop-submit-btn" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus"></i> <span id="crop-submit-text">Add</span>
+                </button>
+                <button type="button" id="crop-cancel-btn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Sharing -->
+{% if is_owner %}
+<div class="card mb-3">
+    <div class="card-header py-2">
+        <i class="bi bi-people"></i> Shared With
+    </div>
+    <div class="card-body">
+        {% if shared_users %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            {% for share, share_user in shared_users %}
+            <span class="badge bg-light text-dark border">
+                <i class="bi bi-person"></i> {{ share_user.username }}
+                <form method="post" action="/agriculture/agronomy/garden/{{ garden.id }}/revoke/{{ share.id }}" class="d-inline">
+                    <button type="submit" class="btn-close btn-close-sm ms-1" title="Remove access"></button>
+                </form>
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if all_users %}
+        <form method="post" action="/agriculture/agronomy/garden/{{ garden.id }}/share" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <select name="share_with_user_id" class="form-select form-select-sm">
+                    <option value="">Select user...</option>
+                    {% for u in all_users %}
+                    <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-share"></i> Share
+                </button>
+            </div>
+        </form>
+        {% elif not shared_users %}
+        <p class="text-muted small mb-0">No other users to share with.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="text-end">
+    <form method="post" action="/agriculture/agronomy/garden/{{ garden.id }}/delete"
+          onsubmit="return confirm('Delete this garden and all its crop data?')">
+        <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-trash"></i> Delete Garden
+        </button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+var gardenId = '{{ garden.id }}';
+
+document.getElementById('add-crop-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var data = new FormData(form);
+    var editId = document.getElementById('crop-edit-id').value;
+    var url, method;
+    if (editId) {
+        url = '/agriculture/agronomy/garden/' + gardenId + '/crops/' + editId;
+        method = 'PUT';
+    } else {
+        url = '/agriculture/agronomy/garden/' + gardenId + '/crops/create';
+        method = 'POST';
+    }
+    fetch(url, {method: method, body: data, credentials: 'include',
+        headers: {'Accept': 'application/json'}
+    }).then(function(r) {
+        if (r.ok) window.location.reload();
+        else return r.json().then(function(d) { alert(d.detail || 'Error'); });
+    }).catch(function() { alert('Request failed'); });
+});
+
+function resetCropForm() {
+    document.getElementById('add-crop-form').reset();
+    document.getElementById('crop-edit-id').value = '';
+    document.getElementById('crop-submit-text').textContent = 'Add';
+    document.getElementById('crop-submit-btn').className = 'btn btn-primary btn-sm';
+    document.getElementById('crop-cancel-btn').style.display = 'none';
+}
+
+document.getElementById('crop-cancel-btn').addEventListener('click', resetCropForm);
+
+document.querySelectorAll('.crop-edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var c = JSON.parse(btn.getAttribute('data-crop'));
+        document.getElementById('crop-edit-id').value = c.id;
+        var form = document.getElementById('add-crop-form');
+        form.querySelector('[name="plot_section"]').value = c.plot_section;
+        form.querySelector('[name="crop"]').value = c.crop;
+        form.querySelector('[name="variety"]').value = c.variety;
+        form.querySelector('[name="planting_date"]').value = c.planting_date;
+        form.querySelector('[name="planted_by"]').value = c.planted_by;
+        form.querySelector('[name="days_to_maturity"]').value = c.days_to_maturity;
+        form.querySelector('[name="first_harvest_date"]').value = c.first_harvest_date;
+        form.querySelector('[name="last_harvest_date"]').value = c.last_harvest_date;
+        form.querySelector('[name="notes"]').value = c.notes;
+        document.getElementById('crop-submit-text').textContent = 'Update';
+        document.getElementById('crop-submit-btn').className = 'btn btn-warning btn-sm';
+        document.getElementById('crop-cancel-btn').style.display = '';
+        form.scrollIntoView({behavior: 'smooth'});
+    });
+});
+</script>
+{% endblock %}

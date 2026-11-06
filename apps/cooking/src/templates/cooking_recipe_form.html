@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == "new" %}New Recipe{% else %}Edit Recipe{% endif %} - Cooking{% endblock %}
+
+{% block content %}
+<style>
+    .form-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+</style>
+
+<div class="mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/cooking/">Cooking</a></li>
+            {% if mode == "edit" and recipe %}
+            <li class="breadcrumb-item"><a href="/cooking/recipes/{{ recipe.id }}">{{ recipe.title }}</a></li>
+            {% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{% if mode == "new" %}New Recipe{% else %}Edit{% endif %}</li>
+        </ol>
+    </nav>
+    <h3 class="mb-0">
+        {% if mode == "new" %}
+        <i class="bi bi-plus-circle"></i> New Recipe
+        {% else %}
+        <i class="bi bi-pencil"></i> Edit Recipe
+        {% endif %}
+    </h3>
+</div>
+
+<div class="card form-card">
+    <div class="card-body">
+        <form method="post" action="/cooking/recipes/{% if mode == 'edit' %}{{ recipe.id }}/edit{% else %}new{% endif %}">
+            <div class="mb-3">
+                <label for="title" class="form-label fw-bold">Title *</label>
+                <input type="text" class="form-control" id="title" name="title"
+                       value="{% if recipe %}{{ recipe.title }}{% endif %}"
+                       required maxlength="500">
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label fw-bold">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3"
+                          placeholder="Brief description of the recipe...">{% if recipe and recipe.description %}{{ recipe.description }}{% endif %}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="ingredients" class="form-label fw-bold">Ingredients</label>
+                <small class="text-muted d-block mb-1">One ingredient per line (e.g. "2 cups flour", "salt to taste")</small>
+                <textarea class="form-control" id="ingredients" name="ingredients" rows="10"
+                          placeholder="2 cups flour&#10;1 tsp salt&#10;3 eggs&#10;1 cup milk">{{ ingredient_texts }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="steps" class="form-label fw-bold">Directions</label>
+                <small class="text-muted d-block mb-1">One step per line</small>
+                <textarea class="form-control" id="steps" name="steps" rows="10"
+                          placeholder="Preheat oven to 350F&#10;Mix dry ingredients together&#10;Add eggs and milk">{{ steps_text }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label for="source_link" class="form-label fw-bold">Source URL</label>
+                <input type="url" class="form-control" id="source_link" name="source_link"
+                       value="{% if recipe and recipe.source_link %}{{ recipe.source_link }}{% endif %}"
+                       placeholder="https://...">
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="is_public" name="is_public"
+                           {% if not recipe or recipe.is_public %}checked{% endif %}>
+                    <label class="form-check-label" for="is_public">
+                        <strong>Public recipe</strong>
+                        <small class="text-muted d-block">Public recipes are visible to all users. Uncheck to keep private.</small>
+                    </label>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-warning">
+                    {% if mode == "new" %}
+                    <i class="bi bi-plus-circle"></i> Create Recipe
+                    {% else %}
+                    <i class="bi bi-check-lg"></i> Save Changes
+                    {% endif %}
+                </button>
+                <a href="{% if mode == 'edit' and recipe %}/cooking/recipes/{{ recipe.id }}{% else %}/cooking/{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

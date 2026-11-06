@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Console — {{ node.name or node.node_id[:12] }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts">Contacts</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts/{{ node.node_id }}">{{ node.name or node.node_id[:12] }}</a></li>
+    <li class="breadcrumb-item active">Console</li>
+  </ol>
+</nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-terminal"></i> meshcli
+    <small class="text-muted">{{ node.name or node.node_id[:12] }}</small></h2>
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-primary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/status"><i class="bi bi-activity"></i> Status</a>
+    <a class="btn btn-primary" href="#"><i class="bi bi-terminal"></i> Console</a>
+    <a class="btn btn-outline-primary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/settings"><i class="bi bi-gear"></i> Settings</a>
+    <form method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/logout">
+      <button class="btn btn-outline-danger"><i class="bi bi-box-arrow-right"></i> Log out</button>
+    </form>
+  </div>
+</div>
+
+<form method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/cmd" class="mb-3">
+  <div class="input-group">
+    <span class="input-group-text font-monospace">$</span>
+    <input class="form-control font-monospace" name="cmd" value="{{ cmd }}" placeholder="meshcli command (e.g. ver)" required>
+    <button class="btn btn-primary"><i class="bi bi-play"></i> Run</button>
+  </div>
+</form>
+
+<div class="mb-3">
+  <span class="text-muted small me-1">Quick commands:</span>
+  {% for c in ["ver", "board", "clock", "neighbors", "region", "get tx", "battery", "clear stats"] %}
+  <form class="d-inline" method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/cmd">
+    <input type="hidden" name="cmd" value="{{ c }}">
+    <button class="btn btn-sm btn-outline-secondary me-1 mb-1 font-monospace">{{ c }}</button>
+  </form>
+  {% endfor %}
+</div>
+
+<div class="mb-3">
+  <span class="text-muted small me-1">Location &amp; adverts:</span>
+  {% for c in ["get lat", "get lon", "get advert.interval", "get flood.advert.interval", "gps advert", "gps advert prefs", "gps advert share", "gps advert none", "gps setloc", "gps sync", "advert", "advert.zerohop"] %}
+  <form class="d-inline" method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/cmd">
+    <input type="hidden" name="cmd" value="{{ c }}">
+    <button class="btn btn-sm btn-outline-secondary me-1 mb-1 font-monospace">{{ c }}</button>
+  </form>
+  {% endfor %}
+</div>
+
+{% if out %}
+<div class="card shadow-sm"><div class="card-body">
+  <h6 class="text-muted">$ {{ cmd }}</h6>
+  <pre class="mb-0" style="white-space:pre-wrap">{{ out }}</pre>
+</div></div>
+{% endif %}
+{% if error %}
+<div class="alert alert-warning mt-3"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
+{% endif %}
+{% if not out and not error %}
+<div class="text-muted">Run a command to see its output here. Replies can take a while over RF (up to ~15s).</div>
+{% endif %}
+{% endblock %}

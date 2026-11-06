@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}MeshCore — Channels{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item active">Channels</li>
+  </ol>
+</nav>
+<h2 class="mb-3">Channels <small class="text-muted">radio {{ 'connected' if radio_connected else 'offline' }}</small></h2>
+
+{% if msg %}<div class="alert alert-success py-1">{{ msg }}</div>{% endif %}
+{% if err %}<div class="alert alert-danger py-1">{{ err }}</div>{% endif %}
+
+<h5 class="text-muted">Followed</h5>
+<table class="table table-sm table-hover bg-white shadow-sm mb-4">
+  <thead><tr><th>Idx</th><th>Name</th><th>Last activity</th><th></th></tr></thead>
+  <tbody>
+  {% for c in followed %}
+    <tr>
+      <td>{{ c.idx }}</td>
+      <td><a href="/platforms/meshcore/channels/{{ c.idx }}">{{ c.name }}</a></td>
+      <td class="text-nowrap">{{ c.last_activity or "—" }}</td>
+      <td class="text-end">
+        <a class="btn btn-sm btn-outline-primary" href="/platforms/meshcore/channels/{{ c.idx }}">Open</a>
+        {% if c.idx != 0 %}
+        <form method="post" action="/platforms/meshcore/channels/{{ c.idx }}/unfollow" class="d-inline"
+              onsubmit="return confirm('Unfollow {{ c.name }}?')">
+          <button class="btn btn-sm btn-outline-danger">Unfollow</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="4" class="text-muted">Not following any channels.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h5 class="text-muted">Available</h5>
+<table class="table table-sm table-hover bg-white shadow-sm">
+  <thead><tr><th>Idx</th><th>Name</th><th></th></tr></thead>
+  <tbody>
+  {% for c in available %}
+    <tr>
+      <td>{{ c.idx }}</td>
+      <td>{{ c.name }}</td>
+      <td class="text-end">
+        <form method="post" action="/platforms/meshcore/channels/{{ c.idx }}/follow" class="d-flex gap-1 justify-content-end">
+          <input class="form-control form-control-sm" style="max-width:12rem" name="name" value="{{ c.name }}" title="Channel name (edit before following)">
+          <button class="btn btn-sm btn-success">Follow</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="3" class="text-muted">No other channels known.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if is_admin %}
+<div class="card bg-white shadow-sm mt-4">
+  <div class="card-body">
+    <h5 class="card-title">Add channel to radio</h5>
+    <p class="text-muted small mb-2">Creates a channel on the attached companion radio (companion channels are
+    normally phone-app-managed). PSK: 32 hex chars or base64 of 16 bytes. Leave slot empty for the first free slot.</p>
+    <form method="post" action="/platforms/meshcore/channels/add" class="row g-2">
+      <div class="col-md-3"><input class="form-control" name="name" placeholder="Channel name" required></div>
+      <div class="col-md-4"><input class="form-control" name="psk" placeholder="PSK (hex or base64)" required></div>
+      <div class="col-md-2"><input class="form-control" name="idx" placeholder="Slot (1-7, optional)"></div>
+      <div class="col-md-2"><button class="btn btn-primary">Save</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

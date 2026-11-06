@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{{ recipe.title }} - Cooking{% endblock %}
+
+{% block content %}
+<style>
+    .recipe-header {
+        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    .ingredient-item {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+    }
+    .ingredient-item:last-child { border-bottom: none; }
+    .step-item { display: flex; margin-bottom: 1rem; }
+    .step-number {
+        background: #ff6b35;
+        color: white;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        flex-shrink: 0;
+        margin-right: 1rem;
+    }
+    .supply-match { color: #2e7d32; }
+    .supply-no-match { color: #9e9e9e; }
+    .ingredient-tag {
+        background: #fff3e0;
+        color: #e65100;
+        border: 1px solid #ffcc80;
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin: 2px;
+    }
+</style>
+
+<div class="recipe-header">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb" style="margin-bottom: 0.5rem;">
+                    <li class="breadcrumb-item"><a href="/cooking/" style="color: rgba(255,255,255,0.8);">Cooking</a></li>
+                    {% if search_q or search_ingredients %}
+                    <li class="breadcrumb-item"><a href="/cooking/search?q={{ search_q|urlencode }}&ingredients={{ search_ingredients|urlencode }}&filter_by_supply={% if search_filter_by_supply %}true{% else %}false{% endif %}&page={{ search_page }}" style="color: rgba(255,255,255,0.8);">Search Results</a></li>
+                    {% endif %}
+                    <li class="breadcrumb-item active" aria-current="page" style="color: white;">{{ recipe.title }}</li>
+                </ol>
+            </nav>
+            <h2>{{ recipe.title }}
+                {% if not recipe.is_public %}
+                <span class="badge bg-secondary" style="font-size: 0.6em; vertical-align: middle;">Private</span>
+                {% endif %}
+            </h2>
+            {% if recipe.description %}
+            <p class="lead mb-0">{{ recipe.description }}</p>
+            {% endif %}
+            {% if recipe.source_link %}
+            <a href="{{ recipe.source_link }}" target="_blank" class="text-white-50"><i class="bi bi-link-45deg"></i> Source</a>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-start">
+            {% if can_edit %}
+            <div class="d-flex gap-2">
+                <a href="/cooking/recipes/{{ recipe.id }}/edit" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i> Edit</a>
+                <form method="post" action="/cooking/recipes/{{ recipe.id }}/delete" onsubmit="return confirm('Delete this recipe?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Delete</button>
+                </form>
+            </div>
+            {% endif %}
+            <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addMenuModal">
+                <i class="bi bi-calendar-plus"></i> Add to Menu
+            </button>
+        </div>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-warning">{{ error }}</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card" style="border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-basket"></i> Ingredients</h5>
+                {% if supply_available %}
+                <small class="text-muted">
+                    <span class="supply-match"><i class="bi bi-check-circle-fill"></i> in supply</span>
+                    <span class="supply-no-match"><i class="bi bi-dash-circle"></i> not in supply</span>
+                </small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% for ing in ingredients %}
+                <div class="ingredient-item">
+                    {% if supply_available %}
+                        {% if ing.in_supply %}
+                        <i class="bi bi-check-circle-fill supply-match me-2"></i>
+                        {% else %}
+                        <i class="bi bi-dash-circle supply-no-match me-2"></i>
+                        {% endif %}
+                    {% endif %}
+                    <span>{{ ing.text }}</span>
+                </div>
+                {% endfor %}
+                {% if not ingredients %}
+                <p class="text-muted">No ingredients listed</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card" style="border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-list-ol"></i> Directions</h5>
+            </div>
+            <div class="card-body">
+                {% if steps_list %}
+                    {% for step in steps_list %}
+                    <div class="step-item">
+                        <div class="step-number">{{ loop.index }}</div>
+                        <div style="padding-top: 4px;">{{ step }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted">No directions available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    {% if ingredients %}
+    <h6>Search for similar recipes:</h6>
+    {% for ing in similar %}
+    <a href="/cooking/search?ingredients={{ ing|urlencode }}" class="ingredient-tag text-decoration-none">{{ ing }}</a>
+    {% endfor %}
+    {% endif %}
+</div>
+
+<!-- Add to Menu Modal -->
+<div class="modal fade" id="addMenuModal" tabindex="-1" aria-labelledby="addMenuModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/cooking/recipes/{{ recipe.id }}/add-to-menu">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addMenuModalLabel"><i class="bi bi-calendar-plus"></i> Add to Menu</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Schedule <strong>{{ recipe.title }}</strong> on the menu calendar.</p>
+                    <div class="mb-3">
+                        <label for="menu_date" class="form-label fw-bold">Date *</label>
+                        <input type="date" class="form-control" id="menu_date" name="menu_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="meal_type" class="form-label fw-bold">Meal</label>
+                        <select class="form-select" id="meal_type" name="meal_type">
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="dinner" selected>Dinner</option>
+                            <option value="snack">Snack</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg"></i> Add to Menu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Reading Lists{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1000px;">
+    <nav aria-label="breadcrumb" class="mb-2">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+            <li class="breadcrumb-item active">Reading Lists</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>My Reading Lists</h2>
+        <div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReadingListModal">
+                <i class="bi bi-plus-circle"></i> Create Reading List
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        {% if reading_lists|length == 0 %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No reading lists found. Create one to get started!
+            </div>
+        </div>
+        {% else %}
+        {% for reading_list in reading_lists %}
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ reading_list.name }}</h5>
+                    <p class="card-text text-muted">
+                        Created: {{ reading_list.created_at[0:16] if reading_list.created_at else 'N/A' }}
+                    </p>
+                    <div class="d-flex gap-2">
+                        <a href="/library/ebook/reading-lists/{{ reading_list.name }}" class="btn btn-primary flex-grow-1">
+                            <i class="bi bi-list-check"></i> View
+                        </a>
+                        <form action="/library/ebook/reading-lists/{{ reading_list.name }}/delete" method="post" style="margin: 0;">
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this reading list?');">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Reading List Modal -->
+<div class="modal fade" id="createReadingListModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Reading List</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="createReadingListForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="readingListName" class="form-label">Reading List Name</label>
+                        <input type="text" class="form-control" id="readingListName" name="name" required
+                               placeholder="My Reading List">
+                    </div>
+                    <div class="mb-3">
+                        <label for="readingListType" class="form-label">Type</label>
+                        <select class="form-select" id="readingListType" name="type">
+                            <option value="book">Single Book</option>
+                            <option value="author">Entire Author</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="itemId" class="form-label">Item ID (Author/Book)</label>
+                        <input type="number" class="form-control" id="itemId" name="item_id"
+                               placeholder="Optional - leave empty for empty reading list">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Reading List</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('createReadingListForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitButton = this.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
+
+    const formData = new FormData(this);
+
+    try {
+        const response = await fetch('/library/ebook/reading-lists/create', {
+            method: 'POST',
+            body: new URLSearchParams(formData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createReadingListModal'));
+            modal.hide();
+
+            // Refresh page to show new reading list
+            window.location.reload();
+        } else {
+            alert(result.detail || 'Error creating reading list');
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Create Reading List';
+        }
+    } catch (error) {
+        alert('Error creating reading list: ' + error.message);
+        submitButton.disabled = false;
+        submitButton.innerHTML = 'Create Reading List';
+    }
+});
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}
+

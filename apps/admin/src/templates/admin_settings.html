@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Settings — Admin{% endblock %}
+{% block content %}
+<h2 class="mb-3 d-flex justify-content-between align-items-center">Settings
+  <form method="post" action="/admin/restart"
+        onsubmit="return confirm('Restart the console? Takes a few seconds; new settings take effect after restart.');">
+    <button type="submit" class="btn btn-sm btn-outline-danger">
+      <i class="bi bi-arrow-clockwise"></i> Restart server
+    </button>
+  </form>
+</h2>
+<p class="text-muted small">
+  Some settings (mesh broker, radio) are read at startup — restart the server
+  after changing them.
+</p>
+<div class="card bg-white shadow-sm mb-3">
+  <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div>
+      <h5 class="card-title mb-1"><i class="bi bi-arrow-left-right"></i> Bearden Tunnel</h5>
+      {% if tunnel_error %}
+      <span class="badge bg-secondary">unknown</span>
+      <span class="text-muted small">{{ tunnel_error }}</span>
+      {% elif tunnel_enabled %}
+      <span class="badge bg-success">enabled</span>
+      <span class="text-muted small">this console's den forwards its mesh traffic to the peer den</span>
+      {% else %}
+      <span class="badge bg-secondary">disabled</span>
+      <span class="text-muted small">mesh traffic stays local to this den</span>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <form method="post" action="/admin/settings/tunnel">
+        <input type="hidden" name="enabled" value="1">
+        <button class="btn btn-sm {% if tunnel_enabled %}btn-outline-secondary{% else %}btn-success{% endif %}" {% if tunnel_enabled %}disabled{% endif %}>Enable</button>
+      </form>
+      <form method="post" action="/admin/settings/tunnel" onsubmit="return confirm('Disable the tunnel? Mesh traffic will stop forwarding to the peer den.');">
+        <input type="hidden" name="enabled" value="0">
+        <button class="btn btn-sm {% if tunnel_enabled %}btn-outline-danger{% else %}btn-outline-secondary{% endif %}" {% if not tunnel_enabled %}disabled{% endif %}>Disable</button>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="row">
+  <div class="col-md-12">
+    <details class="mb-3" id="new-setting">
+      <summary class="btn btn-primary d-inline-block ps-3 pe-3" style="list-style:none">
+        <i class="bi bi-plus-lg"></i> New setting
+      </summary>
+      <div class="card shadow-sm mt-2"><div class="card-body">
+        <form method="post" action="/admin/settings">
+          <div class="row g-2 mb-2">
+            <div class="col"><label class="form-label">Key</label>
+              <input class="form-control" name="key" required></div>
+            <div class="col"><label class="form-label">Value</label>
+              <input class="form-control" name="value" required></div>
+          </div>
+          <button class="btn btn-primary" type="submit">Save</button>
+        </form>
+      </div></div>
+    </details>
+    <table class="table table-hover bg-white shadow-sm w-100">
+      <thead><tr><th style="width:30%">Key</th><th style="width:45%">Value</th><th></th></tr></thead>
+      <tbody>
+      {% for s in settings %}
+        <tr>
+          <td>{% if s.desc %}<code>{{ s.key }}</code>
+              <div class="text-muted small">{{ s.desc }}</div>
+              {% else %}<code>{{ s.key }}</code>{% endif %}</td>
+          <td class="text-break" style="max-width:44rem; width:100%; overflow-wrap:anywhere; word-break:break-all;">{{ s.value }}</td>
+          <td class="text-end">
+            <form method="post" action="/admin/settings" class="d-flex gap-2 justify-content-end">
+              <input type="hidden" name="key" value="{{ s.key }}">
+              <input class="form-control form-control-sm" style="width:12rem" name="value" value="{{ s.value }}">
+              <button class="btn btn-sm btn-outline-primary">Save</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

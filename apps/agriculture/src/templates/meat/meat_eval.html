@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Eval - {{ animal.name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/meat/">Meat</a></li>
+        <li class="breadcrumb-item"><a href="/meat/groups/{{ group_id }}">{{ group_name }}</a></li>
+        <li class="breadcrumb-item"><a href="/meat/groups/{{ group_id }}/members">Members</a></li>
+        <li class="breadcrumb-item active">{{ animal.name }} - Eval</li>
+    </ol>
+</nav>
+<h2><i class="bi bi-clipboard-check"></i> Eval: {{ animal.name }}</h2>
+<p class="text-muted">{{ animal.animal_type }} &middot; {{ animal.breed or '' }} &middot; Qty: {{ animal.quantity }}{% if animal.acquisition_date %} &middot; Purchased: {{ animal.acquisition_date[5:7] ~ '/' ~ animal.acquisition_date[8:10] ~ '/' ~ animal.acquisition_date[0:4] }}{% endif %}</p>
+
+<div class="card mb-3">
+    <div class="card-header py-2"><i class="bi bi-plus-circle"></i> <span id="formTitle">Add Eval Record</span></div>
+    <div class="card-body">
+        <form id="evalForm" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Date *</small></label>
+                <input type="date" class="form-control form-control-sm" name="eval_date" id="eval_date" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Days</small></label>
+                <input type="text" class="form-control form-control-sm bg-light" id="days_calc" readonly placeholder="—">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Weight (lbs)</small></label>
+                <input type="number" step="0.1" class="form-control form-control-sm" name="weight" id="weight" placeholder="0.0">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>BCS *</small></label>
+                <select class="form-select form-select-sm" name="bcs" id="bcs" required>
+                    <option value="">Select...</option>
+                    <option value="1">1 - Emaciated</option>
+                    <option value="2">2 - Thin</option>
+                    <option value="3">3 - Ideal</option>
+                    <option value="4">4 - Heavy</option>
+                    <option value="5">5 - Obese</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-0"><small>Notes</small></label>
+                <input type="text" class="form-control form-control-sm" name="notes" id="notes">
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-sm"><i class="bi bi-check"></i> <span id="submitText">Add</span></button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<h5>Eval History</h5>
+{% if eval_records %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr><th>Date</th><th>Days Since Purchase</th><th>Weight (lbs)</th><th>BCS</th><th>Notes</th><th>By</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for r in eval_records %}
+            <tr>
+                <td class="text-nowrap">{{ r.eval_date }}</td>
+                <td>{{ r.days_since if r.days_since is not none else '' }}</td>
+                <td>{{ r.weight or '' }}</td>
+                <td>
+                    {% if r.bcs == 1 %}<span class="badge bg-danger">{{ r.bcs }}</span>
+                    {% elif r.bcs == 2 %}<span class="badge bg-warning">{{ r.bcs }}</span>
+                    {% elif r.bcs == 3 %}<span class="badge bg-success">{{ r.bcs }}</span>
+                    {% elif r.bcs == 4 %}<span class="badge bg-warning text-dark">{{ r.bcs }}</span>
+                    {% elif r.bcs == 5 %}<span class="badge bg-danger">{{ r.bcs }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ r.notes or '' }}</td>
+                <td><small>{{ r.recorded_by }}</small></td>
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick='editEval({{ r|tojson }})' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteEval('{{ r.id }}')"><i class="bi bi-x"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">No eval records yet.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const groupId = '{{ group_id }}';
+const animalId = '{{ animal.id }}';
+const acquisitionDate = '{{ animal.acquisition_date[0:10] if animal.acquisition_date else '' }}';
+
+document.getElementById('eval_date').addEventListener('change', function() {
+    if (!this.value || !acquisitionDate) { document.getElementById('days_calc').value = ''; return; }
+    var diff = Math.round((new Date(this.value) - new Date(acquisitionDate)) / 86400000);
+    document.getElementById('days_calc').value = diff >= 0 ? diff + ' days' : '';
+});
+
+document.getElementById('evalForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var url, method;
+    if (editingId) {
+        url = '/meat/groups/' + groupId + '/animals/' + animalId + '/eval/' + editingId;
+        method = 'PUT';
+    } else {
+        url = '/meat/groups/' + groupId + '/animals/' + animalId + '/eval/add';
+        method = 'POST';
+    }
+    fetch(url, {method: method, body: new FormData(this), credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+});
+
+document.getElementById('cancelBtn').addEventListener('click', resetEvalForm);
+
+let editingId = null;
+
+function editEval(r) {
+    editingId = r.id;
+    document.getElementById('eval_date').value = r.eval_date;
+    document.getElementById('eval_date').dispatchEvent(new Event('change'));
+    document.getElementById('weight').value = r.weight || '';
+    document.getElementById('bcs').value = r.bcs;
+    document.getElementById('notes').value = r.notes || '';
+    document.getElementById('formTitle').textContent = 'Edit Eval Record';
+    document.getElementById('submitText').textContent = 'Update';
+    document.getElementById('submitBtn').className = 'btn btn-warning btn-sm';
+    document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('evalForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetEvalForm() {
+    document.getElementById('evalForm').reset();
+    editingId = null;
+    document.getElementById('days_calc').value = '';
+    document.getElementById('formTitle').textContent = 'Add Eval Record';
+    document.getElementById('submitText').textContent = 'Add';
+    document.getElementById('submitBtn').className = 'btn btn-success btn-sm';
+    document.getElementById('cancelBtn').style.display = 'none';
+}
+
+function deleteEval(id) {
+    if (!confirm('Delete this record?')) return;
+    fetch('/meat/groups/' + groupId + '/animals/' + animalId + '/eval/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+</script>
+{% endblock %}

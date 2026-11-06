@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == "new" %}New Album{% else %}Edit {{ album.name }}{% endif %} - Photos{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        {% if mode == "edit" %}
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/library/photo/">Photos</a></li>
+                <li class="breadcrumb-item"><a href="/library/photo/album/{{ album.id }}">{{ album.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+        {% else %}
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/library/photo/">Photos</a></li>
+                <li class="breadcrumb-item active" aria-current="page">New Album</li>
+            </ol>
+        </nav>
+        {% endif %}
+        <h2>{% if mode == "new" %}<i class="bi bi-plus-circle"></i> New Album{% else %}<i class="bi bi-pencil"></i> Edit Album{% endif %}</h2>
+
+        <div class="card">
+            <div class="card-body">
+                <form action="/library/photo/album/{% if mode == "edit" %}{{ album.id }}/edit{% else %}new{% endif %}" method="POST" enctype="application/x-www-form-urlencoded">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Album Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               value="{% if album %}{{ album.name }}{% endif %}"
+                               placeholder="e.g., 2020 Summer Vacation, Flowers, etc.">
+                    </div>
+
+                    {% if mode == "new" and own_albums %}
+                    <div class="mb-3">
+                        <label for="parent_id" class="form-label">Parent Album</label>
+                        <select class="form-select" id="parent_id" name="parent_id">
+                            <option value="">None (top-level album)</option>
+                            {% for a in own_albums %}
+                            <option value="{{ a.id }}" {% if preselected_parent_id and a.id == preselected_parent_id %}selected{% endif %}>{{ a.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Leave empty for a top-level album, or select a parent to create a section within that album.</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                                  placeholder="Optional description of this album">{% if album %}{{ album.description or "" }}{% endif %}</textarea>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_public" name="is_public" value="on"
+                               {% if album and album.is_public %}checked{% endif %}>
+                        <label class="form-check-label" for="is_public">
+                            Make this album public
+                        </label>
+                    </div>
+
+                    {% if mode == "edit" %}
+                    <div class="mb-3">
+                        <label for="directory_path" class="form-label">Directory Path</label>
+                        <input type="text" class="form-control" id="directory_path" name="directory_path"
+                               value="{{ album.directory_path }}"
+                               placeholder="/path/to/photos/on/disk">
+                        <div class="form-text">The directory on disk where this album's photos are stored. Change this if you've moved your photo library to a new location.</div>
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary">
+                        {% if mode == "new" %}Create Album{% else %}Save Changes{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% if mode == "edit" %}
+        <div class="card mt-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-tools"></i> Album Maintenance</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-primary" id="rescanBtn">
+                        <i class="bi bi-arrow-repeat"></i> Rescan Album Directory
+                    </button>
+                    <button class="btn btn-outline-secondary" id="regenThumbsBtn">
+                        <i class="bi bi-arrow-clockwise"></i> Regenerate All Thumbnails
+                    </button>
+                    <button class="btn btn-outline-danger" id="removeThumbPhotosBtn">
+                        <i class="bi bi-trash"></i> Remove Thumbnail-sized Photos
+                    </button>
+                </div>
+                <div class="form-text mt-2">
+                    <strong>Rescan Album Directory</strong> syncs the database with the files on disk — adds new photos, removes entries for deleted files, and regenerates missing thumbnails.
+                    <br><strong>Regenerate All Thumbnails</strong> recreates thumbnail images for all photos in this album.
+                    <br><strong>Remove Thumbnail-sized Photos</strong> deletes photos that appear to be thumbnails of other photos (small dimensions or file size).
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-share"></i> Share Album</h5>
+            </div>
+            <div class="card-body">
+                {% if shared_users %}
+                <h6>Currently shared with:</h6>
+                <ul class="list-group mb-3">
+                    {% for share, shared_user in shared_users %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-person"></i> {{ shared_user.username }}</span>
+                        <form action="/library/photo/album/{{ album.id }}/revoke/{{ share.id }}" method="POST">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-x-circle"></i> Revoke
+                            </button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if all_users %}
+                <form action="/library/photo/album/{{ album.id }}/share" method="POST" class="d-flex gap-2">
+                    <select name="share_with_user_id" class="form-select form-select-sm">
+                        <option value="">Select a user to share with...</option>
+                        {% for u in all_users %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-share"></i> Share
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-trash"></i> Danger Zone</h5>
+            </div>
+            <div class="card-body">
+                <p>Remove all photo entries from the database for this album. The actual photo files on disk are preserved. You can then rescan the directory to re-index them.</p>
+                <form action="/library/photo/album/{{ album.id }}/clear-db" method="POST"
+                      onsubmit="return confirm('Clear all photo entries from the database? The actual files on disk will be preserved.')">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-database-x"></i> Clear Database (Keep Files)
+                    </button>
+                </form>
+
+                <hr>
+
+                <p>Delete this album and all photos within it. This cannot be undone.</p>
+                <form action="/library/photo/album/{{ album.id }}/delete" method="POST"
+                      onsubmit="return confirm('Are you sure you want to delete this album and all its photos? This cannot be undone.')">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Album
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if mode == "edit" %}
+<script>
+document.getElementById('rescanBtn').addEventListener('click', async function() {
+    if (!confirm('Rescan the album directory to sync database with disk?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+    try {
+        const resp = await fetch('/library/photo/album/{{ album.id }}/rescan', { method: 'POST' });
+        const data = await resp.json();
+        alert(data.message);
+    } catch(e) { alert('Error: ' + e.message); }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Rescan Album Directory';
+});
+
+document.getElementById('regenThumbsBtn').addEventListener('click', async function() {
+    if (!confirm('Regenerate thumbnails for all photos in this album?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working...';
+    try {
+        const resp = await fetch('/library/photo/album/{{ album.id }}/regenerate-thumbnails', { method: 'POST' });
+        const data = await resp.json();
+        alert(data.message);
+    } catch(e) { alert('Error: ' + e.message); }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Regenerate All Thumbnails';
+});
+
+document.getElementById('removeThumbPhotosBtn').addEventListener('click', async function() {
+    if (!confirm('Remove photos that appear to be thumbnails of other photos? This cannot be undone.')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working...';
+    try {
+        const resp = await fetch('/library/photo/album/{{ album.id }}/remove-thumbnail-photos', { method: 'POST' });
+        const data = await resp.json();
+        alert(data.message);
+    } catch(e) { alert('Error: ' + e.message); }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-trash"></i> Remove Thumbnail-sized Photos';
+});
+</script>
+{% endif %}
+{% endblock %}

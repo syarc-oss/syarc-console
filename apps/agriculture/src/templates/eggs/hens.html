@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Hen Management - Eggs{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/eggs/">Eggs</a></li>
+        <li class="breadcrumb-item"><a href="/eggs/coops/{{ coop_id }}">{{ coop_name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Hen Management</li>
+    </ol>
+</nav>
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Hen Management</h2>
+                <p class="text-muted">Manage your flock of hens</p>
+            </div>
+            <div>
+                <a href="/eggs/coops/{{ coop_id }}" class="btn btn-outline-primary">
+                    <i class="bi bi-house-door me-2"></i>Menu
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Hen Form -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <form id="henForm" class="needs-validation" novalidate
+              method="POST"
+              action="/eggs/coops/{{ coop_id }}/hens/create">
+            <input type="hidden" id="henId" name="henId">
+            <h5 id="formTitle">Add New Hen</h5>
+
+            <div class="mb-3">
+                <label for="henName" class="form-label">Hen Name *</label>
+                <input type="text" class="form-control" id="henName" name="name" required maxlength="100">
+                <div class="invalid-feedback">Please enter a hen name (1-100 characters)</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="henBreed" class="form-label">Breed</label>
+                <input type="text" class="form-control" id="henBreed" name="breed" maxlength="100">
+            </div>
+
+            <div class="mb-3">
+                <label for="acquisitionDate" class="form-label">Acquired Date</label>
+                <input type="date" class="form-control" id="acquisitionDate" name="acquisition_date">
+            </div>
+
+            <div class="mb-3">
+                <label for="henNotes" class="form-label">Notes</label>
+                <textarea class="form-control" id="henNotes" name="notes" rows="2"></textarea>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn btn-success">Add Hen</button>
+            <button type="button" id="cancelBtn" class="btn btn-secondary" style="display: none;">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<!-- Hens List -->
+<div class="row mt-5">
+    <div class="col-md-12">
+        <h3>Your Hens</h3>
+        <div id="hensList"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const coopId = "{{ coop_id }}";
+    let editingHenId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadHens();
+
+        const form = document.getElementById('henForm');
+        if (!form) { console.error("Form not found!"); return; }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const isUpdate = editingHenId !== null;
+
+            const url = isUpdate ? `/eggs/coops/${coopId}/hens/${editingHenId}` : `/eggs/coops/${coopId}/hens/create`;
+            const method = isUpdate ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                body: formData,
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert(isUpdate ? 'Hen updated successfully!' : 'Hen added successfully!');
+                    resetForm();
+                    loadHens();
+                } else {
+                    response.json().then(errorData => {
+                        let errorMessage = 'An unknown error occurred.';
+                        if (errorData && errorData.detail) {
+                            if (Array.isArray(errorData.detail)) {
+                                errorMessage = errorData.detail.map(err => err.msg).join(', ');
+                            } else {
+                                errorMessage = errorData.detail;
+                            }
+                        }
+                        alert('Error: ' + errorMessage);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                alert('An unexpected error occurred: ' + error.message);
+            });
+        });
+
+        document.getElementById('cancelBtn').addEventListener('click', function() {
+            resetForm();
+        });
+    });
+
+    function resetForm() {
+        document.getElementById('henForm').reset();
+        editingHenId = null;
+        document.getElementById('henId').value = '';
+        document.getElementById('henName').readOnly = false;
+        document.getElementById('formTitle').textContent = 'Add New Hen';
+        document.getElementById('submitBtn').textContent = 'Add Hen';
+        document.getElementById('submitBtn').className = 'btn btn-success';
+        document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    function populateHenForm(hen) {
+        editingHenId = hen.id;
+        document.getElementById('henId').value = hen.id;
+        document.getElementById('henName').value = hen.name;
+        document.getElementById('henBreed').value = hen.breed || '';
+        document.getElementById('acquisitionDate').value = hen.acquisition_date || '';
+        document.getElementById('henNotes').value = hen.notes || '';
+
+        document.getElementById('henName').readOnly = true;
+        document.getElementById('formTitle').textContent = 'Update Hen';
+        document.getElementById('submitBtn').textContent = 'Update Hen';
+        document.getElementById('submitBtn').className = 'btn btn-warning';
+        document.getElementById('cancelBtn').style.display = 'inline-block';
+        document.getElementById('henForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function loadHens() {
+        fetch(`/eggs/coops/${coopId}/hens/list`)
+            .then(response => response.json())
+            .then(data => {
+                let html = '';
+                if (data.length > 0) {
+                    html = '<table class="table"><thead><tr><th>Name</th><th>Breed</th><th>Acquired</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+
+                    data.forEach(hen => {
+                        const acquisitionDate = hen.acquisition_date
+                            ? new Date(hen.acquisition_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : '';
+
+                        html += `
+                            <tr>
+                                <td>${hen.name}</td>
+                                <td>${hen.breed || '-'}</td>
+                                <td>${acquisitionDate || '-'}</td>
+                                <td>
+                                    <span class="badge ${hen.is_active ? 'bg-success' : 'bg-secondary'}">
+                                        ${hen.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button onclick="populateHenForm(${JSON.stringify(hen).replace(/"/g, '&quot;')})"
+                                            class="btn btn-sm btn-primary">
+                                        Update
+                                    </button>
+                                    <button onclick="toggleHenStatus('${hen.id}')"
+                                            class="btn btn-sm ${hen.is_active ? 'btn-warning' : 'btn-success'}">
+                                        ${hen.is_active ? 'Deactivate' : 'Activate'}
+                                    </button>
+                                    <button onclick="deleteHen('${hen.id}')" class="btn btn-sm btn-danger">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    html += '</tbody></table>';
+                } else {
+                    html = '<p>No hens in your flock. Add one above!</p>';
+                }
+                document.getElementById('hensList').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading hens:', error);
+                document.getElementById('hensList').innerHTML = '<p class="text-danger">Error loading hens.</p>';
+            });
+    }
+
+    function toggleHenStatus(henId) {
+        fetch(`/eggs/coops/${coopId}/hens/${henId}/toggle`, {
+            method: 'PATCH',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) { alert('Hen status updated!'); loadHens(); }
+            else { response.json().then(error => alert('Error: ' + error.detail)); }
+        });
+    }
+
+    function deleteHen(henId) {
+        if (!confirm('Are you sure? This cannot be undone.')) return;
+        fetch(`/eggs/coops/${coopId}/hens/${henId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) { alert('Hen deleted!'); loadHens(); }
+            else { response.json().then(error => alert('Error: ' + error.detail)); }
+        });
+    }
+</script>
+{% endblock %}

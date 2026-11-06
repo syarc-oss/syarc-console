@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Manage Members - {{ group_name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/milk/">Milk</a></li>
+        <li class="breadcrumb-item"><a href="/milk/groups/{{ group_id }}">{{ group_name }}</a></li>
+        <li class="breadcrumb-item active">Members</li>
+    </ol>
+</nav>
+<h2>Manage Members</h2>
+
+<!-- Add/Edit Form -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form id="animalForm" class="row g-2 align-items-end">
+            <input type="hidden" id="editId" value="">
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Name *</small></label>
+                <input type="text" class="form-control form-control-sm" id="name" name="name" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Animal *</small></label>
+                <select class="form-select form-select-sm" id="animal_type" name="animal_type">
+                    <option value="cow">Cow</option>
+                    <option value="goat">Goat</option>
+                    <option value="sheep">Sheep</option>
+                    <option value="buffalo">Buffalo</option>
+                    <option value="camel">Camel</option>
+                    <option value="yak">Yak</option>
+                    <option value="horse">Horse</option>
+                    <option value="donkey">Donkey</option>
+                    <option value="reindeer">Reindeer</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Breed</small></label>
+                <input type="text" class="form-control form-control-sm" id="breed" name="breed">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Date Purchased</small></label>
+                <input type="date" class="form-control form-control-sm" id="acquisition_date" name="acquisition_date">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Notes</small></label>
+                <input type="text" class="form-control form-control-sm" id="notes" name="notes">
+            </div>
+            <div class="col-md-auto">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="is_producing" name="is_producing" checked>
+                    <label class="form-check-label small" for="is_producing">Producing</label>
+                </div>
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-sm"><i class="bi bi-plus"></i> <span id="submitText">Add</span></button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="animalsList"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const groupId = '{{ group_id }}';
+let editingId = null;
+
+document.getElementById('animalForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var data = new FormData(this);
+    var url, method;
+    if (editingId) {
+        url = '/milk/groups/' + groupId + '/animals/' + editingId;
+        method = 'PUT';
+    } else {
+        url = '/milk/groups/' + groupId + '/animals/create';
+        method = 'POST';
+    }
+    fetch(url, {method: method, body: data, credentials: 'include'})
+        .then(r => r.ok ? (loadAnimals(), resetForm()) : r.json().then(d => alert(d.detail || 'Error')));
+});
+
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+function resetForm() {
+    document.getElementById('animalForm').reset();
+    editingId = null;
+    document.getElementById('editId').value = '';
+    document.getElementById('submitText').textContent = 'Add';
+    document.getElementById('submitBtn').className = 'btn btn-success btn-sm';
+    document.getElementById('cancelBtn').style.display = 'none';
+    document.getElementById('is_producing').checked = true;
+}
+
+function editAnimal(a) {
+    editingId = a.id;
+    document.getElementById('editId').value = a.id;
+    document.getElementById('name').value = a.name;
+    document.getElementById('animal_type').value = a.animal_type;
+    document.getElementById('breed').value = a.breed || '';
+    document.getElementById('acquisition_date').value = a.acquisition_date || '';
+    document.getElementById('notes').value = a.notes || '';
+    document.getElementById('is_producing').checked = a.is_producing;
+    document.getElementById('submitText').textContent = 'Update';
+    document.getElementById('submitBtn').className = 'btn btn-warning btn-sm';
+    document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('animalForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function toggleProducing(id) {
+    fetch('/milk/groups/' + groupId + '/animals/' + id + '/toggle', {method: 'PATCH', credentials: 'include'})
+        .then(r => r.ok ? loadAnimals() : r.json().then(d => alert(d.detail)));
+}
+
+function deleteAnimal(id) {
+    if (!confirm('Delete this animal and all its records?')) return;
+    fetch('/milk/groups/' + groupId + '/animals/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? loadAnimals() : r.json().then(d => alert(d.detail)));
+}
+
+function loadAnimals() {
+    fetch('/milk/groups/' + groupId + '/animals/list')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.length) {
+                document.getElementById('animalsList').innerHTML = '<div class="alert alert-info">No animals yet. Add one above!</div>';
+                return;
+            }
+            var html = '<div class="table-responsive"><table class="table table-sm table-hover align-middle" style="font-size:0.85rem">' +
+                '<thead class="table-light"><tr><th>Name</th><th>Animal</th><th>Breed</th><th>Purchased</th><th>Producing</th><th>Notes</th><th class="text-end">Actions</th></tr></thead><tbody>';
+            data.forEach(function(a) {
+                var d = a.acquisition_date ? new Date(a.acquisition_date + 'T00:00:00').toLocaleDateString('en-US', {month:'2-digit', day:'2-digit', year:'numeric'}) : '';
+                html += '<tr>' +
+                    '<td class="fw-bold">' + esc(a.name) + '</td>' +
+                    '<td><span class="badge bg-secondary">' + esc(a.animal_type) + '</span></td>' +
+                    '<td>' + esc(a.breed || '') + '</td>' +
+                    '<td class="text-nowrap">' + d + '</td>' +
+                    '<td><span class="badge ' + (a.is_producing ? 'bg-success' : 'bg-secondary') + '">' + (a.is_producing ? 'Yes' : 'No') + '</span></td>' +
+                    '<td><small>' + esc(a.notes || '') + '</small></td>' +
+                    '<td class="text-end text-nowrap">' +
+                        '<a href="/milk/groups/' + groupId + '/animals/' + a.id + '/medical" class="btn btn-sm btn-outline-info py-0" title="Medical"><i class="bi bi-heart-pulse"></i></a> ' +
+                        '<button class="btn btn-sm btn-outline-secondary py-0" onclick=\'editAnimal(' + JSON.stringify(a).replace(/'/g, "&#39;") + ')\' title="Edit"><i class="bi bi-pencil"></i></button> ' +
+                        '<button class="btn btn-sm btn-outline-' + (a.is_producing ? 'warning' : 'success') + ' py-0" onclick="toggleProducing(\'' + a.id + '\')" title="' + (a.is_producing ? 'Stop Producing' : 'Start Producing') + '"><i class="bi bi-power"></i></button> ' +
+                        '<button class="btn btn-sm btn-outline-danger py-0" onclick="deleteAnimal(\'' + a.id + '\')" title="Delete"><i class="bi bi-trash"></i></button>' +
+                    '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+            document.getElementById('animalsList').innerHTML = html;
+        });
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+loadAnimals();
+</script>
+{% endblock %}

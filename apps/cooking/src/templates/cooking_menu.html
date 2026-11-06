@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Menu Calendar - {{ month_name }} {{ year }} - Cooking{% endblock %}
+
+{% block content %}
+<style>
+    .menu-hero {
+        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #fcb045 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+    }
+    .menu-day-entry {
+        display: block;
+        margin-bottom: 0.25rem;
+        padding: 2px 6px;
+        border-radius: 6px;
+        font-size: 0.72em;
+        line-height: 1.2;
+    }
+    .menu-day-entry > a {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+        text-decoration: none;
+        color: inherit;
+    }
+    .meal-breakfast { background-color: #fff3cd; color: #664d03; }
+    .meal-lunch      { background-color: #cff4fc; color: #055160; }
+    .meal-dinner     { background-color: #cfe2ff; color: #084298; }
+    .meal-snack      { background-color: #d1e7dd; color: #0f5132; }
+    .entry-delete {
+        color: inherit;
+        opacity: 0.55;
+        margin-left: 2px;
+        font-size: 0.9em;
+    }
+    .entry-delete:hover { opacity: 1; color: #842029; }
+</style>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/cooking/">Cooking</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Menu</li>
+    </ol>
+</nav>
+
+<div class="menu-hero">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h2><i class="bi bi-calendar3"></i> Menu Calendar</h2>
+            <p class="lead mb-0">Planned meals — select an entry to view its recipe</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/cooking/" class="btn btn-outline-light">
+                <i class="bi bi-search"></i> Find Recipes
+            </a>
+            <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#shoppingListModal">
+                <i class="bi bi-cart-check"></i> Create Shopping List
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Month Navigation -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="/cooking/menu?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-outline-warning">
+        <i class="bi bi-chevron-left"></i> {{ prev_month_name }}
+    </a>
+    <h3 class="mb-0">{{ month_name }} {{ year }}</h3>
+    <a href="/cooking/menu?year={{ next_year }}&month={{ next_month }}" class="btn btn-outline-warning">
+        {{ next_month_name }} <i class="bi bi-chevron-right"></i>
+    </a>
+</div>
+
+<!-- Calendar Grid -->
+<div class="card" style="border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+    <div class="card-body p-0">
+        <table class="table table-bordered mb-0" style="table-layout: fixed;">
+            <thead class="table-warning">
+                <tr>
+                    <th class="text-center">Mon</th>
+                    <th class="text-center">Tue</th>
+                    <th class="text-center">Wed</th>
+                    <th class="text-center">Thu</th>
+                    <th class="text-center">Fri</th>
+                    <th class="text-center">Sat</th>
+                    <th class="text-center">Sun</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for week in weeks %}
+                <tr>
+                    {% for cell in week %}
+                    <td class="p-1" style="height: 110px; vertical-align: top;">
+                        {% if cell %}
+                        <div class="{{ 'bg-warning text-dark rounded px-1' if cell.is_today else 'text-muted' }}" style="font-size: 0.85em;">
+                            <strong>{{ cell.day }}</strong>
+                        </div>
+                        {% for entry in cell.entries %}
+                        <div class="menu-day-entry meal-{{ entry.meal_type }}"
+                             title="{{ entry.title }} ({{ entry.meal_type|capitalize }})">
+                            <a href="/cooking/recipes/{{ entry.recipe_id }}">{{ entry.title }}</a>
+                            {% if entry.cook %}<span class="ms-1" title="cook">🍳{{ entry.cook }}</span>{% endif %}
+                            <form method="post" action="/cooking/menu/{{ entry.id }}/cook" class="d-flex align-items-center mt-0">
+                                <select name="cook_user_id" class="form-select form-select-sm py-0 px-1" style="font-size: 0.85em;"
+                                        onchange="this.form.submit()">
+                                    <option value="">cook…</option>
+                                    {% for u in users %}
+                                    <option value="{{ u.id }}" {{ 'selected' if entry.cook_user_id == u.id }}>{{ u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            {% if entry.can_delete %}
+                            <form method="post" action="/cooking/menu/{{ entry.id }}/delete"
+                                  onsubmit="return confirm('Remove this meal from the menu?')">
+                                <button type="submit" class="btn btn-link btn-sm p-0 m-0 align-baseline entry-delete" title="Remove">
+                                    <i class="bi bi-x-circle-fill"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="mt-3 d-flex flex-wrap gap-2">
+    {% for meal in meal_types %}
+    <span class="badge meal-{{ meal }}">{{ meal|capitalize }}</span>
+    {% endfor %}
+</div>
+
+<div class="alert alert-info mt-3">
+    <i class="bi bi-info-circle"></i>
+    Add recipes to the menu from a recipe's page using the <strong>Add to Menu</strong> button.
+</div>
+
+<!-- Shopping List Modal -->
+<div class="modal fade" id="shoppingListModal" tabindex="-1" aria-labelledby="shoppingListModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="get" action="/cooking/shopping-list">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shoppingListModalLabel"><i class="bi bi-cart-check"></i> Create Shopping List</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Generate a shopping list from all menu recipes within a date range, showing what you already have in supply.</p>
+                    <div class="mb-3">
+                        <label for="sl_start_date" class="form-label fw-bold">From date *</label>
+                        <input type="date" class="form-control" id="sl_start_date" name="start_date" required value="{{ year }}-{{ month_padded }}-01">
+                    </div>
+                    <div class="mb-3">
+                        <label for="sl_end_date" class="form-label fw-bold">To date *</label>
+                        <input type="date" class="form-control" id="sl_end_date" name="end_date" required value="{{ year }}-{{ month_padded }}-{{ days_padded }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-arrow-right"></i> Generate List</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

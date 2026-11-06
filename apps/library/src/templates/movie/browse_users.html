@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Users - Movies{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Browse Users</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+            <h2><i class="bi bi-people"></i> Browse Users</h2>
+        </div>
+
+        {% if users_with_categories %}
+        <div class="list-group">
+            {% for item in users_with_categories %}
+            <a href="/library/movie/browse/users/{{ item.user_id }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-person-circle me-2"></i>
+                    <strong>{{ item.username }}</strong>
+                </div>
+                <span class="badge bg-primary rounded-pill">{{ item.category_count }} categor{{ item.category_count != 1 }}y{{ item.category_count == 1 }}ies</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">No users with movie categories found.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

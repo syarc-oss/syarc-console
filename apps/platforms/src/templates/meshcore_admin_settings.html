@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ node.name or node.node_id[:12] }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts">Contacts</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts/{{ node.node_id }}">{{ node.name or node.node_id[:12] }}</a></li>
+    <li class="breadcrumb-item active">Settings</li>
+  </ol>
+</nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-gear"></i> Node settings
+    <small class="text-muted">{{ node.name or node.node_id[:12] }}</small></h2>
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-outline-primary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/status"><i class="bi bi-activity"></i> Status</a>
+    <a class="btn btn-outline-primary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/console"><i class="bi bi-terminal"></i> Console</a>
+    <a class="btn btn-primary" href="#"><i class="bi bi-gear"></i> Settings</a>
+    <form method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/logout">
+      <button class="btn btn-outline-danger"><i class="bi bi-box-arrow-right"></i> Log out</button>
+    </form>
+  </div>
+</div>
+
+{% if saved %}
+<div class="alert alert-success"><pre class="mb-0" style="white-space:pre-wrap">{{ saved }}</pre></div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/settings/apply">
+<div class="row g-3">
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Identity</h6>
+    <div class="mb-3">
+      <label class="form-label">Name</label>
+      <input class="form-control" name="name" maxlength="32" placeholder="set name">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Owner info</label>
+      <input class="form-control" name="owner_info" maxlength="80" placeholder="set owner.info">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Region</label>
+      <input class="form-control" name="region" placeholder="e.g. EU_433, US_915 (blank = no change)">
+    </div>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Radio settings</h6>
+    <div class="row g-2 mb-2">
+      <div class="col"><label class="form-label">Frequency MHz</label>
+        <input class="form-control" name="freq" placeholder="905.0"></div>
+      <div class="col"><label class="form-label">Bandwidth kHz</label>
+        <input class="form-control" name="bw" placeholder="250"></div>
+    </div>
+    <div class="row g-2 mb-2">
+      <div class="col"><label class="form-label">Spreading factor</label>
+        <input class="form-control" name="sf" placeholder="10"></div>
+      <div class="col"><label class="form-label">Coding rate</label>
+        <input class="form-control" name="cr" placeholder="5"></div>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">TX power dBm</label>
+      <input class="form-control" name="tx" placeholder="set tx (blank = no change)">
+    </div>
+    <small class="text-muted">Frequency, bandwidth, SF and CR are applied together via <span class="font-monospace">set radio</span>.</small>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Adverts &amp; clock</h6>
+    <div class="mb-2">
+      <label class="form-label">Advert interval (seconds)</label>
+      <input class="form-control" name="advert_interval" placeholder="set advert.interval">
+    </div>
+    <div class="mb-2">
+      <label class="form-label">Flood advert interval (seconds)</label>
+      <input class="form-control" name="flood_advert_interval" placeholder="set flood.advert.interval">
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="sync_clock" value="1" id="sync_clock">
+      <label class="form-check-label" for="sync_clock">Sync node clock to this console's time</label>
+    </div>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">GPS</h6>
+    <div class="row g-2 mb-2">
+      <div class="col"><label class="form-label">Latitude</label>
+        <input class="form-control" name="lat" placeholder="setloc lat"></div>
+      <div class="col"><label class="form-label">Longitude</label>
+        <input class="form-control" name="lon" placeholder="setloc lon"></div>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">GPS power</label>
+      <select class="form-select" name="gps">
+        <option value="">no change</option>
+        <option value="on">on</option>
+        <option value="off">off</option>
+      </select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">Location in adverts</label>
+      <select class="form-select" name="gps_advert">
+        <option value="">no change</option>
+        <option value="none">none</option>
+        <option value="share">share</option>
+        <option value="prefs">per preferences</option>
+      </select>
+    </div>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Passwords</h6>
+    <div class="mb-2">
+      <label class="form-label">New admin password</label>
+      <input class="form-control" type="password" name="admin_password" placeholder="password &lt;new&gt;">
+    </div>
+    <div class="mb-2">
+      <label class="form-label">New guest password</label>
+      <input class="form-control" type="password" name="guest_password" placeholder="set guest.password">
+    </div>
+    <small class="text-muted">The stored admin password for this node is updated when you rotate it.</small>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Access control</h6>
+    <p class="small text-muted mb-2">
+      Firmware has no over-the-air command to add or remove ACL users; access
+      is controlled by the passwords above. Neighbors can be reviewed
+      (<span class="font-monospace">neighbors</span> in the console) and pruned here:
+    </p>
+    <div class="mb-3">
+      <label class="form-label">Remove neighbor (node prefix)</label>
+      <input class="form-control font-monospace" name="neighbor_remove" placeholder="neighbor.remove &lt;prefix&gt;">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Change keys</label>
+      <button class="btn btn-sm btn-outline-secondary w-100" disabled title="prv.key is serial-only">
+        <i class="bi bi-lock"></i> Key rotation requires a serial connection
+      </button>
+    </div>
+  </div></div></div>
+</div>
+<button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Apply settings</button>
+</form>
+{% endblock %}

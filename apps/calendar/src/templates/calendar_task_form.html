@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit task" if task else "New task" }} - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item"><a href="/calendar/tasks">Tasks</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ "Edit" if task else "New" }}</li>
+    </ol>
+</nav>
+
+<h2 class="mb-3"><i class="bi bi-list-task"></i> {{ "Edit task" if task else "New task" }}</h2>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-body">
+                <form method="post"
+                      action="{{ '/calendar/tasks/' ~ task.id ~ '/edit' if task else '/calendar/tasks/new' }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description *</label>
+                        <input class="form-control" name="description" required maxlength="500"
+                               value="{{ task.description if task else '' }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Due date</label>
+                            <input type="date" class="form-control" name="due_date" value="{{ task.due_date or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Urgency</label>
+                            <select class="form-select" name="urgency">
+                                {% for u in urgencies %}
+                                <option value="{{ u[0] }}" {{ 'selected' if task and task.urgency == u[0] }}>{{ u[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Status</label>
+                            <select class="form-select" name="status">
+                                {% for s in ["draft","pending","in_progress","completed","cancelled"] %}
+                                <option value="{{ s }}" {{ 'selected' if task and task.status == s }}>{{ s|replace('_', ' ') }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Estimated hours</label>
+                            <input type="number" step="0.25" min="0" class="form-control" name="estimated_hours"
+                                   value="{{ task.estimated_hours or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Estimated cost ($)</label>
+                            <input type="number" step="0.01" min="0" class="form-control" name="estimated_cost"
+                                   value="{{ task.estimated_cost or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Location</label>
+                            <input class="form-control" name="location" maxlength="255" value="{{ task.location or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Supplies needed</label>
+                        <textarea class="form-control" name="supplies_needed" rows="2">{{ task.supplies_needed or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Notes</label>
+                        <textarea class="form-control" name="notes" rows="3">{{ task.notes or '' }}</textarea>
+                    </div>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Save</button>
+                    <a href="/calendar/tasks" class="btn btn-outline-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if task %}
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-people"></i> Crew &amp; invites</div>
+            <div class="card-body">
+                <ul class="list-group mb-3">
+                    {% for c in crew %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ c.username }}
+                            <span class="badge {{ 'bg-success' if c.status == 'confirmed' else 'bg-warning text-dark' if c.status == 'pending' else 'bg-secondary' }}">{{ c.status }}</span>
+                        </span>
+                        <form method="post" action="/calendar/tasks/{{ task.id }}/crew/{{ c.id }}/remove"
+                              onsubmit="return confirm('Remove {{ c.username }} from crew?')">
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="list-group-item text-muted">No crew yet.</li>
+                    {% endfor %}
+                </ul>
+                <form method="post" action="/calendar/tasks/{{ task.id }}/crew/add" class="d-flex gap-2">
+                    <select name="user_id" class="form-select form-select-sm" required>
+                        <option value="" disabled selected>Invite user…</option>
+                        {% for u in users %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-primary"><i class="bi bi-person-plus"></i> Invite</button>
+                </form>
+                <p class="text-muted small mt-2 mb-0">Invited users see the invite in their Calendar Invites panel.</p>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">Details</div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">Created {{ task.created_at }}</li>
+                {% if task.completed_at %}<li class="list-group-item">Completed {{ task.completed_at }}</li>{% endif %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

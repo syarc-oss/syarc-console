@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{% if register %}Edit Checkbook Register - FastAPI App{% else %}New Checkbook Register - FastAPI App{% endif %}{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4>{% if register %}Edit Checkbook Register{% else %}Create New Checkbook Register{% endif %}</h4>
+                </div>
+                <div class="card-body">
+                    <form action="{% if register %}/pecuniary/checkbook/register/{{ register.id }}/edit{% else %}/pecuniary/checkbook/register/new{% endif %}" method="post">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Register Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                   placeholder="e.g., My Checking Account"
+                                   value="{% if register %}{{ register.name }}{% endif %}">
+                            <div class="form-text">A name to identify this register (e.g., "Chase Checking", "Wells Fargo Savings")</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="bank_name" class="form-label">Bank Name *</label>
+                            <input type="text" class="form-control" id="bank_name" name="bank_name" required
+                                   placeholder="e.g., Chase Bank, Wells Fargo"
+                                   value="{% if register %}{{ register.bank_name }}{% endif %}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="account_type" class="form-label">Account Type *</label>
+                            <select class="form-select" id="account_type" name="account_type" required>
+                                {% for type in account_types %}
+                                    <option value="{{ type }}"
+                                            {% if register and register.account_type == type %}selected{% endif %}>
+                                        {{ type | replace('_', ' ') | title }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="account_number" class="form-label">Account Number</label>
+                            <input type="text" class="form-control" id="account_number" name="account_number"
+                                   placeholder="Optional - e.g., ****1234"
+                                   value="{% if register %}{{ register.account_number or '' }}{% endif %}">
+                            <div class="form-text">Optional: Last 4 digits or partial number for reference</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                      placeholder="Optional notes about this register">{% if register %}{{ register.description or '' }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/pecuniary/checkbook/select" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">{% if register %}Update Register{% else %}Create Register{% endif %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

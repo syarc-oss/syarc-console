@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}syarc console{% endblock %}</title>
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/vendor/bootstrap-icons.min.css">
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">syarc console</a>
+      {% if username %}
+      <div class="d-flex align-items-center gap-3 text-light">
+        {% if is_admin %}<a class="nav-link text-light" href="/admin">Admin</a>{% endif %}
+        <span>{{ username }}</span>
+        <form method="post" action="/logout">
+          <button class="btn btn-outline-light btn-sm" type="submit">Log out</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+  <script>
+  (function () {
+    var origFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      return origFetch(input, init).then(function (res) {
+        var finalPath;
+        try { finalPath = new URL(res.url, window.location.href).pathname; } catch (e) { return res; }
+        if (finalPath === '/login') {
+          window.location.href = '/login';
+          return new Promise(function () {});
+        }
+        return res;
+      });
+    };
+  })();
+  </script>
+</body>
+</html>

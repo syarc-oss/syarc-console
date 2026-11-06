@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit chore" if chore else "New chore" }} - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item"><a href="/calendar/chores">Chores</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ "Edit" if chore else "New" }}</li>
+    </ol>
+</nav>
+
+<h2 class="mb-3"><i class="bi bi-arrow-repeat"></i> {{ "Edit chore" if chore else "New chore" }}</h2>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="card" style="max-width: 720px;">
+    <div class="card-body">
+        <form method="post"
+              action="{{ '/calendar/chores/' ~ chore.id ~ '/edit' if chore else '/calendar/chores/new' }}">
+            <div class="mb-3">
+                <label class="form-label fw-bold">Description *</label>
+                <input class="form-control" name="description" required maxlength="500"
+                       value="{{ chore.description if chore else '' }}">
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Frequency *</label>
+                    <select class="form-select" name="frequency">
+                        {% for f in frequencies %}
+                        <option value="{{ f[0] }}" {{ 'selected' if chore and chore.frequency == f[0] }}>{{ f[1] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Day of week (0=Mon)</label>
+                    <input type="number" min="0" max="6" class="form-control" name="day_of_week"
+                           value="{{ chore.day_of_week if chore and chore.day_of_week is not none else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Day of month</label>
+                    <input type="number" min="1" max="31" class="form-control" name="day_of_month"
+                           value="{{ chore.day_of_month if chore and chore.day_of_month is not none else '' }}">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label fw-bold">Time estimate (hrs)</label>
+                    <input type="number" step="0.25" min="0" class="form-control" name="time_estimate"
+                           value="{{ chore.time_estimate or '' }}">
+                </div>
+                <div class="col-md-8 mb-3">
+                    <label class="form-label fw-bold">Location</label>
+                    <input class="form-control" name="location" maxlength="255" value="{{ chore.location or '' }}">
+                </div>
+            </div>
+            {% if chore %}
+            <div class="mb-3">
+                <label class="form-label fw-bold">Next due date</label>
+                <input type="date" class="form-control" name="next_due_date" value="{{ chore.next_due_date }}">
+            </div>
+            {% else %}
+            <div class="mb-3">
+                <label class="form-label fw-bold">First due date (optional)</label>
+                <input type="date" class="form-control" name="next_due_date">
+                <div class="form-text">Leave blank to start from the next occurrence.</div>
+            </div>
+            {% endif %}
+            <div class="mb-3">
+                <label class="form-label fw-bold">Supplies needed</label>
+                <textarea class="form-control" name="supplies_needed" rows="2">{{ chore.supplies_needed or '' }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Notes</label>
+                <textarea class="form-control" name="notes" rows="3">{{ chore.notes or '' }}</textarea>
+            </div>
+            <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Save</button>
+            <a href="/calendar/chores" class="btn btn-outline-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Appointments &amp; Meetings - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Appointments &amp; Meetings</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-clock-history"></i> Appointments &amp; Meetings</h2>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="/calendar/events" class="btn btn-sm btn-outline-primary {{ 'active' if not active_category }}">All</a>
+        {% for c in categories %}
+        <a href="/calendar/events?category={{ c[0] }}" class="btn btn-sm btn-outline-primary {{ 'active' if active_category == c[0] }}">{{ c[1] }}s</a>
+        {% endfor %}
+        <a href="/calendar/events/new" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New</a>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr><th>When</th><th>Title</th><th>Category</th><th>Location</th><th>Invitees</th><th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for e in events %}
+            <tr>
+                <td>
+                    <a href="/calendar/day/{{ e.event_date }}">{{ e.event_date }}</a>
+                    {% if e.event_time %} {{ e.event_time }}{% if e.duration_mins %} (+{{ e.duration_mins }}m){% endif %}{% endif %}
+                </td>
+                <td><a href="/calendar/events/{{ e.id }}/edit">{{ e.title }}</a></td>
+                <td><span class="badge {{ 'bg-warning text-dark' if e.category == 'appointment' else 'bg-info text-dark' }}">{{ e.category }}</span></td>
+                <td>{{ e.location or "—" }}</td>
+                <td>
+                    {% for i in e.invitees %}
+                    <span class="badge {{ 'bg-success' if i.status == 'confirmed' else 'bg-warning text-dark' if i.status == 'pending' else 'bg-secondary' }}"
+                          title="{{ i.status }}">{{ i.username }}</span>
+                    {% else %}<span class="text-muted small">—</span>{% endfor %}
+                </td>
+                <td class="text-end">
+                    {% if e.is_owner %}
+                    <form method="post" action="/calendar/events/{{ e.id }}/delete" class="d-inline"
+                          onsubmit="return confirm('Delete this event?')">
+                        <input type="hidden" name="back" value="/calendar/events">
+                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-muted">No upcoming appointments or meetings.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

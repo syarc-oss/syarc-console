@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Compose Message{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-md-8 offset-md-2">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+                <li class="breadcrumb-item active">Compose</li>
+            </ol>
+        </nav>
+        <h3 class="mt-2"><i class="bi bi-pencil-square"></i> New Message</h3>
+        <div class="card mt-3">
+            <div class="card-body">
+                <form method="post" action="/platforms/messaging/compose">
+                    <div class="mb-3">
+                        <label for="subject" class="form-label">Subject</label>
+                        <input type="text" class="form-control" id="subject" name="subject" required placeholder="Message subject">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Recipients</label>
+                        {% if all_users %}
+                        <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                            {% for u in all_users %}
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="user_{{ u.id }}" name="recipient_ids" value="{{ u.id }}">
+                                <label class="form-check-label" for="user_{{ u.id }}">
+                                    {% if mesh_names and u.id|string in mesh_names %}
+                                    {{ mesh_names[u.id|string] }}
+                                    <small class="text-muted">({{ u.username }})</small>
+                                    {% else %}
+                                    {{ u.username }}
+                                    {% endif %}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted">No other users available.</p>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Message</label>
+                        <textarea class="form-control" id="content" name="content" rows="6" required placeholder="Write your message..."></textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
+                        <a href="/platforms/messaging/" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

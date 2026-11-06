@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == "new" %}New Category{% else %}Edit {{ category.name }}{% endif %} - Movies{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+                {% if mode == "edit" and category %}
+                <li class="breadcrumb-item"><a href="/library/movie/category/{{ category.id }}">{{ category.name }}</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active" aria-current="page">{% if mode == "new" %}New Category{% else %}Edit Category{% endif %}</li>
+            </ol>
+        </nav>
+        <h2 class="mt-2">{% if mode == "new" %}<i class="bi bi-plus-circle"></i> New Category{% else %}<i class="bi bi-pencil"></i> Edit Category{% endif %}</h2>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <form action="/library/movie/category/{% if mode == 'edit' %}{{ category.id }}/edit{% else %}new{% endif %}" method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="name" name="name"
+                               value="{% if category %}{{ category.name }}{% endif %}" required>
+                    </div>
+
+                    {% if mode == "new" and own_categories %}
+                    <div class="mb-3">
+                        <label for="parent_id" class="form-label">Parent Category</label>
+                        <select class="form-select" id="parent_id" name="parent_id">
+                            <option value="">None (top-level category)</option>
+                            {% for cat in own_categories %}
+                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Leave empty for a top-level category, or select a parent to create a sub-category.</div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"
+                                  placeholder="Optional description...">{% if category and category.description %}{{ category.description }}{% endif %}</textarea>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_public" name="is_public"
+                               {% if category and category.is_public %}checked{% endif %}>
+                        <label class="form-check-label" for="is_public">Make category public</label>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> {% if mode == "new" %}Create{% else %}Save Changes{% endif %}
+                        </button>
+                        {% if category %}
+                        <a href="/library/movie/category/{{ category.id }}" class="btn btn-secondary">Cancel</a>
+                        {% else %}
+                        <a href="/library/movie/" class="btn btn-secondary">Cancel</a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if mode == "edit" and category %}
+        <!-- Sharing -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-share"></i> Share Category</h5>
+            </div>
+            <div class="card-body">
+                {% if shared_users %}
+                <h6>Currently shared with:</h6>
+                <ul class="list-group mb-3">
+                    {% for share, share_user in shared_users %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-person me-2"></i>{{ share_user.username }}
+                        </div>
+                        <form action="/library/movie/category/{{ category.id }}/revoke/{{ share.id }}" method="POST" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-x-lg"></i> Revoke
+                            </button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if all_users %}
+                <h6>Share with:</h6>
+                <form action="/library/movie/category/{{ category.id }}/share" method="POST" class="d-flex gap-2">
+                    <select name="share_with_user_id" class="form-select form-select-sm">
+                        <option value="">Select user...</option>
+                        {% for u in all_users %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-success">
+                        <i class="bi bi-plus-lg"></i> Share
+                    </button>
+                </form>
+                {% else %}
+                <p class="text-muted">No additional users to share with.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card mt-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Danger Zone</h6>
+            </div>
+            <div class="card-body">
+                <form action="/library/movie/category/{{ category.id }}/rescan-full" method="POST"
+                      onsubmit="return confirm('This will DELETE all movies in this category from the database and re-scan the directory from disk. Are you sure?')">
+                    <button type="submit" class="btn btn-warning mb-2">
+                        <i class="bi bi-arrow-repeat"></i> Rescan (Delete &amp; Re-import All)
+                    </button>
+                    <p class="text-muted small mb-0">Removes all database entries for this category and re-discovers movies from the directory on disk.</p>
+                </form>
+
+                {% if category.movie_count == 0 %}
+                <hr>
+                <form action="/library/movie/category/{{ category.id }}/delete" method="POST"
+                      onsubmit="return confirm('Are you sure you want to delete this category?')">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Category
+                    </button>
+                </form>
+                {% else %}
+                <hr>
+                <p class="text-muted">Cannot delete category with {{ category.movie_count }} movies. Remove or move them first.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

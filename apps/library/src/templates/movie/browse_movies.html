@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Movies - Movie Library{% endblock %}
+
+{% block content %}
+<style>
+    .movie-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+    }
+    .movie-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .movie-poster {
+        aspect-ratio: 2/3;
+        object-fit: cover;
+        background: #e9ecef;
+    }
+    .alphabet-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    .alphabet-nav a {
+        display: inline-block;
+        width: 35px;
+        height: 35px;
+        line-height: 35px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        text-decoration: none;
+        color: #495057;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    .alphabet-nav a:hover {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    .alphabet-nav a.active {
+        background: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Browse All</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+            <h2><i class="bi bi-film"></i> Browse All Movies</h2>
+            <div class="d-flex gap-2">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-list-ol"></i> {{ per_page }} per page
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">Movies per page</h6></li>
+                        {% for pp in [24, 48, 72, 96, 120] %}
+                        <li>
+                            <a class="dropdown-item {% if per_page == pp %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}page=1&per_page={{ pp }}">{{ pp }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        {% if not current_letter %}
+        <div class="alphabet-nav">
+            <a href="?per_page={{ per_page }}" class="active">All</a>
+            {% set alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
+            {% for char in alphabet %}
+            <a href="?letter={{ char }}&per_page={{ per_page }}">{{ char }}</a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alphabet-nav">
+            <a href="?per_page={{ per_page }}">All</a>
+            {% set alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
+            {% for char in alphabet %}
+            <a href="?letter={{ char }}&per_page={{ per_page }}" class="{% if current_letter == char %}active{% endif %}">{{ char }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="alert alert-secondary">
+            Showing {{ movies|length }} of {{ total }} movies
+            {% if current_letter %} starting with "{{ current_letter }}"{% endif %}
+        </div>
+
+        {% if movies %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
+            {% for item in movies %}
+            <div class="col">
+                <div class="card movie-card">
+                    <a href="/library/movie/movie/{{ item.movie.id }}?browse_page={{ current_page }}&browse_per_page={{ per_page }}{% if current_letter %}&browse_letter={{ current_letter }}{% endif %}">
+                        {% if item.movie.poster_filename %}
+                        <img src="/library/movie/poster/{{ item.movie.id }}"
+                             class="card-img-top movie-poster" alt="{{ item.movie.title }}">
+                        {% else %}
+                        <div class="card-img-top movie-poster d-flex align-items-center justify-content-center bg-dark text-white">
+                            <div class="text-center p-2">
+                                <i class="bi bi-film" style="font-size: 2rem;"></i>
+                                <div style="font-size: 0.65rem; margin-top: 5px;">{{ item.movie.title[:25] }}{% if item.movie.title|length > 25 %}...{% endif %}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </a>
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-1" style="font-size: 0.85rem; line-height: 1.2;">
+                            <a href="/library/movie/movie/{{ item.movie.id }}?browse_page={{ current_page }}&browse_per_page={{ per_page }}{% if current_letter %}&browse_letter={{ current_letter }}{% endif %}" class="text-decoration-none">
+                                {{ item.movie.title[:35] }}{% if item.movie.title|length > 35 %}...{% endif %}
+                            </a>
+                        </h6>
+                        <p class="card-text text-muted mb-0" style="font-size: 0.75rem;">
+                            {{ item.movie.file_type|upper }}
+                            {% if item.movie.year %}<span class="ms-1">({{ item.movie.year }})</span>{% endif %}
+                        </p>
+                        <p class="card-text text-muted mb-0" style="font-size: 0.7rem;">
+                            <i class="bi bi-tag"></i> {{ item.category_name }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">No movies found.</div>
+        {% endif %}
+
+        {% if total_pages > 1 %}
+        <nav class="mt-4" aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item"><a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}page={{ current_page - 1 }}&per_page={{ per_page }}">Previous</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                {% endif %}
+
+                {% set start_page = [1, current_page - 2]|max %}
+                {% set end_page = [total_pages, current_page + 2]|min %}
+
+                {% if start_page > 1 %}
+                <li class="page-item"><a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}page=1&per_page={{ per_page }}">1</a></li>
+                {% if start_page > 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endif %}
+
+                {% for p in range(start_page, end_page + 1) %}
+                <li class="page-item {% if p == current_page %}active{% endif %}">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}page={{ p }}&per_page={{ per_page }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+
+                {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                <li class="page-item"><a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}page={{ total_pages }}&per_page={{ per_page }}">{{ total_pages }}</a></li>
+                {% endif %}
+
+                {% if current_page < total_pages %}
+                <li class="page-item"><a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}page={{ current_page + 1 }}&per_page={{ per_page }}">Next</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

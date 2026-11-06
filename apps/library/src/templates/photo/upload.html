@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Photos - {{ album.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-cloud-upload"></i> Upload Photos</h2>
+            <a href="/library/photo/album/{{ album.id }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Album
+            </a>
+        </div>
+
+        <p class="text-muted">Upload photos to album: <strong>{{ album.name }}</strong></p>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-upload"></i> Upload from Computer</h5>
+            </div>
+            <div class="card-body">
+                <form action="/library/photo/album/{{ album.id }}/upload" method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="files" class="form-label">Select Photos</label>
+                        <input type="file" class="form-control" id="files" name="files" multiple
+                               accept="image/*" required>
+                        <div class="form-text">Supported: JPG, PNG, GIF, BMP, WebP, TIFF, HEIC</div>
+                    </div>
+                    <div id="filePreview" class="row row-cols-3 row-cols-md-4 g-2 mb-3"></div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-cloud-upload"></i> Upload
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-folder"></i> Import from Directory</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Import photos from a camera, SD card, USB stick, or any directory on the server.</p>
+                <form action="/library/photo/album/{{ album.id }}/import-path" method="POST">
+                    <div class="mb-3">
+                        <label for="import_path" class="form-label">Directory Path</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="import_path" name="import_path"
+                                   placeholder="/media/usb/DCIM or /mnt/camera/photos" required>
+                            <button class="btn btn-outline-secondary" type="button" id="dirBrowserSelectBtn">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Enter the full path or browse to the directory containing photos on this server.</div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="skip_thumbnails" name="skip_thumbnails" value="on" checked>
+                        <label class="form-check-label" for="skip_thumbnails">
+                            Skip likely thumbnail files
+                        </label>
+                        <div class="form-text">Automatically skip images that appear to be thumbnails (small dimensions or file size, or files with thumbnail-like names).</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-box-arrow-in-down"></i> Import from Directory
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('files').addEventListener('change', function(e) {
+    const preview = document.getElementById('filePreview');
+    preview.innerHTML = '';
+    const files = e.target.files;
+    for (let i = 0; i < Math.min(files.length, 20); i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            const col = document.createElement('div');
+            col.className = 'col';
+            col.innerHTML = `<img src="${ev.target.result}" class="img-thumbnail" style="aspect-ratio:1; object-fit:cover;">`;
+            preview.appendChild(col);
+        };
+        reader.readAsDataURL(file);
+    }
+    if (files.length > 20) {
+        const note = document.createElement('div');
+        note.className = 'col-12 text-muted';
+        note.textContent = `Showing 20 of ${files.length} selected files`;
+        preview.appendChild(note);
+    }
+});
+</script>
+<script>
+var DIR_BROWSER_ROOT = "photo";
+var DIR_BROWSER_INPUT_ID = "import_path";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "{{ album.directory_path }}";
+</script>
+{% include "library/dir_browser.html" %}
+{% endblock %}

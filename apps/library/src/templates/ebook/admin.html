@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Ebook Admin{% endblock %}
+
+{% block content %}
+<style>
+    .nav-tabs .nav-link { color: #495057; }
+    .nav-tabs .nav-link.active { font-weight: bold; }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Admin</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+            <h2><i class="bi bi-shield-lock"></i> Ebook Admin</h2>
+            <div class="d-flex gap-2">
+                <form action="/library/ebook/admin/topics/purge-empty" method="POST" class="d-inline"
+                      onsubmit="return confirm('Delete all topics with 0 books?');">
+                    <button type="submit" class="btn btn-outline-danger" title="Remove all topics that contain no books">
+                        <i class="bi bi-trash"></i> Delete Empty Topics
+                    </button>
+                </form>
+                <form action="/library/ebook/admin/topics/all-public" method="POST" class="d-inline"
+                      onsubmit="return confirm('Make ALL topics public?');">
+                    <button type="submit" class="btn btn-outline-success" title="Set every topic to public">
+                        <i class="bi bi-globe"></i> All Public
+                    </button>
+                </form>
+                <form action="/library/ebook/admin/topics/all-private" method="POST" class="d-inline"
+                      onsubmit="return confirm('Make ALL topics private?');">
+                    <button type="submit" class="btn btn-outline-secondary" title="Set every topic to private">
+                        <i class="bi bi-lock"></i> All Private
+                    </button>
+                </form>
+                <button class="btn btn-outline-warning" id="assignOrphansBtn" title="Assign books with no topic to topics based on their directory">
+                    <i class="bi bi-folder-plus"></i> Assign Orphan Books
+                </button>
+                <button class="btn btn-outline-primary" id="scanBtn">
+                    <i class="bi bi-arrow-repeat"></i> Rescan Library
+                </button>
+                <button class="btn btn-outline-secondary" id="pruneBtn" title="Remove books whose files are missing, then rescan all topic directories">
+                    <i class="bi bi-brush"></i> Prune Missing &amp; Rescan
+                </button>
+                <button class="btn btn-outline-success" id="rebuildCoversBtn" title="Copy/extract cover art next to each book file in the library tree">
+                    <i class="bi bi-image"></i> Rebuild Covers
+                </button>
+                <button class="btn btn-outline-danger" id="forceScanBtn">
+                    <i class="bi bi-database-x"></i> Clean DB & Rescan
+                </button>
+            </div>
+        </div>
+
+        <div id="scanStatus" class="alert alert-info d-none mb-3"></div>
+
+        <ul class="nav nav-tabs mb-3" id="adminTabs">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#all">All Topics</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#public">Public Topics</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#banned">Banned Books</a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="all">
+                {% if all_topics %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Topic</th>
+                                <th>Owner</th>
+                                <th>Books</th>
+                                <th>Visibility</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in all_topics %}
+                            <tr>
+                                <td><a href="/library/ebook/topic/{{ item.topic.id }}">{{ item.topic.name }}</a></td>
+                                <td>{{ item.owner_username }}</td>
+                                <td>{{ item.book_count }}</td>
+                                <td>
+                                    <button class="btn btn-sm badge {% if item.topic.is_public %}bg-success{% else %}bg-secondary{% endif %} border-0"
+                                            onclick="toggleTopic('{{ item.topic.id }}', this)">
+                                        {% if item.topic.is_public %}Public{% else %}Private{% endif %}
+                                    </button>
+                                </td>
+                                <td>
+                                    <form action="/library/ebook/admin/topic/{{ item.topic.id }}/rescan" method="POST" class="d-inline"
+                                          data-rescan>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-arrow-repeat"></i> Rescan
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No topics found.</div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="public">
+                {% if public_topics %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Topic</th>
+                                <th>Owner</th>
+                                <th>Books</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in public_topics %}
+                            <tr>
+                                <td><a href="/library/ebook/topic/{{ item.topic.id }}">{{ item.topic.name }}</a></td>
+                                <td>{{ item.owner_username }}</td>
+                                <td>{{ item.book_count }}</td>
+                                <td>
+                                    <button class="btn btn-sm badge bg-success border-0"
+                                            onclick="toggleTopic('{{ item.topic.id }}', this)">
+                                        Public
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No public topics.</div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="banned">
+                {% if banned_books %}
+                <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+                    {% for item in banned_books %}
+                    <div class="col">
+                        <div class="card">
+                            {% if item.book.cover_filename %}
+                            <img src="/library/ebook/cover/{{ item.book.id }}"
+                                 class="card-img-top" style="aspect-ratio: 2/3; object-fit: cover;" alt="">
+                            {% else %}
+                            <div class="card-img-top bg-dark text-white d-flex align-items-center justify-content-center" style="aspect-ratio: 2/3;">
+                                <i class="bi bi-book" style="font-size: 2rem;"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body p-2">
+                                <h6 style="font-size: 0.85rem;">{{ item.book.title }}</h6>
+                                <small class="text-muted">{% if item.topic %}{{ item.topic.name }} by {{ item.owner_username }}{% else %}No topic{% endif %}</small>
+                                <div class="mt-2 d-flex gap-1">
+                                    <form action="/library/ebook/admin/book/{{ item.book.id }}/unban" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="bi bi-check-circle"></i> Unban
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-success">No banned books.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('scanBtn').addEventListener('click', async function() {
+    if (!confirm('Rescan the entire ebook library? This will add new books found on disk.')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+    var status = document.getElementById('scanStatus');
+    status.className = 'alert alert-info mb-3';
+    status.textContent = 'Library scan started in background...';
+    try {
+        var resp = await fetch('/library/ebook/scan', { method: 'GET' });
+        var data = await resp.json();
+        status.textContent = data.message || 'Scan started.';
+        setTimeout(function() { status.className = 'alert alert-info d-none mb-3'; }, 5000);
+    } catch(e) { status.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Rescan Library';
+});
+
+document.getElementById('forceScanBtn').addEventListener('click', async function() {
+    if (!confirm('This will DELETE all ebook database entries and re-import from disk. Are you sure?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+    var status = document.getElementById('scanStatus');
+    status.className = 'alert alert-warning mb-3';
+    status.textContent = 'Force rescan started — truncating tables and re-importing from disk...';
+    try {
+        var resp = await fetch('/library/ebook/scan/force', { method: 'GET' });
+        var data = await resp.json();
+        status.textContent = data.message || 'Force scan started.';
+        setTimeout(function() { status.className = 'alert alert-info d-none mb-3'; }, 8000);
+    } catch(e) { status.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-database-x"></i> Clean DB & Rescan';
+});
+
+document.getElementById('pruneBtn').addEventListener('click', async function() {
+    if (!confirm('Remove database entries for books missing on disk and rescan all topics?')) return;
+    this.disabled = true;
+    var status = document.getElementById('scanStatus');
+    status.className = 'alert alert-info mb-3';
+    status.textContent = 'Pruning and rescanning...';
+    try {
+        var resp = await fetch('/library/ebook/admin/clean', { method: 'POST' });
+        var data = await resp.json();
+        status.textContent = data.message || data.detail || 'Done.';
+    } catch(e) { status.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+});
+
+document.getElementById('rebuildCoversBtn').addEventListener('click', async function() {
+    if (!confirm('Generate missing cover art? Covers are stored next to each book file in the library tree.')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working...';
+    var status = document.getElementById('scanStatus');
+    status.className = 'alert alert-info mb-3';
+    status.textContent = 'Rebuilding covers...';
+    try {
+        var resp = await fetch('/library/ebook/admin/rebuild-covers', { method: 'POST' });
+        var data = await resp.json();
+        status.textContent = data.message || data.detail || 'Done.';
+    } catch(e) { status.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-image"></i> Rebuild Covers';
+});
+
+document.querySelectorAll('form[data-rescan]').forEach(function(form) {
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var btn = form.querySelector('button');
+        var topicName = btn.closest('tr').querySelector('td:first-child a').textContent.trim();
+        if (!confirm('Rescan topic: ' + topicName + '?')) return;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        try {
+            var resp = await fetch(form.action, { method: 'POST' });
+            var data = await resp.json();
+            alert(data.message);
+            if (resp.ok) window.location.reload();
+        } catch(e) { alert('Error: ' + e.message); }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Rescan';
+    });
+});
+
+async function toggleTopic(topicId, btn) {
+    try {
+        const res = await fetch(`/library/ebook/admin/topic/${topicId}/toggle-visibility`, {method: 'POST'});
+        const data = await res.json();
+        if (res.ok) {
+            if (data.is_public) {
+                btn.textContent = 'Public';
+                btn.className = 'btn btn-sm badge bg-success border-0';
+            } else {
+                btn.textContent = 'Private';
+                btn.className = 'btn btn-sm badge bg-secondary border-0';
+            }
+        } else { alert(data.detail || 'Error'); }
+    } catch(e) { alert('Error toggling visibility'); }
+}
+
+document.getElementById('assignOrphansBtn')?.addEventListener('click', async function() {
+    if (!confirm('This will find books with no topic and create topics from their directories. Continue?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Assigning...';
+    try {
+        const res = await fetch('/library/ebook/admin/assign-orphan-topics', {method: 'POST'});
+        const data = await res.json();
+        alert(data.message);
+        if (data.assigned > 0) window.location.reload();
+    } catch(e) { alert('Error: ' + e.message); }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-folder-plus"></i> Assign Orphan Books';
+});
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}
+

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Foraging{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item active">Foraging</li>
+    </ol>
+</nav>
+<h2><i class="bi bi-basket3"></i> Foraging</h2>
+
+<!-- Add/Edit Form -->
+<div class="card mb-3">
+    <div class="card-header py-2"><i class="bi bi-plus-circle"></i> <span id="formTitle">Add Outing</span></div>
+    <div class="card-body">
+        <form id="outingForm" class="row g-2 align-items-end">
+            <input type="hidden" id="editId" value="">
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Date *</small></label>
+                <input type="date" class="form-control form-control-sm" id="outing_date" name="outing_date" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Type *</small></label>
+                <select class="form-select form-select-sm" id="outing_type" name="outing_type" required>
+                    <option value="gathering">Gathering</option>
+                    <option value="fishing">Fishing</option>
+                    <option value="hunting">Hunting</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Duration</small></label>
+                <input type="text" class="form-control form-control-sm" id="duration" name="duration" placeholder="e.g., 3 hrs">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-0"><small>Location</small></label>
+                <input type="text" class="form-control form-control-sm" id="location" name="location" placeholder="Creek, ridge, etc.">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Description</small></label>
+                <input type="text" class="form-control form-control-sm" id="description" name="description">
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-sm"><i class="bi bi-plus"></i> <span id="submitText">Add</span></button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<h5>Outings</h5>
+{% if outings %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr><th>Date</th><th>Type</th><th>Duration</th><th>Location</th><th>Description</th><th>Status</th><th>Ppl</th><th>Results</th><th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for item in outings %}
+            {% set o = item.outing %}
+            <tr>
+                <td class="text-nowrap fw-bold">{{ o.outing_date[5:7] ~ '/' ~ o.outing_date[8:10] ~ '/' ~ o.outing_date[0:4] }}</td>
+                <td><span class="badge bg-secondary">{{ o.outing_type|title }}</span></td>
+                <td>{{ o.duration or '' }}</td>
+                <td>{{ o.location or '' }}</td>
+                <td><small>{{ o.description or '' }}</small></td>
+                <td>
+                    {% if o.status == 'planned' %}
+                    <span class="badge bg-primary">{{ o.status|title }}</span>
+                    {% else %}
+                    <span class="badge bg-success">{{ o.status|title }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">{{ item.participant_count }}</td>
+                <td class="text-center">{{ item.result_count }}</td>
+                <td class="text-end text-nowrap">
+                    <a href="/agriculture/foraging/{{ o.id }}/participants" class="btn btn-sm btn-outline-info py-0" title="Participants"><i class="bi bi-people"></i></a>
+                    <a href="/agriculture/foraging/{{ o.id }}/results" class="btn btn-sm btn-outline-success py-0" title="Results"><i class="bi bi-clipboard-data"></i></a>
+                    {% if item.is_owner %}
+                    <button class="btn btn-sm btn-outline-secondary py-0" onclick="editOuting('{{ o.id }}', '{{ o.outing_date[0:10] }}', '{{ o.outing_type }}', '{{ o.duration or '' }}', '{{ o.location or '' }}', '{{ o.description or '' }}')" title="Edit"><i class="bi bi-pencil"></i></button>
+                    {% if o.status == 'planned' %}
+                    <button class="btn btn-sm btn-outline-primary py-0" onclick="completeOuting('{{ o.id }}')" title="Mark Completed"><i class="bi bi-check2-circle"></i></button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteOuting('{{ o.id }}')" title="Delete"><i class="bi bi-trash"></i></button>
+                    {% else %}
+                    <span class="badge bg-light text-dark border" title="Shared by {{ item.owner_username }}"><i class="bi bi-share"></i> {{ item.owner_username }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">No outings yet. Add one above!</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingId = null;
+
+document.getElementById('outingForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var data = new FormData(this);
+    if (editingId) {
+        fetch('/agriculture/foraging/' + editingId, {method: 'PUT', body: data, credentials: 'include'})
+            .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    } else {
+        fetch('/agriculture/foraging/create', {method: 'POST', body: data, credentials: 'include'})
+            .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    }
+});
+
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+function editOuting(id, dt, otype, duration, location, desc) {
+    editingId = id;
+    document.getElementById('editId').value = id;
+    document.getElementById('outing_date').value = dt;
+    document.getElementById('outing_type').value = otype;
+    document.getElementById('duration').value = duration;
+    document.getElementById('location').value = location;
+    document.getElementById('description').value = desc;
+    document.getElementById('formTitle').textContent = 'Edit Outing';
+    document.getElementById('submitText').textContent = 'Update';
+    document.getElementById('submitBtn').className = 'btn btn-warning btn-sm';
+    document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('outingForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetForm() {
+    document.getElementById('outingForm').reset();
+    editingId = null;
+    document.getElementById('editId').value = '';
+    document.getElementById('formTitle').textContent = 'Add Outing';
+    document.getElementById('submitText').textContent = 'Add';
+    document.getElementById('submitBtn').className = 'btn btn-success btn-sm';
+    document.getElementById('cancelBtn').style.display = 'none';
+}
+
+function deleteOuting(id) {
+    if (!confirm('Delete this outing and all its data?')) return;
+    fetch('/agriculture/foraging/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+
+function completeOuting(id) {
+    if (!confirm('Mark this outing as completed?')) return;
+    fetch('/agriculture/foraging/' + id + '/complete', {method: 'POST', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+</script>
+{% endblock %}

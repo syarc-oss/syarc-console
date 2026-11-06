@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}{{ crop.crop }} - {{ garden.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/garden/">Gardens</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/garden/{{ garden.id }}">{{ garden.name }}</a></li>
+        <li class="breadcrumb-item active">{{ crop.crop }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-flower2"></i> {{ crop.crop }}</h2>
+    <a href="/agriculture/agronomy/garden/{{ garden.id }}/maintenance" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-list-check"></i> Plot Maintenance
+    </a>
+</div>
+
+<!-- Crop Details -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Section</small>
+                <div>{{ crop.plot_section or '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Variety</small>
+                <div>{{ crop.variety or '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Planted</small>
+                <div>{{ crop.planting_date if crop.planting_date else '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Planted By</small>
+                <div>{{ crop.planted_by or '—' }}</div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Days to Maturity</small>
+                <div>{{ crop.days_to_maturity ~ ' days' if crop.days_to_maturity else '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">First Harvest</small>
+                <div>{{ crop.first_harvest_date if crop.first_harvest_date else '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Last Harvest</small>
+                <div>{{ crop.last_harvest_date if crop.last_harvest_date else '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Harvested By</small>
+                <div>{{ crop.harvested_by or '—' }}</div>
+            </div>
+            <div class="col-md-3 mb-2">
+                <small class="text-muted">Notes</small>
+                <div>{{ crop.notes or '—' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Maintenance Records -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check"></i> Maintenance Records</span>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#add-maintenance-form">
+            <i class="bi bi-plus-circle"></i> Add Record
+        </button>
+    </div>
+    <div class="card-body">
+        <!-- Add Maintenance Form -->
+        <div class="collapse mb-3" id="add-maintenance-form">
+            <form id="maint-form" class="row g-2 align-items-end border rounded p-2 bg-light">
+                <input type="hidden" id="edit-maint-id" value="">
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Date *</small></label>
+                    <input type="date" class="form-control form-control-sm" name="activity_date" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Person</small></label>
+                    <input type="text" class="form-control form-control-sm" name="person" placeholder="Name">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Activity *</small></label>
+                    <select class="form-select form-select-sm" name="activity_type" required>
+                        {% for at in activity_types %}
+                        <option value="{{ at }}">{{ at|replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label mb-0"><small>Time</small></label>
+                    <input type="text" class="form-control form-control-sm" name="time_spent" placeholder="0:30">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Materials</small></label>
+                    <input type="text" class="form-control form-control-sm" name="materials" placeholder="10-10-10 fert">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label mb-0"><small>Cost</small></label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" name="cost" placeholder="0.00">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Notes</small></label>
+                    <input type="text" class="form-control form-control-sm" name="notes" placeholder="Notes">
+                </div>
+                <div class="col-12 text-end mt-2">
+                    <button type="submit" id="maint-submit-btn" class="btn btn-success btn-sm">
+                        <i class="bi bi-check-circle"></i> <span id="maint-submit-text">Save Record</span>
+                    </button>
+                    <button type="button" id="maint-cancel-btn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        {% if maintenance_records %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle" style="font-size:0.85rem">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Person</th>
+                        <th>Activity</th>
+                        <th>Time</th>
+                        <th>Materials</th>
+                        <th>Cost</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rec in maintenance_records %}
+                    <tr>
+                        <td class="text-nowrap">{{ rec.activity_date }}</td>
+                        <td>{{ rec.person or '' }}</td>
+                        <td><span class="badge bg-secondary">{{ rec.activity_type|replace('_', ' ')|title }}</span></td>
+                        <td>{{ rec.time_spent[:5] if rec.time_spent else '' }}</td>
+                        <td>{{ rec.materials or '' }}</td>
+                        <td>{{ '$' ~ rec.cost if rec.cost else '' }}</td>
+                        <td>{{ rec.notes or '' }}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-secondary p-0 px-1 edit-maint-btn" data-rec='{{ rec | tojson }}' title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger p-0 px-1 delete-maint-btn" data-id="{{ rec.id }}" title="Delete">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No maintenance records yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+var gardenId = '{{ garden.id }}';
+var cropId = '{{ crop.id }}';
+
+document.getElementById('maint-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var data = new FormData(form);
+    var editId = document.getElementById('edit-maint-id').value;
+    var url, method;
+    if (editId) {
+        url = '/agriculture/agronomy/garden/' + gardenId + '/crops/' + cropId + '/maintenance/' + editId;
+        method = 'PUT';
+    } else {
+        url = '/agriculture/agronomy/garden/' + gardenId + '/crops/' + cropId + '/maintenance/add';
+        method = 'POST';
+    }
+    fetch(url, {
+        method: method, body: data, credentials: 'include',
+        headers: {'Accept': 'application/json'}
+    }).then(function(r) {
+        if (r.ok) window.location.reload();
+        else return r.json().then(function(d) { alert(d.detail || 'Error'); });
+    }).catch(function() { alert('Request failed'); });
+});
+
+function resetMaintForm() {
+    document.getElementById('maint-form').reset();
+    document.getElementById('edit-maint-id').value = '';
+    document.getElementById('maint-submit-text').textContent = 'Save Record';
+    document.getElementById('maint-submit-btn').className = 'btn btn-success btn-sm';
+    document.getElementById('maint-cancel-btn').style.display = 'none';
+}
+
+document.getElementById('maint-cancel-btn').addEventListener('click', resetMaintForm);
+
+document.querySelectorAll('.edit-maint-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var rec = JSON.parse(btn.getAttribute('data-rec'));
+        document.getElementById('edit-maint-id').value = rec.id;
+        document.querySelector('[name="activity_date"]').value = rec.activity_date;
+        document.querySelector('[name="person"]').value = rec.person || '';
+        document.querySelector('[name="activity_type"]').value = rec.activity_type;
+        document.querySelector('[name="time_spent"]').value = rec.time_spent ? rec.time_spent.substring(0, 5) : '';
+        document.querySelector('[name="materials"]').value = rec.materials || '';
+        document.querySelector('[name="cost"]').value = rec.cost || '';
+        document.querySelector('[name="notes"]').value = rec.notes || '';
+        document.getElementById('maint-submit-text').textContent = 'Update Record';
+        document.getElementById('maint-submit-btn').className = 'btn btn-warning btn-sm';
+        document.getElementById('maint-cancel-btn').style.display = '';
+        var collapse = document.getElementById('add-maintenance-form');
+        if (!collapse.classList.contains('show')) {
+            new bootstrap.Collapse(collapse).show();
+        }
+        document.getElementById('maint-form').scrollIntoView({behavior: 'smooth'});
+    });
+});
+
+document.querySelectorAll('.delete-maint-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        if (!confirm('Delete this record?')) return;
+        var id = btn.getAttribute('data-id');
+        fetch('/agriculture/agronomy/garden/' + gardenId + '/crops/' + cropId + '/maintenance/' + id, {
+            method: 'DELETE', credentials: 'include',
+            headers: {'Accept': 'application/json'}
+        }).then(function(r) {
+            if (r.ok) btn.closest('tr').remove();
+        });
+    });
+});
+</script>
+{% endblock %}

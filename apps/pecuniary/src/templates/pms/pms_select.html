@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Select PMS Portfolio - Pecuniary{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+                    <li class="breadcrumb-item active">Precious Metals</li>
+                </ol>
+            </nav>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>Select PMS Portfolio</h2>
+                    <p class="text-muted">Choose a portfolio to view and manage</p>
+                </div>
+                <a href="/pecuniary/pms/portfolio/new" class="btn btn-primary">
+                    + Create New Portfolio
+                </a>
+            </div>
+
+            {% if portfolios %}
+            <div class="row g-4">
+                {% for p in portfolios %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 {{ 'border-warning' if p.is_owner else 'border-info' }}">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                {{ p.portfolio.name }}
+                                {% if p.is_owner %}
+                                    <span class="badge bg-warning ms-2">Yours</span>
+                                {% else %}
+                                    <span class="badge bg-info ms-2">Shared</span>
+                                {% endif %}
+                            </h5>
+                            {% if p.portfolio.description %}<p class="card-text text-muted">{{ p.portfolio.description }}</p>{% endif %}
+                            <p class="card-text text-muted">{{ p.entry_count }} transactions</p>
+                            {% if not p.is_owner and p.shared_at %}
+                                <p class="card-text"><small class="text-muted">Shared on {{ p.shared_at[:10] }}</small></p>
+                            {% endif %}
+                            <a href="/pecuniary/pms/?portfolio_id={{ p.portfolio.id }}" class="btn {{ 'btn-warning' if p.is_owner else 'btn-info' }}">
+                                Open Portfolio
+                            </a>
+                            {% if p.is_owner %}
+                            <div class="mt-2">
+                                <a href="/pecuniary/pms/portfolio/{{ p.portfolio.id }}/edit" class="btn btn-sm btn-outline-warning me-2">Edit</a>
+                                <form action="/pecuniary/pms/portfolio/{{ p.portfolio.id }}/delete" method="post"
+                                      style="display:inline;" onsubmit="return confirm('Delete portfolio &quot;{{ p.portfolio.name }}&quot; and all transactions?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <h4>No PMS Portfolios Found</h4>
+                <p>Create a portfolio to start tracking your precious metals.</p>
+                <a href="/pecuniary/pms/portfolio/new" class="btn btn-primary">+ Create Your First Portfolio</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

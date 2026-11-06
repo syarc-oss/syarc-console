@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Messages{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item active">Messages</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>
+                <i class="bi bi-envelope"></i> Messages
+                {% if total_unread > 0 %}
+                <span class="badge bg-danger">{{ total_unread }} new</span>
+                {% endif %}
+            </h3>
+            <div>
+                <a href="/platforms/messaging/compose" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Compose</a>
+                {% if mesh_permitted %}
+                <a href="/platforms/messaging/mesh/" class="btn btn-outline-secondary btn-sm"><i class="bi bi-broadcast"></i> Mesh Bridge</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 5%;"></th>
+                        <th style="width: 30%;">Subject</th>
+                        <th>With</th>
+                        <th>Last Message</th>
+                        <th style="width: 5%;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in conversations %}
+                    <tr class="{% if item.unread_count > 0 %}table-primary{% endif %}">
+                        <td class="text-center">
+                            {% if item.unread_count > 0 %}
+                            <span class="badge bg-primary rounded-pill">{{ item.unread_count }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/platforms/messaging/conversations/{{ item.conversation.id }}" class="fw-bold text-decoration-none">
+                                {{ item.conversation.subject }}
+                            </a>
+                        </td>
+                        <td>
+                            {% for p in item.other_participants %}
+                            <span class="badge bg-light text-dark border">{{ p.username }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if item.last_message %}
+                            <small>
+                                <strong>{{ item.last_message.sender.username }}</strong>: {{ item.last_message.content[:60] }}...
+                                <br><span class="text-muted">{{ item.last_message.created_at|localtime('%b %d, %Y %H:%M') }}</span>
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap">
+                            <a href="/platforms/messaging/conversations/{{ item.conversation.id }}" class="btn btn-sm btn-outline-primary">Open</a>
+                            <form method="post"
+                                  action="/platforms/messaging/conversations/{{ item.conversation.id }}/delete"
+                                  class="d-inline"
+                                  onsubmit="return confirm('Delete this conversation and all its messages?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        title="Delete thread">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            No messages yet. Compose a new message to get started!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-4 mb-2">
+            <h4 class="mb-0"><i class="bi bi-people"></i> Groups</h4>
+            <a href="/platforms/messaging/groups/new" class="btn btn-success btn-sm"><i class="bi bi-plus-circle"></i> New Group</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-secondary">
+                    <tr>
+                        <th>Group</th>
+                        <th style="width: 15%;">Type</th>
+                        <th style="width: 10%;">Members</th>
+                        <th>Last Message</th>
+                        <th style="width: 10%;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in my_groups %}
+                    <tr>
+                        <td>
+                            {% if g.is_channel %}<i class="bi bi-broadcast-pin text-info" title="Mesh channel"></i>{% else %}<i class="bi bi-people-fill text-secondary"></i>{% endif %}
+                            <a href="/platforms/messaging/conversations/{{ g.id }}" class="fw-bold text-decoration-none">{{ g.subject }}</a>
+                        </td>
+                        <td>
+                            {% if g.is_channel %}
+                            <span class="badge bg-info text-dark">Channel</span>
+                            {% elif g.is_public %}
+                            <span class="badge bg-success">Public</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Private</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ g.members }}</td>
+                        <td>
+                            {% if g.last_message %}
+                            <small><strong>{{ g.last_message.sender }}</strong>: {{ g.last_message.content[:60] }}...</small>
+                            {% else %}
+                            <small class="text-muted">No messages yet</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap">
+                            <a href="/platforms/messaging/conversations/{{ g.id }}" class="btn btn-sm btn-outline-primary">Open</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for g in public_groups %}
+                    <tr class="table-light">
+                        <td><i class="bi bi-people text-success"></i> {{ g.subject }}</td>
+                        <td><span class="badge bg-success">Public</span></td>
+                        <td>{{ g.members }}</td>
+                        <td>
+                            {% if g.last_message %}
+                            <small class="text-muted"><strong>{{ g.last_message.sender }}</strong>: {{ g.last_message.content[:60] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" action="/platforms/messaging/groups/{{ g.id }}/join" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-success">Join</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% for g in mesh_channels %}
+                    {% if not g.joined %}
+                    <tr class="table-light">
+                        <td><i class="bi bi-broadcast-pin text-info"></i> {{ g.subject }}</td>
+                        <td><span class="badge bg-info text-dark">Channel</span></td>
+                        <td>{{ g.members }}</td>
+                        <td>
+                            {% if g.last_message %}
+                            <small class="text-muted"><strong>{{ g.last_message.sender }}</strong>: {{ g.last_message.content[:60] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if g.chan_idx is not none %}
+                            <form method="post" action="/platforms/messaging/channels/{{ g.chan_idx }}/open" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-info">Join</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% if not my_groups and not public_groups and not mesh_channels %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            No groups yet. Create one to start a group conversation.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

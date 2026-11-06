@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Categories - Library{% endblock %}
+
+{% block content %}
+<style>
+    .category-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+    .category-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+                <li class="breadcrumb-item active">Browse Categories</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-tags"></i> Browse Categories</h2>
+            <div class="d-flex gap-2">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-list-ol"></i> {{ per_page }} per page
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">Items per page</h6></li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 50 %}active{% endif %}"
+                               href="?page=1&per_page=50">
+                                50
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 100 %}active{% endif %}"
+                               href="?page=1&per_page=100">
+                                100
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 150 %}active{% endif %}"
+                               href="?page=1&per_page=150">
+                                150
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 200 %}active{% endif %}"
+                               href="?page=1&per_page=200">
+                                200
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="alert alert-info">
+            Showing {{ categories|length }} of {{ total }} categories
+        </div>
+
+        <!-- Categories Grid -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3">
+            {% for category in categories %}
+            <div class="col">
+                <div class="card category-card h-100" onclick="window.location='/library/ebook/browse/books?category_id={{ category.id }}&per_page={{ per_page }}'">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-tag-fill text-primary"></i> {{ category.name }}
+                        </h5>
+                        <p class="card-text text-muted">
+                            <i class="bi bi-book"></i> {{ category_book_counts[category.id] | default(0) }} books
+                        </p>
+                        <a href="/library/ebook/browse/books?category_id={{ category.id }}&per_page={{ per_page }}" class="btn btn-sm btn-primary">
+                            Browse Books
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if categories|length == 0 %}
+        <div class="alert alert-warning mt-3">
+            No categories found.
+        </div>
+        {% endif %}
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav class="mt-4" aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ current_page - 1 }}&per_page={{ per_page }}">Previous</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+
+                {% for page_num in range(1, total_pages + 1) %}
+                <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ page_num }}&per_page={{ per_page }}">{{ page_num }}</a>
+                </li>
+                {% endfor %}
+
+                {% if current_page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ current_page + 1 }}&per_page={{ per_page }}">Next</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

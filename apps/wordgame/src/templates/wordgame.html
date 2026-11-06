@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Word Game — syarc console{% endblock %}
+{% block content %}
+<div class="row mt-3">
+  <div class="col-12 d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-grid-3x3-gap"></i> Word Game</h3>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card shadow-sm">
+      <div class="card-header">New game</div>
+      <div class="card-body">
+        <label class="form-label small" for="opponent">Opponent username</label>
+        <input class="form-control form-control-sm mb-2" id="opponent" placeholder="username">
+        <button class="btn btn-sm btn-primary" id="new-game-btn">
+          <i class="bi bi-plus-circle"></i> Create game
+        </button>
+        <div class="small text-muted mt-2" id="new-game-msg"></div>
+      </div>
+    </div>
+    <div class="card shadow-sm mt-3">
+      <div class="card-header">My stats</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tbody id="stats-body">
+            <tr><td class="ps-3 text-muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card shadow-sm mt-3">
+      <div class="card-header">How to play</div>
+      <div class="card-body small text-muted">
+        Place tiles from your rack onto the 15×15 board to form words, crossword
+        style. The first word must cover the center star. New words must connect
+        to tiles already on the board. Letter and word bonus squares multiply
+        your score; use all 7 tiles in one turn for a 50-point bingo. Three
+        consecutive passes end the game.
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>My games</span>
+        <div class="btn-group btn-group-sm" id="status-filter">
+          <button class="btn btn-outline-secondary active" data-status="all">All</button>
+          <button class="btn btn-outline-secondary" data-status="waiting">Waiting</button>
+          <button class="btn btn-outline-secondary" data-status="active">Active</button>
+          <button class="btn btn-outline-secondary" data-status="completed">Done</button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>Opponent</th><th>Score</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="games-body">
+            <tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+  var currentStatus = 'all';
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function loadStats() {
+    fetch('/wordgame/api/stats', {credentials: 'include'})
+      .then(function(r) { return r.json(); })
+      .then(function(s) {
+        document.getElementById('stats-body').innerHTML =
+          '<tr><th class="ps-3" style="width:60%">Games</th><td>' + s.total_games + '</td></tr>' +
+          '<tr><th class="ps-3">Won / Lost</th><td>' + s.games_won + ' / ' + s.games_lost + '</td></tr>' +
+          '<tr><th class="ps-3">Active</th><td>' + s.games_active + '</td></tr>' +
+          '<tr><th class="ps-3">Points</th><td>' + s.total_score + '</td></tr>' +
+          '<tr><th class="ps-3">Avg / game</th><td>' + s.average_score + '</td></tr>';
+      }).catch(function() {});
+  }
+
+  function loadGames() {
+    fetch('/wordgame/api/games?status=' + currentStatus, {credentials: 'include'})
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var body = document.getElementById('games-body');
+        if (!data.games || data.games.length === 0) {
+          body.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No games yet.</td></tr>';
+          return;
+        }
+        body.innerHTML = data.games.map(function(g) {
+          var status = g.status;
+          var badge = 'bg-secondary';
+          if (status === 'active' && g.is_my_turn) { badge = 'bg-success'; status = 'your turn'; }
+          else if (status === 'active') { badge = 'bg-warning text-dark'; status = 'their turn'; }
+          else if (status === 'waiting') { badge = 'bg-info text-dark'; }
+          var btn = (g.status === 'waiting')
+            ? '<button class="btn btn-sm btn-outline-primary join-btn" data-id="' + g.id + '">Join</button>'
+            : '<a class="btn btn-sm btn-outline-primary" href="/wordgame/game/' + g.id + '">Play</a>';
+          return '<tr>' +
+            '<td>' + esc(g.opponent_username || 'Waiting…') + '</td>' +
+            '<td class="font-monospace">' + g.my_score + ' – ' + g.opponent_score + '</td>' +
+            '<td><span class="badge ' + badge + '">' + esc(status) + '</span></td>' +
+            '<td class="text-end pe-3">' + btn + '</td></tr>';
+        }).join('');
+        body.querySelectorAll('.join-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            fetch('/wordgame/api/games/' + btn.dataset.id + '/join', {
+              method: 'POST', credentials: 'include'
+            }).then(function() { window.location.href = '/wordgame/game/' + btn.dataset.id; });
+          });
+        });
+      }).catch(function() {});
+  }
+
+  document.getElementById('status-filter').addEventListener('click', function(ev) {
+    var btn = ev.target.closest('button');
+    if (!btn) return;
+    document.querySelectorAll('#status-filter button').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentStatus = btn.dataset.status;
+    loadGames();
+  });
+
+  document.getElementById('new-game-btn').addEventListener('click', function() {
+    var name = document.getElementById('opponent').value.trim();
+    var msg = document.getElementById('new-game-msg');
+    if (!name) { msg.textContent = 'Enter a username.'; return; }
+    fetch('/wordgame/api/games', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({opponent_username: name})
+    }).then(function(r) { return r.json().then(function(j) { return {ok: r.ok, j: j}; }); })
+      .then(function(res) {
+        if (!res.ok) { msg.textContent = res.j.error || 'Failed'; return; }
+        window.location.href = '/wordgame/game/' + res.j.game_id;
+      }).catch(function() { msg.textContent = 'Failed'; });
+  });
+
+  loadStats();
+  loadGames();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item_key }} - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if store_id %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store_id }}">{{ store_name }}</a></li>
+        {% endif %}
+        {% for ancestor in ancestor_chain %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ ancestor.id }}">{{ ancestor.name }}</a></li>
+        {% endfor %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ category.id }}">{{ category.name }}</a></li>
+        <li class="breadcrumb-item active">{{ item_key }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>{{ item_key }}</h2>
+    <div>
+        <span class="badge bg-primary fs-6">{{ items | length }} instance{{ 's' if items | length != 1 }}</span>
+        <span class="badge bg-secondary fs-6 ms-1">Total qty: {{ total_qty }}</span>
+    </div>
+</div>
+
+{% if description %}
+<p class="text-muted">{{ description }}</p>
+{% endif %}
+
+{% if not items %}
+<div class="alert alert-light">No items found.</div>
+{% else %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>Location</th>
+                <th>Qty</th>
+                <th>Scanned</th>
+                <th>Updated</th>
+                <th>Barcode</th>
+                <th>Notes</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr id="row-{{ item.id }}">
+                <td>
+                    <span id="loc-{{ item.id }}">{{ item.location or '(no location)' }}</span>
+                </td>
+                <td>
+                    <div class="d-flex align-items-center gap-1">
+                        <button class="btn btn-outline-secondary btn-sm p-0 px-1" onclick="adjustQty('{{ item.id }}', -1)">
+                            <i class="bi bi-dash"></i>
+                        </button>
+                        <span id="qty-{{ item.id }}" class="fw-bold">{{ item.quantity }}</span>
+                        <button class="btn btn-outline-secondary btn-sm p-0 px-1" onclick="adjustQty('{{ item.id }}', 1)">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </td>
+                <td><small>{{ item.created_at[:16] if item.created_at else '' }}</small></td>
+                <td><small>{{ item.updated_at[:16] if item.updated_at else '' }}</small></td>
+                <td><small class="text-muted">{{ item.barcode or '' }}</small></td>
+                <td><small>{{ item.notes or '' }}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" title="Move to new location"
+                        data-item-id="{{ item.id }}"
+                        data-item-key="{{ item.key }}"
+                        data-item-desc="{{ item.description or '' }}"
+                        data-item-qty="{{ item.quantity }}"
+                        data-item-location="{{ item.location or '' }}"
+                        onclick="openMoveModal(this)">
+                        <i class="bi bi-geo-alt"></i>
+                    </button>
+                    <a href="/supply/items/{{ item.id }}/edit?next={{ next_url | urlencode }}" class="btn btn-sm btn-outline-secondary" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="/supply/items/{{ item.id }}/delete?next={{ next_url | urlencode }}" class="d-inline"
+                          onsubmit="return confirm('Consume/delete this item?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Consume / Delete">
+                            <i class="bi bi-trash"></i> Consume
+                        </button>
+                    </form>
+                    {% if item.barcode %}
+                    <button class="btn btn-sm btn-outline-info" title="Re-lookup barcode" onclick="relookupBarcode('{{ item.id }}', this)">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Move Location Modal -->
+<div id="moveModal" class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 justify-content-center align-items-center d-none" style="z-index: 1050;">
+    <div class="bg-white p-4 rounded shadow" style="width: 440px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Move to Location</h5>
+            <button type="button" class="btn-close" onclick="closeMoveModal()"></button>
+        </div>
+        <p class="fw-bold mb-1" id="moveItemName"></p>
+        <p class="text-muted small mb-3">From: <span id="moveSourceLoc"></span> (<span id="moveSourceQty"></span> available)</p>
+        <div class="mb-3">
+            <label for="moveQty" class="form-label">Quantity to move</label>
+            <input type="number" class="form-control" id="moveQty" min="1" required>
+        </div>
+        <div class="mb-3">
+            <label for="moveTargetLoc" class="form-label">New location</label>
+            <input type="text" class="form-control" id="moveTargetLoc" placeholder="e.g. Kitchen, Shelf B2" required list="locationList">
+            <datalist id="locationList">
+                {% for item in items %}
+                {% if item.location %}
+                <option value="{{ item.location }}">
+                {% endif %}
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-secondary" onclick="closeMoveModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitMove()">Move</button>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/supply/categories/{{ category.id }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to {{ category.name }}
+    </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let moveSourceId = null;
+
+async function adjustQty(itemId, delta) {
+    const qtyEl = document.getElementById('qty-' + itemId);
+    try {
+        const resp = await fetch('/supply/api/items/' + itemId + '/adjust', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({adjustment: delta})
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            qtyEl.textContent = data.quantity;
+        }
+    } catch (e) {
+        console.error('Adjustment failed', e);
+    }
+}
+
+function openMoveModal(btn) {
+    moveSourceId = btn.dataset.itemId;
+    document.getElementById('moveItemName').textContent = btn.dataset.itemKey + (btn.dataset.itemDesc ? ' — ' + btn.dataset.itemDesc : '');
+    document.getElementById('moveSourceLoc').textContent = btn.dataset.itemLocation || '(no location)';
+    document.getElementById('moveSourceQty').textContent = btn.dataset.itemQty;
+    document.getElementById('moveQty').value = '';
+    document.getElementById('moveQty').max = btn.dataset.itemQty;
+    document.getElementById('moveTargetLoc').value = '';
+    const modal = document.getElementById('moveModal');
+    modal.classList.remove('d-none');
+    modal.classList.add('d-flex');
+    document.getElementById('moveQty').focus();
+}
+
+function closeMoveModal() {
+    const modal = document.getElementById('moveModal');
+    modal.classList.remove('d-flex');
+    modal.classList.add('d-none');
+    moveSourceId = null;
+}
+
+async function submitMove() {
+    if (!moveSourceId) return;
+    const qty = parseInt(document.getElementById('moveQty').value);
+    const targetLoc = document.getElementById('moveTargetLoc').value.trim();
+
+    if (!qty || qty <= 0) { alert('Enter a positive quantity.'); return; }
+    if (!targetLoc) { alert('Enter a destination location.'); return; }
+
+    try {
+        const resp = await fetch('/supply/api/items/' + moveSourceId + '/transfer', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({quantity: qty, target_location: targetLoc})
+        });
+        if (resp.ok) {
+            location.reload();
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.detail || 'Move failed'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+document.getElementById('moveModal').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitMove(); }
+    if (e.key === 'Escape') closeMoveModal();
+});
+
+async function relookupBarcode(itemId, btn) {
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const resp = await fetch('/supply/api/items/' + itemId + '/lookup-barcode', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.updated) {
+                location.reload();
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
+                if (!data.barcode) {
+                    alert('No barcode on this item.');
+                } else {
+                    alert('No new description found for barcode: ' + data.barcode);
+                }
+            }
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+            alert('Lookup failed.');
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+        alert('Error: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

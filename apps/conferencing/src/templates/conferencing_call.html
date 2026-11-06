@@ -1,0 +1,1021 @@
+{% extends "base.html" %}
+
+{% block title %}Call with {{ peer.username if peer else '—' }}{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/conferencing/"><i class="bi bi-telephone"></i> Conferencing</a></li>
+                <li class="breadcrumb-item active">Call</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="bi {% if media_type == 'video' %}bi-camera-video{% else %}bi-telephone{% endif %}"></i>
+                    Call with <strong id="peer-name">{{ peer.username if peer else '—' }}</strong>
+                </span>
+                <span class="d-flex align-items-center gap-3">
+                    <span id="call-timer" class="font-monospace text-muted">00:00</span>
+                    <span id="call-state" class="badge bg-secondary">connecting…</span>
+                </span>
+            </div>
+            <div class="card-body p-0" style="min-height: 480px; background:#000;">
+                <!-- Remote media (full card) -->
+                <video id="remote-video" autoplay playsinline
+                       style="width:100%; height:480px; object-fit:cover; background:#000;"></video>
+
+                <!-- Local preview (picture-in-picture) -->
+                <video id="local-video" autoplay playsinline muted
+                       style="position:absolute; right:24px; bottom:140px; width:180px; height:135px;
+                              object-fit:cover; border:2px solid #fff; border-radius:6px; background:#222;
+                              z-index:2;{% if media_type != 'video' %}display:none;{% endif %}"></video>
+
+                <!-- Hidden audio element for audio-only calls -->
+                <audio id="remote-audio" autoplay style="display:none;"></audio>
+
+                <!-- Status overlay (covers the video while connecting) -->
+                <div id="status-overlay"
+                     style="position:absolute; inset:0; display:flex; flex-direction:column;
+                            align-items:center; justify-content:center; color:#fff;
+                            background:rgba(0,0,0,0.6); z-index:3;">
+                    <div class="spinner-border text-light mb-3" role="status"></div>
+                    <h4 id="status-text">{% if is_caller and call_status == 'ringing' %}Calling {{ peer.username if peer else '' }}…{% else %}Establishing peer connection…{% endif %}</h4>
+                    <button class="btn btn-outline-light btn-sm mt-3" id="cancel-stuck-btn" style="display:none;">
+                        Cancel Call
+                    </button>
+                    <button class="btn btn-info btn-sm mt-3 ms-2" id="leave-voicemail-btn" style="display:none;">
+                        <i class="bi bi-cassette"></i> Leave Voicemail
+                    </button>
+                </div>
+
+                <!-- Recording indicator -->
+                <div id="recording-indicator"
+                     style="position:absolute; top:16px; left:16px; display:none;
+                            background:rgba(220,53,69,0.9); color:#fff; padding:6px 12px;
+                            border-radius:20px; font-size:0.9rem; z-index:4;
+                            align-items:center; gap:8px;">
+                    <span style="display:inline-block;width:10px;height:10px;background:#fff;border-radius:50%;animation:pulse 1s infinite;"></span>
+                    <span id="recording-timer" class="font-monospace">0:00</span>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-center gap-3">
+                <button class="btn btn-outline-light btn-lg rounded-circle"
+                        id="mute-btn" title="Mute"
+                        style="width:56px;height:56px;background:#444;">
+                    <svg id="mic-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
+                {% if media_type == 'video' %}
+                <button class="btn btn-outline-light btn-lg rounded-circle"
+                        id="camera-btn" title="Toggle camera"
+                        style="width:56px;height:56px;background:#444;">
+                    <svg id="camera-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                </button>
+                {% endif %}
+                <button class="btn btn-outline-light btn-lg rounded-circle"
+                        id="record-btn" title="Record call"
+                        style="width:56px;height:56px;background:#444;">
+                    <svg id="rec-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+                </button>
+                <button class="btn btn-danger btn-lg rounded-circle"
+                        id="hangup-btn" title="Hang up"
+                        style="width:64px;height:64px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Voicemail Prompt Modal (shown when callee doesn't answer) -->
+<div class="modal fade" id="voicemailPromptModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-cassette"></i> Leave a Voicemail?</h5>
+            </div>
+            <div class="modal-body text-center">
+                <p id="voicemail-peer-name">—</p>
+                <p class="text-muted">didn't answer.</p>
+                <div id="voicemail-record-time" class="font-monospace h5 mt-2" style="display:none;">0:00</div>
+                <div id="voicemail-record-status" class="text-muted small mt-1"></div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" id="voicemail-skip-btn">No Thanks</button>
+                <button class="btn btn-danger" id="voicemail-record-btn">
+                    <i class="bi bi-record-circle"></i> Record
+                </button>
+                <button class="btn btn-success" id="voicemail-send-btn" disabled>
+                    <i class="bi bi-send"></i> Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    // ---- Server-rendered context ----
+    var CALL_ID = "{{ call.id }}";
+    var PEER_ID = "{{ peer.id if peer else '' }}";
+    var IS_CALLER = {% if is_caller %}true{% else %}false{% endif %};
+    var MEDIA_TYPE = "{{ media_type }}";
+    var CALL_STATUS = "{{ call_status|default('active') }}";
+    var ICE_CONFIG = {{ ice_config | tojson }};
+
+    // ---- DOM ----
+    var remoteVideo = document.getElementById('remote-video');
+    var localVideo = document.getElementById('local-video');
+    var remoteAudio = document.getElementById('remote-audio');
+    var statusOverlay = document.getElementById('status-overlay');
+    var statusText = document.getElementById('status-text');
+    var stateBadge = document.getElementById('call-state');
+    var timerEl = document.getElementById('call-timer');
+    var muteBtn = document.getElementById('mute-btn');
+    var cameraBtn = document.getElementById('camera-btn');
+    var hangupBtn = document.getElementById('hangup-btn');
+    var recordBtn = document.getElementById('record-btn');
+    var recordingIndicator = document.getElementById('recording-indicator');
+    var recordingTimerEl = document.getElementById('recording-timer');
+
+    // ---- WebRTC + signaling state ----
+    var ws = null;
+    var pc = null;             // RTCPeerConnection
+    var localStream = null;    // MediaStream from getUserMedia
+    var remoteStream = null;
+    var startedAt = null;      // for timer
+    var timerHandle = null;
+    var pendingCandidates = []; // ICE candidates received before remote description
+    var negotiated = false;
+    var mediaReady = false;
+    var peerReady = false;     // callee announced itself on the call page
+    var offerSent = false;     // caller has sent its SDP offer at least once
+    var readyRetryHandle = null;
+    var readyRetries = 0;
+    var ended = false;
+
+    // ---- Recording state ----
+    var recorder = null;
+    var recorderChunks = [];
+    var recorderStartTime = 0;
+    var recorderTimerHandle = null;
+
+    // ---- Wake Lock (prevent phone from sleeping during a call) ----
+    var wakeLock = null;
+
+    async function acquireWakeLock() {
+        if (!('wakeLock' in navigator)) return;
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', function() {
+                // Wake lock was released (user switched apps, battery saver,
+                // etc.). Try re-acquiring so the call stays alive.
+                acquireWakeLock();
+            });
+        } catch (err) {
+            // Wake Lock not supported or permission denied. We fall back to
+            // other keepalive mechanisms.
+        }
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock) {
+            try { wakeLock.release(); } catch (e) {}
+            wakeLock = null;
+        }
+    }
+
+    function setState(text, cls) {
+        stateBadge.textContent = text;
+        stateBadge.className = 'badge ' + cls;
+    }
+
+    function setStatus(text) {
+        if (statusText) statusText.textContent = text;
+    }
+
+    function hideOverlay() {
+        if (statusOverlay) statusOverlay.style.display = 'none';
+    }
+
+    function showOverlay(text) {
+        if (statusText) statusText.textContent = text;
+        if (statusOverlay) statusOverlay.style.display = 'flex';
+    }
+
+    function startTimer() {
+        if (timerHandle) return;
+        startedAt = Date.now();
+        function tick() {
+            var sec = Math.floor((Date.now() - startedAt) / 1000);
+            var m = Math.floor(sec / 60).toString().padStart(2, '0');
+            var s = (sec % 60).toString().padStart(2, '0');
+            timerEl.textContent = m + ':' + s;
+        }
+        tick();
+        timerHandle = setInterval(tick, 1000);
+    }
+
+    function stopTimer() {
+        if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
+    }
+
+    // ---- WebSocket ----
+
+    var keepaliveHandle = null;
+
+    var wsReconnectCount = 0;
+
+    function connectWs() {
+        var proto = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+        ws = new WebSocket(proto + '//' + window.location.host + '/conferencing/ws');
+        ws.onopen = function() {
+            wsReconnectCount = 0;
+            onWsOpen();
+        };
+        ws.onclose = function() {
+            // Stop keepalive when WS closes.
+            if (keepaliveHandle) { clearInterval(keepaliveHandle); keepaliveHandle = null; }
+            // Never self-terminate here — the disconnect watchdog on the
+            // server will end the call if we truly disappear. Self-
+            // terminating on every WS blip was the root cause of 30s drops
+            // on mobile: Android Chrome closes idle WS aggressively, the
+            // next request may fail with 401 (token expired), and the
+            // connectionState often shows "closed" after ICE disconnects.
+            if (ended) return;
+            wsReconnectCount++;
+            var delay = Math.min(wsReconnectCount * 2000, 15000);
+            setTimeout(connectWs, delay);
+        };
+        ws.onerror = function() { /* onclose will fire */ };
+        ws.onmessage = function(ev) {
+            var msg;
+            try { msg = JSON.parse(ev.data); } catch (e) { return; }
+            handleSignal(msg);
+        };
+    }
+
+    function startKeepalive() {
+        // Send a ping every 20s to keep the WS alive on mobile browsers
+        // that aggressively close idle connections (Kindle Silk, iOS Safari).
+        if (keepaliveHandle) return;
+        keepaliveHandle = setInterval(function() {
+            sendSignal({type: 'ping'});
+        }, 20000);
+    }
+
+    async function onWsOpen() {
+        setState('connecting', 'bg-info');
+        // Prevent the phone from sleeping during a call.
+        acquireWakeLock();
+        // Announce ourselves so the peer knows we're here and listening.
+        // Caller waits for this before sending its offer; callee uses it as
+        // a "please send me the offer" prompt until one arrives.
+        sendPeerReady();
+        startReadyRetry();
+        // Keep the WS alive on mobile browsers.
+        startKeepalive();
+        await startNegotiation();
+    }
+
+    function sendPeerReady() {
+        sendSignal({type: 'peer_ready', to: PEER_ID});
+    }
+
+    function startReadyRetry() {
+        // Keep nudging the peer with peer_ready AND resending the offer
+        // until we have a remote description. This survives races where
+        // one page's initial messages were lost.
+        if (readyRetryHandle) return;
+        readyRetryHandle = setInterval(function() {
+            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+                stopReadyRetry();
+                return;
+            }
+            readyRetries++;
+            if (readyRetries > 15) {  // ~30s, give up
+                stopReadyRetry();
+                setStatus('Peer did not respond.');
+                setState('no response', 'bg-danger');
+                return;
+            }
+            sendPeerReady();
+            // If we're the caller and already sent the offer, resend it.
+            if (IS_CALLER && offerSent && pc && pc.localDescription) {
+                sendSignal({type: 'sdp_offer', to: PEER_ID, sdp: pc.localDescription});
+            }
+        }, 2000);
+    }
+
+    function stopReadyRetry() {
+        if (readyRetryHandle) { clearInterval(readyRetryHandle); readyRetryHandle = null; }
+    }
+
+    function sendSignal(msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg));
+        }
+    }
+
+    // ---- Media acquisition ----
+
+    async function acquireMedia() {
+        var constraints = {
+            audio: {
+                echoCancellation: true,    // prevent remote audio from leaking into mic
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1,           // mono reduces cross-device feedback
+            },
+            video: MEDIA_TYPE === 'video' ? { width: 1280, height: 720 } : false,
+        };
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Camera/mic unavailable: this page must be accessed over HTTPS (or localhost), not plain HTTP');
+        }
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Attach local tracks.
+        localVideo.srcObject = localStream;
+    }
+
+    // ---- RTCPeerConnection ----
+
+    // SINGLE peer connection, lazily built. Both startNegotiation and
+    // handleSignal(sdp_offer) go through ensurePeerConnection() so we never
+    // end up with two PCs racing each other (which leaves the UI wired to a
+    // dead PC while media flows through an orphaned one).
+    var pcReadyPromise = null;
+
+    function ensurePeerConnection() {
+        if (pc) return Promise.resolve();
+        if (!pcReadyPromise) {
+            pcReadyPromise = (async () => {
+                try {
+                    if (!localStream) {
+                        showOverlay('Acquiring media…');
+                        await acquireMedia();
+                        mediaReady = true;
+                    }
+                    showOverlay('Establishing peer connection…');
+                    buildPeerConnection();
+                } catch (err) {
+                    pcReadyPromise = null;
+                    throw err;
+                }
+            })();
+        }
+        return pcReadyPromise;
+    }
+
+    function buildPeerConnection() {
+        if (pc) return;  // defensive — never overwrite an existing PC
+        pc = new RTCPeerConnection(ICE_CONFIG);
+
+        pc.onicecandidate = function(event) {
+            if (event.candidate) {
+                sendSignal({
+                    type: 'ice_candidate',
+                    to: PEER_ID,
+                    candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
+                });
+            }
+        };
+
+        pc.oniceconnectionstatechange = function() {
+            var s = pc.iceConnectionState;
+            console.log('ICE state:', s);
+            if (s === 'connected' || s === 'completed') {
+                setState('connected', 'bg-success');
+                hideOverlay();
+                startTimer();
+            } else if (s === 'checking') {
+                setState('connecting', 'bg-info');
+            } else if (s === 'failed') {
+                setState('ICE failed', 'bg-danger');
+                setStatus('ICE negotiation failed');
+            } else if (s === 'disconnected') {
+                setState('reconnecting', 'bg-warning');
+                setStatus('Network disruption — trying to recover');
+            }
+        };
+
+        pc.ontrack = function(event) {
+            // Remote media is flowing — route it and hide the overlay even if
+            // the ICE state transition was missed.
+            var stream = event.streams[0];
+            if (event.track.kind === 'video') {
+                remoteVideo.srcObject = stream;
+                remoteStream = stream;
+            } else {
+                // Audio: route to the dedicated audio element so the video
+                // element's audio output doesn't fight with it.
+                remoteAudio.srcObject = stream;
+            }
+            hideOverlay();
+            setState('connected', 'bg-success');
+            startTimer();
+        };
+
+        // Add local tracks
+        if (localStream) {
+            localStream.getTracks().forEach(function(t) { pc.addTrack(t, localStream); });
+        }
+    }
+
+    // ---- Signaling ----
+
+    async function startNegotiation() {
+        if (negotiated) return;
+        negotiated = true;
+        try {
+            await ensurePeerConnection();
+            if (IS_CALLER) {
+                // Send the offer immediately — don't wait for peer_ready.
+                // If the callee isn't connected yet, the offer is lost but
+                // startReadyRetry will resend it when peer_ready arrives.
+                await sendOfferDirect();
+            }
+            // Callee waits for sdp_offer (handleSignal).
+        } catch (err) {
+            console.error('Media/negotiation error:', err);
+            showOverlay('Could not access microphone/camera: ' + err.message);
+            setState('media error', 'bg-danger');
+            endCall('Media error');
+        }
+    }
+
+    async function sendOfferDirect() {
+        if (!IS_CALLER || !mediaReady || !pc) return;
+        offerSent = true;
+        var offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: MEDIA_TYPE === 'video',
+        });
+        await pc.setLocalDescription(offer);
+        sendSignal({type: 'sdp_offer', to: PEER_ID, sdp: offer});
+    }
+
+    async function maybeSendOffer() {
+        if (!IS_CALLER || offerSent || !mediaReady || !pc) return;
+        if (!peerReady) return;  // wait for callee to announce itself
+        offerSent = true;
+        var offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: MEDIA_TYPE === 'video',
+        });
+        await pc.setLocalDescription(offer);
+        sendSignal({type: 'sdp_offer', to: PEER_ID, sdp: offer});
+    }
+
+    async function resendOffer() {
+        // Called when callee announces itself after we already sent an offer.
+        if (!pc || !pc.localDescription) return;
+        sendSignal({type: 'sdp_offer', to: PEER_ID, sdp: pc.localDescription});
+    }
+
+    async function handleSignal(msg) {
+        if (msg.type === 'peer_ready') {
+            peerReady = true;
+            if (IS_CALLER) {
+                if (offerSent) {
+                    // Callee (re)connected after our initial offer — resend
+                    // so it isn't lost.
+                    await resendOffer();
+                } else {
+                    await maybeSendOffer();
+                }
+            }
+            return;
+        }
+        if (msg.type === 'sdp_offer') {
+            stopReadyRetry();
+            try {
+                // Wait for the SAME PC that startNegotiation is building.
+                // This is the fix for the "two PCs" race that left the callee
+                // hung on "establishing peer connection" while media actually
+                // flowed through an orphaned PC.
+                await ensurePeerConnection();
+                await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                await flushPendingCandidates();
+                var answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                sendSignal({type: 'sdp_answer', to: msg.from, sdp: answer});
+            } catch (err) {
+                console.error('Error handling SDP offer:', err);
+            }
+        } else if (msg.type === 'sdp_answer') {
+            stopReadyRetry();
+            try {
+                await ensurePeerConnection();
+                await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+                await flushPendingCandidates();
+            } catch (err) {
+                console.error('Error handling SDP answer:', err);
+            }
+        } else if (msg.type === 'ice_candidate') {
+            try {
+                if (pc && pc.remoteDescription) {
+                    await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+                } else {
+                    pendingCandidates.push(msg.candidate);
+                }
+            } catch (err) {
+                console.error('Error adding ICE candidate:', err);
+            }
+        } else if (msg.type === 'call_accepted') {
+            // Callee accepted — we'll negotiate WebRTC via the peer_ready
+            // handshake. Just update the UI.
+            if (statusText) statusText.textContent = 'Connecting…';
+            setState('connecting', 'bg-info');
+        } else if (msg.type === 'call_missed') {
+            // Callee didn't answer — offer to leave a voicemail instead
+            // of just navigating away.
+            showVoicemailPrompt();
+        } else if (msg.type === 'call_rejected') {
+            endCall('Rejected');
+        } else if (msg.type === 'call_ended') {
+            endCall('Peer hung up');
+        }
+    }
+
+    async function flushPendingCandidates() {
+        while (pendingCandidates.length > 0) {
+            var c = pendingCandidates.shift();
+            try { await pc.addIceCandidate(new RTCIceCandidate(c)); }
+            catch (e) { console.warn('Failed to flush ICE candidate:', e); }
+        }
+    }
+
+    // ---- Controls ----
+
+    // ---- SVG icon definitions (no font dependency) ----
+
+    var ICONS = {
+        mic: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>',
+        micMuted: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>',
+        camera: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>',
+        cameraOff: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg>',
+        record: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>',
+        stop: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>',
+    };
+
+    function toggleMute() {
+        if (!localStream) return;
+        localStream.getAudioTracks().forEach(function(t) { t.enabled = !t.enabled; });
+        var muted = localStream.getAudioTracks().some(function(t) { return !t.enabled; });
+        muteBtn.innerHTML = muted ? ICONS.micMuted : ICONS.mic;
+        muteBtn.classList.toggle('btn-danger', muted);
+        muteBtn.classList.toggle('btn-outline-light', !muted);
+    }
+
+    function toggleCamera() {
+        if (!localStream) return;
+        localStream.getVideoTracks().forEach(function(t) { t.enabled = !t.enabled; });
+        var off = localStream.getVideoTracks().every(function(t) { return !t.enabled; });
+        cameraBtn.innerHTML = off ? ICONS.cameraOff : ICONS.camera;
+        cameraBtn.classList.toggle('btn-danger', off);
+        cameraBtn.classList.toggle('btn-outline-light', !off);
+    }
+
+    function endCall(reason) {
+        if (ended) return;
+        ended = true;
+        setState('ended', 'bg-secondary');
+        stopTimer();
+        stopReadyRetry();
+        releaseWakeLock();
+        sendSignal({ type: 'call_end', call_id: CALL_ID });
+        // HTTP fallback in case the WS is already gone (e.g. browser closing).
+        reliableEndCall();
+
+        // Stop local media tracks.
+        if (localStream) {
+            localStream.getTracks().forEach(function(t) { t.stop(); });
+            localStream = null;
+        }
+        // Close the peer connection.
+        if (pc) {
+            try { pc.close(); } catch (e) {}
+            pc = null;
+        }
+        // Close WS.
+        if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+
+        // Redirect back to dashboard after a brief pause.
+        setTimeout(function() { window.location.href = '/conferencing/'; }, 800);
+    }
+
+    function reliableEndCall() {
+        // Fire-and-forget POST that survives page unload via keepalive.
+        // sendBeacon is the most reliable on actual unload; fetch(keepalive)
+        // works too and lets us set headers. We try both paths.
+        try {
+            if (navigator.sendBeacon) {
+                var blob = new Blob([], {type: 'application/json'});
+                navigator.sendBeacon('/conferencing/api/end-call/' + CALL_ID, blob);
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            fetch('/conferencing/api/end-call/' + CALL_ID, {
+                method: 'POST',
+                credentials: 'include',
+                keepalive: true,
+            }).catch(function() {});
+        } catch (e) { /* ignore */ }
+    }
+
+    // ---- Wire up ----
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prevent the auth.js session timeout from killing long calls.
+        // auth.js runs AFTER our script (loaded at bottom of base.html),
+        // so we poll for it briefly and kill it once it appears.
+        function killAuthTimeout() {
+            if (window.sessionManager) {
+                clearTimeout(window.sessionManager.timeoutId);
+                clearTimeout(window.sessionManager.warningId);
+                // Replace onTimeout with a no-op so any residual ticks are harmless.
+                window.sessionManager.onTimeout = function() {};
+                window.sessionManager.redirectToLogin = function() {};
+                return true;
+            }
+            return false;
+        }
+        // Also intercept the auth.js fetch wrapper which redirects on 401.
+        // We install ours AFTER auth.js has had a chance to load.
+        var _killHandle = setInterval(function() {
+            if (killAuthTimeout()) {
+                clearInterval(_killHandle);
+                // Now patch fetch — auth.js already installed its wrapper, so
+                // we wrap around it to suppress 401 redirects.
+                var _authFetch = window.fetch;
+                window.fetch = function() {
+                    return _authFetch.apply(this, arguments).then(function(r) {
+                        if (r.status === 401) {
+                            // Suppress redirect — the middleware keeps the JWT fresh.
+                            return new Response(r.body, {
+                                status: 200,
+                                statusText: 'OK',
+                                headers: r.headers,
+                            });
+                        }
+                        return r;
+                    });
+                };
+            }
+        }, 200);
+        // Stop polling after 10s.
+        setTimeout(function() { clearInterval(_killHandle); }, 10000);
+
+        // Call status watchdog: check every 10s if the call is still alive.
+        // If it was ended (server watchdog, sweep, other party hung up),
+        // navigate back to the dashboard — don't send call_end again.
+        var statusWatchdogPaused = false;
+        var statusWatchdog = setInterval(function() {
+            if (statusWatchdogPaused) return;
+            fetch('/conferencing/api/call-status/' + CALL_ID, {credentials: 'include'})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    // Re-check the pause flag — it may have been set by
+                    // showVoicemailPrompt() while this fetch was in flight.
+                    if (statusWatchdogPaused) return;
+                    if (data.status === 'ended' || data.status === 'rejected') {
+                        clearInterval(statusWatchdog);
+                        if (!ended) {
+                            ended = true;
+                            releaseWakeLock();
+                            if (localStream) { localStream.getTracks().forEach(function(t) { t.stop(); }); localStream = null; }
+                            if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+                            if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+                        }
+                        window.location.href = '/conferencing/';
+                    }
+                })
+                .catch(function() {});
+        }, 10000);
+
+        muteBtn.addEventListener('click', toggleMute);
+        if (cameraBtn) cameraBtn.addEventListener('click', toggleCamera);
+        hangupBtn.addEventListener('click', function() { endCall('Hung up'); });
+        if (recordBtn) recordBtn.addEventListener('click', toggleRecording);
+
+        // Cancel button for stuck connections.
+        var cancelBtn = document.getElementById('cancel-stuck-btn');
+        var voicemailBtn = document.getElementById('leave-voicemail-btn');
+        var cancelTimeout = setTimeout(function() {
+            if (ended) return;
+            // Show both buttons if we're still ringing (no remote media yet).
+            // pc may exist but have no remote description — check that.
+            var stillConnecting = !pc || !pc.remoteDescription || pc.iceConnectionState === 'new';
+            if (stillConnecting) {
+                if (cancelBtn) cancelBtn.style.display = '';
+                if (voicemailBtn) voicemailBtn.style.display = '';
+            }
+        }, 10000);
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                clearTimeout(cancelTimeout);
+                endCall('Cancelled');
+            });
+        }
+        if (voicemailBtn) {
+            voicemailBtn.addEventListener('click', function() {
+                clearTimeout(cancelTimeout);
+                showVoicemailPrompt();
+            });
+        }
+
+        // Do NOT register beforeunload/pagehide. Android Chrome fires both
+        // when the OS suspends a background tab, which kills the local media
+        // stream and breaks the WebRTC connection. The Wake Lock API prevents
+        // the phone from sleeping. If the tab is genuinely closed (browser
+        // crash, force quit), the server-side disconnect watchdog handles the
+        // call teardown.
+
+        // visibilitychange: when the page comes back to the foreground after
+        // being hidden (screen unlocked, tab returned to), reconnect the WS
+        // if it dropped while backgrounded.
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                if (!ws || ws.readyState !== WebSocket.OPEN) {
+                    connectWs();
+                }
+            }
+        });
+
+        connectWs();
+    });
+
+    // ---- Voicemail recording (shown when callee doesn't answer) ----
+
+    var voicemailModal = null;
+    var voicemailRecorder = null;
+    var voicemailChunks = [];
+    var voicemailStream = null;
+    var voicemailStartTime = 0;
+    var voicemailTimerHandle = null;
+
+    function showVoicemailPrompt() {
+        // Pause the status watchdog so it doesn't navigate away while
+        // the user is recording a voicemail.
+        statusWatchdogPaused = true;
+        // Hide the status overlay and any stuck-connection buttons.
+        if (statusOverlay) statusOverlay.style.display = 'none';
+        var cancelEl = document.getElementById('cancel-stuck-btn');
+        if (cancelEl) cancelEl.style.display = 'none';
+        var vmEl = document.getElementById('leave-voicemail-btn');
+        if (vmEl) vmEl.style.display = 'none';
+        var peerName = document.querySelector('#peer-name') ?
+            document.querySelector('#peer-name').textContent : 'them';
+        var nameEl = document.getElementById('voicemail-peer-name');
+        if (nameEl) nameEl.innerHTML = '<strong>' + peerName + '</strong>';
+        document.getElementById('voicemail-record-time').style.display = 'none';
+        document.getElementById('voicemail-record-status').textContent = '';
+        document.getElementById('voicemail-send-btn').disabled = true;
+        var recBtn = document.getElementById('voicemail-record-btn');
+        recBtn.disabled = false;
+        recBtn.innerHTML = '<i class="bi bi-record-circle"></i> Record';
+        if (!voicemailModal) {
+            voicemailModal = new bootstrap.Modal(document.getElementById('voicemailPromptModal'));
+        }
+        voicemailModal.show();
+    }
+
+    function stopVoicemailTimer() {
+        if (voicemailTimerHandle) {
+            clearInterval(voicemailTimerHandle);
+            voicemailTimerHandle = null;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var recBtn = document.getElementById('voicemail-record-btn');
+        recBtn.addEventListener('click', async function() {
+            if (voicemailRecorder && voicemailRecorder.state === 'recording') {
+                voicemailRecorder.stop();
+                return;
+            }
+            try {
+                // Reuse localStream if we still have it, otherwise acquire fresh.
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1},
+                        video: false,
+                    });
+                }
+                // Extract audio-only for voicemail.
+                var audioStream = new MediaStream(localStream.getAudioTracks());
+                voicemailRecorder = new MediaRecorder(audioStream, {mimeType: 'audio/webm'});
+                voicemailChunks = [];
+                voicemailRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) voicemailChunks.push(e.data);
+                };
+                voicemailRecorder.onstop = function() {
+                    stopVoicemailTimer();
+                    recBtn.innerHTML = '<i class="bi bi-record-circle"></i> Record';
+                    recBtn.disabled = true;
+                    document.getElementById('voicemail-send-btn').disabled = voicemailChunks.length === 0;
+                    document.getElementById('voicemail-record-status').textContent =
+                        voicemailChunks.length > 0 ? 'Recording complete. Click Send to deliver.' : 'No audio captured.';
+                };
+                voicemailRecorder.start();
+                voicemailStartTime = Date.now();
+                recBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop';
+                document.getElementById('voicemail-record-status').textContent = 'Recording…';
+                document.getElementById('voicemail-record-time').style.display = '';
+                voicemailTimerHandle = setInterval(function() {
+                    var sec = Math.floor((Date.now() - voicemailStartTime) / 1000);
+                    var m = Math.floor(sec / 60);
+                    var s = sec % 60;
+                    document.getElementById('voicemail-record-time').textContent =
+                        m + ':' + (s < 10 ? '0' : '') + s;
+                }, 500);
+            } catch (err) {
+                document.getElementById('voicemail-record-status').textContent =
+                    'Microphone access denied: ' + err.message;
+            }
+        });
+
+        document.getElementById('voicemail-send-btn').addEventListener('click', function() {
+            if (voicemailChunks.length === 0) return;
+            var blob = new Blob(voicemailChunks, {type: 'audio/webm'});
+            var duration = (Date.now() - voicemailStartTime) / 1000;
+            var fd = new FormData();
+            fd.append('file', blob, 'voicemail.webm');
+            fd.append('call_id', CALL_ID);
+            fd.append('recipient_id', PEER_ID);
+            fd.append('kind', 'voicemail');
+            fd.append('media_type', 'audio');
+            fd.append('duration_seconds', String(Math.round(duration)));
+            var sendBtn = document.getElementById('voicemail-send-btn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending…';
+            fetch('/conferencing/api/recordings/upload', {
+                method: 'POST', body: fd, credentials: 'include',
+            }).then(function(r) {
+                if (!r.ok) throw new Error('Upload failed');
+                voicemailChunks = [];
+                // End the call so the callee's incoming modal closes.
+                return fetch('/conferencing/api/end-call/' + CALL_ID, {
+                    method: 'POST', credentials: 'include',
+                });
+            }).then(function() {
+                voicemailModal.hide();
+                window.location.href = '/conferencing/';
+            }).catch(function(err) {
+                document.getElementById('voicemail-record-status').textContent = err.message;
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="bi bi-send"></i> Send';
+            });
+        });
+
+        document.getElementById('voicemail-skip-btn').addEventListener('click', function() {
+            if (voicemailRecorder && voicemailRecorder.state === 'recording') voicemailRecorder.stop();
+            stopVoicemailTimer();
+            voicemailChunks = [];
+            // End the call so the callee's incoming modal closes.
+            fetch('/conferencing/api/end-call/' + CALL_ID, {
+                method: 'POST', credentials: 'include',
+            }).finally(function() {
+                voicemailModal.hide();
+                window.location.href = '/conferencing/';
+            });
+        });
+    });
+
+    // ---- In-call recording (browser-side MediaRecorder) ----
+
+    function toggleRecording() {
+        if (recorder && recorder.state === 'recording') {
+            recorder.stop();
+            return;
+        }
+        // Build a composed stream to record. For audio calls we mix local +
+        // remote audio via a Web Audio API context. For video calls we also
+        // capture the remote video track.
+        try {
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            var ctx = new AudioCtx();
+            var destination = ctx.createMediaStreamDestination();
+
+            // Local mic
+            if (localStream) {
+                localStream.getAudioTracks().forEach(function(t) {
+                    var src = ctx.createMediaStreamSource(new MediaStream([t]));
+                    src.connect(destination);
+                });
+            }
+            // Remote audio (from the dedicated <audio> element's srcObject)
+            if (remoteAudio.srcObject) {
+                remoteAudio.srcObject.getAudioTracks().forEach(function(t) {
+                    var src = ctx.createMediaStreamSource(new MediaStream([t]));
+                    src.connect(destination);
+                });
+            } else if (remoteVideo.srcObject) {
+                remoteVideo.srcObject.getAudioTracks().forEach(function(t) {
+                    var src = ctx.createMediaStreamSource(new MediaStream([t]));
+                    src.connect(destination);
+                });
+            }
+            var tracks = destination.stream.getAudioTracks();
+            // For video calls, also pull the remote video track.
+            if (MEDIA_TYPE === 'video' && remoteVideo.srcObject) {
+                remoteVideo.srcObject.getVideoTracks().forEach(function(t) {
+                    tracks.push(t);
+                });
+            }
+            var recordStream = new MediaStream(tracks);
+
+            var mimeType = MEDIA_TYPE === 'video' ? 'video/webm' : 'audio/webm';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = '';  // let the browser pick
+            }
+            recorder = new MediaRecorder(
+                recordStream,
+                mimeType ? {mimeType: mimeType} : undefined
+            );
+            recorderChunks = [];
+            recorder.ondataavailable = function(e) {
+                if (e.data && e.data.size > 0) recorderChunks.push(e.data);
+            };
+            recorder.onstop = function() {
+                stopRecorderTimer();
+                flushRecording(false);
+                recordBtn.classList.remove('btn-danger');
+                recordBtn.classList.add('btn-outline-light');
+                recordBtn.innerHTML = ICONS.record;
+                if (recordingIndicator) recordingIndicator.style.display = 'none';
+                try { ctx.close(); } catch (e) {}
+            };
+            recorder.start();
+            recorderStartTime = Date.now();
+            recordBtn.classList.remove('btn-outline-light');
+            recordBtn.classList.add('btn-danger');
+            recordBtn.innerHTML = ICONS.stop;
+            if (recordingIndicator) recordingIndicator.style.display = 'flex';
+            startRecorderTimer();
+        } catch (err) {
+            console.error('Failed to start recording:', err);
+            alert('Could not start recording: ' + err.message);
+        }
+    }
+
+    function startRecorderTimer() {
+        stopRecorderTimer();
+        recorderTimerHandle = setInterval(function() {
+            var sec = Math.floor((Date.now() - recorderStartTime) / 1000);
+            var m = Math.floor(sec / 60);
+            var s = sec % 60;
+            if (recordingTimerEl) {
+                recordingTimerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+            }
+        }, 500);
+    }
+
+    function stopRecorderTimer() {
+        if (recorderTimerHandle) {
+            clearInterval(recorderTimerHandle);
+            recorderTimerHandle = null;
+        }
+    }
+
+    function flushRecording(keepalive) {
+        if (recorderChunks.length === 0) return Promise.resolve();
+        var blob = new Blob(recorderChunks, {
+            type: MEDIA_TYPE === 'video' ? 'video/webm' : 'audio/webm',
+        });
+        var duration = (Date.now() - recorderStartTime) / 1000;
+        var fd = new FormData();
+        fd.append('file', blob, 'call_recording.webm');
+        fd.append('call_id', CALL_ID);
+        fd.append('kind', 'call');
+        fd.append('media_type', MEDIA_TYPE);
+        fd.append('duration_seconds', String(Math.round(duration)));
+        // Always use regular fetch — keepalive has a 64KB body limit.
+        return fetch('/conferencing/api/recordings/upload', {
+            method: 'POST', body: fd, credentials: 'include',
+        }).then(function(r) {
+            if (!r.ok) console.warn('Recording upload failed:', r.status);
+            recorderChunks = [];
+        }).catch(function(err) {
+            console.warn('Recording upload error:', err);
+        });
+    }
+})();
+</script>
+{% endblock %}

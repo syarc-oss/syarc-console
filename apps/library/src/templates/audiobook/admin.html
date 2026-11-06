@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Audiobook Admin{% endblock %}
+
+{% block content %}
+<style>
+    .nav-tabs .nav-link { color: #495057; }
+    .nav-tabs .nav-link.active { font-weight: bold; }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/audiobook/"><i class="bi bi-headphones"></i> Audiobooks</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Admin</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+            <h2><i class="bi bi-shield-lock"></i> Audiobook Admin</h2>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" id="scanBtn">
+                    <i class="bi bi-arrow-repeat"></i> Rescan Library
+                </button>
+                <button class="btn btn-outline-danger" id="forceScanBtn">
+                    <i class="bi bi-database-x"></i> Clean DB & Rescan
+                </button>
+            </div>
+        </div>
+
+        <div id="scanStatus" class="alert alert-info d-none mb-3"></div>
+
+        <ul class="nav nav-tabs mb-3" id="adminTabs">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#all">All Topics</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#public">Public Topics</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#banned">Banned Books</a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="all">
+                {% if all_topics %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Topic</th>
+                                <th>Owner</th>
+                                <th>Books</th>
+                                <th>Visibility</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in all_topics %}
+                            <tr>
+                                <td><a href="/library/audiobook/topic/{{ item.topic.id }}">{{ item.topic.name }}</a></td>
+                                <td>{{ item.owner_username }}</td>
+                                <td>{{ item.book_count }}</td>
+                                <td>
+                                    <button class="btn btn-sm badge {% if item.topic.is_public %}bg-success{% else %}bg-secondary{% endif %} border-0"
+                                            onclick="toggleTopic('{{ item.topic.id }}', this)">
+                                        {% if item.topic.is_public %}Public{% else %}Private{% endif %}
+                                    </button>
+                                </td>
+                                <td>
+                                    <a href="/library/audiobook/topic/{{ item.topic.id }}/import" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-upload"></i> Import
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No topics found.</div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="public">
+                {% if public_topics %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Topic</th>
+                                <th>Owner</th>
+                                <th>Books</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in public_topics %}
+                            <tr>
+                                <td><a href="/library/audiobook/topic/{{ item.topic.id }}">{{ item.topic.name }}</a></td>
+                                <td>{{ item.owner_username }}</td>
+                                <td>{{ item.book_count }}</td>
+                                <td>
+                                    <button class="btn btn-sm badge bg-success border-0"
+                                            onclick="toggleTopic('{{ item.topic.id }}', this)">
+                                        Public
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No public topics.</div>
+                {% endif %}
+            </div>
+
+            <div class="tab-pane fade" id="banned">
+                {% if banned_books %}
+                <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+                    {% for item in banned_books %}
+                    <div class="col">
+                        <div class="card">
+                            {% if item.book.image_filename %}
+                            <img src="/library/audiobook/book/{{ item.book.id }}/art?t={{ item.book.updated_atitem.book.updated_at != none }}"
+                                 class="card-img-top" style="aspect-ratio: 1/1; object-fit: cover;" alt="">
+                            {% else %}
+                            <div class="card-img-top bg-dark text-white d-flex align-items-center justify-content-center" style="aspect-ratio: 1/1;">
+                                <i class="bi bi-headphones" style="font-size: 2rem;"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body p-2">
+                                <h6 style="font-size: 0.85rem;">{{ item.book.title }}</h6>
+                                <small class="text-muted">{% if item.topic %}{{ item.topic.name }} by {{ item.owner_username }}{% else %}No topic{% endif %}</small>
+                                <div class="mt-2 d-flex gap-1">
+                                    <form action="/library/audiobook/book/{{ item.book.id }}/unban" method="POST" class="d-inline"
+                                          onsubmit="return confirm('Unban this audiobook?')">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="bi bi-check-circle"></i> Unban
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-success">No banned books.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('scanBtn').addEventListener('click', async function() {
+    if (!confirm('Rescan the audiobook library?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+    var status = document.getElementById('scanStatus');
+    status.className = 'alert alert-info mb-3';
+    status.textContent = 'Library scan started in background...';
+    try {
+        var resp = await fetch('/library/audiobook/scan', { method: 'GET' });
+        var data = await resp.json();
+        status.textContent = data.message || 'Scan started.';
+        setTimeout(function() { status.className = 'alert alert-info d-none mb-3'; }, 5000);
+    } catch(e) { status.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Rescan Library';
+});
+
+document.getElementById('forceScanBtn').addEventListener('click', async function() {
+    if (!confirm('This will DELETE all audiobook database entries and re-import from disk. Are you sure?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+    var status = document.getElementById('scanStatus');
+    status.className = 'alert alert-warning mb-3';
+    status.textContent = 'Force rescan started...';
+    try {
+        var resp = await fetch('/library/audiobook/scan/force', { method: 'GET' });
+        var data = await resp.json();
+        status.textContent = data.message || 'Force scan started.';
+        setTimeout(function() { status.className = 'alert alert-info d-none mb-3'; }, 8000);
+    } catch(e) { status.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-database-x"></i> Clean DB & Rescan';
+});
+
+async function toggleTopic(topicId, btn) {
+    try {
+        const res = await fetch(`/library/audiobook/admin/topic/${topicId}/toggle-visibility`, {method: 'POST'});
+        const data = await res.json();
+        if (res.ok) {
+            if (data.is_public) {
+                btn.textContent = 'Public';
+                btn.className = 'btn btn-sm badge bg-success border-0';
+            } else {
+                btn.textContent = 'Private';
+                btn.className = 'btn btn-sm badge bg-secondary border-0';
+            }
+        } else { alert(data.detail || 'Error'); }
+    } catch(e) { alert('Error toggling visibility'); }
+}
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}
+

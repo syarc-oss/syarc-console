@@ -1,0 +1,1084 @@
+{% extends "base.html" %}
+
+{% block title %}Conferencing{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item active"><i class="bi bi-house"></i> Conferencing</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3><i class="bi bi-telephone"></i> Conferencing</h3>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" id="ringer-mute-btn" title="Toggle ringer">
+                    <i class="bi bi-bell-fill" id="ringer-icon"></i>
+                </button>
+                <span id="ws-status" class="badge bg-secondary">connecting…</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if missed_count > 0 %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center"
+     id="missed-banner" role="alert">
+    <span>
+        <i class="bi bi-telephone-x"></i>
+        <strong>{{ missed_count }}</strong> missed call{% if missed_count != 1 %}s{% endif %}:
+        {% for m in missed_view[:3] %}
+        <strong>{{ m.caller_username }}</strong>
+        <small class="text-muted">{{ m.created_at|localtime('%b %d %H:%M') }}</small>
+        {% if not loop.last %}, {% endif %}
+        {% endfor %}
+        {% if missed_view|length > 3 %} <em class="text-muted">+{{ missed_view|length - 3 }} more</em>{% endif %}
+    </span>
+    <button class="btn btn-sm btn-outline-secondary" id="dismiss-missed-btn">
+        <i class="bi bi-check-lg"></i> Dismiss
+    </button>
+</div>
+{% endif %}
+
+<div class="row mb-3">
+    <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" id="create-room-audio-btn">
+            <i class="bi bi-people"></i> Create Audio Room
+        </button>
+        <button class="btn btn-primary" id="create-room-video-btn">
+            <i class="bi bi-camera-video"></i> Create Video Room
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people"></i> Contacts</span>
+                <small class="text-muted" id="online-count">0 online</small>
+            </div>
+            <ul class="list-group list-group-flush" id="contact-list">
+                {% for item in contact_status %}
+                <li class="list-group-item d-flex justify-content-between align-items-center"
+                    data-user-id="{{ item.user.id }}"
+                    data-username="{{ item.user.username }}">
+                    <span>
+                        <span class="presence-dot inline-dot"
+                              style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:{% if item.online %}#28a745{% else %}#adb5bd{% endif %};"></span>
+                        {{ item.user.username }}
+                    </span>
+                    <span class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success call-btn" data-media="audio" title="Audio call">
+                            <i class="bi bi-telephone"></i>
+                        </button>
+                        <button class="btn btn-outline-primary call-btn" data-media="video" title="Video call">
+                            <i class="bi bi-camera-video"></i>
+                        </button>
+                    </span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted text-center">No other users available.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cassette"></i> Voicemails</span>
+                {% if unlistened_voicemail_count > 0 %}
+                <span class="badge bg-danger">{{ unlistened_voicemail_count }} new</span>
+                {% endif %}
+            </div>
+            <ul class="list-group list-group-flush" id="voicemail-list">
+                {% for v in voicemail_view %}
+                <li class="list-group-item py-2" data-voicemail-id="{{ v.id }}" data-media-type="{{ v.media_type }}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ v.from_username }}</strong>
+                            {% if not v.listened %}<span class="badge bg-primary ms-1">new</span>{% endif %}
+                            <br>
+                            <small class="text-muted">
+                                {{ v.created_at|localtime('%b %d, %H:%M') }}
+                                {% if v.duration_label %} &middot; {{ v.duration_label }}{% endif %}
+                            </small>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary play-voicemail-btn" data-id="{{ v.id }}" data-media="{{ v.media_type }}">
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                            <button class="btn btn-outline-danger delete-voicemail-btn" data-id="{{ v.id }}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted text-center py-3"><small>No voicemails.</small></li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {% if my_recordings %}
+        <div class="card mt-3">
+            <div class="card-header"><i class="bi bi-collection-play"></i> My Recordings</div>
+            <ul class="list-group list-group-flush">
+                {% for r in my_recordings %}
+                <li class="list-group-item py-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi {% if r.media_type == 'video' %}bi-camera-video{% else %}bi-mic{% endif %}"></i>
+                        <small class="text-muted">{{ r.created_at|localtime('%b %d, %H:%M') }}</small>
+                        {% if r.duration_label %}<small class="text-muted"> &middot; {{ r.duration_label }}</small>{% endif %}
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary play-recording-btn" data-id="{{ r.id }}" data-media="{{ r.media_type }}">
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="card mt-3">
+            <div class="card-header"><i class="bi bi-info-circle"></i> Signaling Diagnostics</div>
+            <div class="card-body">
+                <p class="mb-2 small text-muted">
+                    Online presence and call signaling are delivered via WebSocket.
+                    Audio/video is negotiated peer-to-peer between browsers
+                    (WebRTC); the server only relays SDP/ICE.
+                </p>
+                <button class="btn btn-sm btn-outline-secondary" id="ping-btn">
+                    <i class="bi bi-arrow-repeat"></i> Send Ping (test signaling)
+                </button>
+                <div id="ping-log" class="mt-2 small text-muted" style="max-height:120px;overflow-y:auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> Recent Calls</span>
+                <a href="/conferencing/history" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-list-ul"></i> All
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th></th>
+                            <th>Party</th>
+                            <th>Media</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>When</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        {% for row in history_view %}
+                        {% set c = row.call %}
+                        {% set is_outgoing = row.direction == 'outgoing' %}
+                        <tr {% if c.status == 'ringing' and is_outgoing %}class="table-info"{% endif %}
+                            data-call-id="{{ c.id }}">
+                            <td class="text-center">
+                                {% if is_outgoing %}
+                                <i class="bi bi-arrow-up-right text-primary" title="Outgoing"></i>
+                                {% else %}
+                                <i class="bi bi-arrow-down-left text-success" title="Incoming"></i>
+                                {% endif %}
+                            </td>
+                            <td>{{ c.caller.username if c.caller else '—' }}</td>
+                            <td>
+                                {% if c.media_type == 'video' %}
+                                <i class="bi bi-camera-video"></i>
+                                {% else %}
+                                <i class="bi bi-telephone"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.status == 'ringing' %}<span class="badge bg-info">ringing</span>
+                                {% elif c.status == 'active' %}<span class="badge bg-success">active</span>
+                                {% elif c.status == 'ended' %}<span class="badge bg-secondary">ended</span>
+                                {% elif c.status == 'rejected' %}<span class="badge bg-warning">declined</span>
+                                {% else %}<span class="badge bg-secondary">{{ c.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if row.duration_label %}
+                                <small class="font-monospace">{{ row.duration_label }}</small>
+                                {% else %}
+                                <small class="text-muted">—</small>
+                                {% endif %}
+                            </td>
+                            <td class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">{{ c.started_at|localtime('%b %d %H:%M') }}</small>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-1 dismiss-call-btn"
+                                        data-call-id="{{ c.id }}" title="Dismiss">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">No calls yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Incoming Call Modal -->
+<div class="modal fade" id="incomingCallModal" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-telephone-inbound"></i> Incoming Call</h5>
+            </div>
+            <div class="modal-body text-center">
+                <h4 id="incoming-caller-name">—</h4>
+                <p class="text-muted" id="incoming-media-type">audio call</p>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button class="btn btn-danger" id="reject-call-btn"><i class="bi bi-telephone-x"></i> Reject</button>
+                <button class="btn btn-success" id="accept-call-btn"><i class="bi bi-telephone"></i> Accept</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Outgoing Call Modal -->
+<div class="modal fade" id="outgoingCallModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-telephone-outbound"></i> Calling…</h5>
+            </div>
+            <div class="modal-body text-center">
+                <h4 id="outgoing-callee-name">—</h4>
+                <div class="spinner-border text-warning mt-2" role="status"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="cancel-call-btn"><i class="bi bi-telephone-x"></i> Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Voicemail Recording Modal (shown after a missed call) -->
+<div class="modal fade" id="voicemailRecordModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-cassette"></i> Leave a Voicemail</h5>
+            </div>
+            <div class="modal-body text-center">
+                <p><strong id="voicemail-recipient-name">—</strong> didn't answer.</p>
+                <p class="text-muted small">Record a short message. Click stop when you're done.</p>
+                <div id="voicemail-record-time" class="font-monospace h5 mt-2">0:00</div>
+                <div id="voicemail-record-status" class="text-muted small mt-1"></div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" id="voicemail-skip-btn">Skip</button>
+                <button class="btn btn-danger" id="voicemail-record-btn">
+                    <i class="bi bi-record-circle"></i> Record
+                </button>
+                <button class="btn btn-success" id="voicemail-send-btn" disabled>
+                    <i class="bi bi-send"></i> Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Incoming Room Invite Modal -->
+<div class="modal fade" id="roomInviteModal" tabindex="-1"
+     data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-people-fill"></i> Room Invitation</h5>
+            </div>
+            <div class="modal-body text-center">
+                <p><strong id="room-inviter-name">—</strong> invited you to a group room.</p>
+                <p class="text-muted" id="room-invite-info">audio room</p>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button class="btn btn-secondary" id="room-decline-btn">Decline</button>
+                <button class="btn btn-success" id="room-accept-btn">
+                    <i class="bi bi-people"></i> Join Room
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Playback Modal -->
+<div class="modal fade" id="playbackModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-play-circle"></i> Playback</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <video id="playback-video" controls playsinline style="max-width:100%;max-height:60vh;display:none;"></video>
+                <audio id="playback-audio" controls style="width:100%;"></audio>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button class="btn btn-outline-danger" id="playback-delete-btn">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    var ws = null;
+    var pendingInvitation = null;   // current incoming 1:1 call
+    var pendingRoomInvite = null;   // current incoming room invite
+    var dismissedRejoinRooms = {};  // room_id -> true, rooms we declined to rejoin
+    var outgoingCall = null;        // {call_id, to_username}
+    var modalIncoming = null;
+    var modalOutgoing = null;
+    var modalRoomInvite = null;
+
+    // ---- Ringer ----
+    var ringerMuted = localStorage.getItem('conferencing_ringer_muted') === 'true';
+    var ringerCtx = null;
+    var ringerInterval = null;
+
+    function updateRingerIcon() {
+        var icon = document.getElementById('ringer-icon');
+        var btn = document.getElementById('ringer-mute-btn');
+        if (icon && btn) {
+            if (ringerMuted) {
+                icon.className = 'bi bi-bell-slash-fill';
+                btn.className = 'btn btn-sm btn-outline-danger';
+                btn.title = 'Ringer muted — click to unmute';
+            } else {
+                icon.className = 'bi bi-bell-fill';
+                btn.className = 'btn btn-sm btn-outline-secondary';
+                btn.title = 'Ringer on — click to mute';
+            }
+        }
+    }
+
+    function startRing() {
+        if (ringerMuted) return;
+        stopRing();
+        try {
+            if (!ringerCtx) ringerCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (ringerCtx.state === 'suspended') ringerCtx.resume();
+
+            // Classic phone ringtone: two high tones in quick succession,
+            // then silence, repeating every 2 seconds.
+            function playRingCycle() {
+                var now = ringerCtx.currentTime;
+                var freqs = [440, 550];
+                for (var i = 0; i < 2; i++) {
+                    var osc = ringerCtx.createOscillator();
+                    var gain = ringerCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ringerCtx.destination);
+                    osc.frequency.value = freqs[i];
+                    osc.type = 'sine';
+                    var t = now + i * 0.15;
+                    gain.gain.setValueAtTime(0, t);
+                    gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
+                    gain.gain.linearRampToValueAtTime(0.3, t + 0.1);
+                    gain.gain.linearRampToValueAtTime(0, t + 0.13);
+                    osc.start(t);
+                    osc.stop(t + 0.13);
+                }
+            }
+            playRingCycle();
+            ringerInterval = setInterval(playRingCycle, 2000);
+        } catch (err) {
+            // AudioContext not available or blocked
+        }
+    }
+
+    function stopRing() {
+        if (ringerInterval) {
+            clearInterval(ringerInterval);
+            ringerInterval = null;
+        }
+    }
+
+    function logPing(msg) {
+        var el = document.getElementById('ping-log');
+        if (!el) return;
+        var line = document.createElement('div');
+        line.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+        el.prepend(line);
+        while (el.childNodes.length > 20) el.removeChild(el.lastChild);
+    }
+
+    function setStatus(text, cls) {
+        var el = document.getElementById('ws-status');
+        el.textContent = text;
+        el.className = 'badge ' + cls;
+    }
+
+    function connect() {
+        var proto = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+        ws = new WebSocket(proto + '//' + window.location.host + '/conferencing/ws');
+
+        ws.onopen = function() {
+            setStatus('connected', 'bg-success');
+            // Ask the local worker for its online list.
+            ws.send(JSON.stringify({type: 'query_online'}));
+            // Recover from any missed call_accepted / incoming_call / call_end
+            // messages (e.g. if our previous WS dropped briefly) and start
+            // polling as a safety net for future misses.
+            checkForActiveCall();
+            startRecoveryPolling();
+        };
+        ws.onclose = function() {
+            setStatus('reconnecting…', 'bg-warning');
+            setTimeout(connect, 2000);
+        };
+        ws.onerror = function() {
+            setStatus('error', 'bg-danger');
+        };
+        ws.onmessage = function(ev) {
+            var msg;
+            try { msg = JSON.parse(ev.data); } catch (e) { return; }
+            handleMessage(msg);
+        };
+    }
+
+    // --- State recovery: catch calls whose WS message we may have missed ---
+    var recoveryPollHandle = null;
+
+    function startRecoveryPolling() {
+        // Safety net: poll every 5s for missed call state. The WS path is
+        // still primary; this catches cases where the WS message was lost
+        // (reconnect during delivery, page loaded after the call was placed,
+        // etc.).
+        if (recoveryPollHandle) return;
+        recoveryPollHandle = setInterval(checkForActiveCall, 5000);
+    }
+
+    function stopRecoveryPolling() {
+        if (recoveryPollHandle) { clearInterval(recoveryPollHandle); recoveryPollHandle = null; }
+    }
+
+    function checkForActiveCall() {
+        fetch('/conferencing/api/my-active-call', {credentials: 'include'})
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.call) {
+                    // No active call — close any stale incoming modals.
+                    if (pendingInvitation && modalIncoming) {
+                        modalIncoming.hide();
+                        pendingInvitation = null;
+                    }
+                    return;
+                }
+                var c = data.call;
+                if (c.status === 'active') {
+                    // We're in an active call or room — jump back.
+                    stopRecoveryPolling();
+                    if (modalOutgoing) modalOutgoing.hide();
+                    if (modalIncoming) modalIncoming.hide();
+                    if (c.call_type === 'group') {
+                        window.location.href = '/conferencing/room/' + c.id;
+                    } else {
+                        window.location.href = '/conferencing/call/' + c.id;
+                    }
+                } else if (c.status === 'rejoin_room') {
+                    // Active room we left — show a rejoin prompt, unless
+                    // the user already dismissed it.
+                    if (!dismissedRejoinRooms[c.id] &&
+                        (!pendingRoomInvite || pendingRoomInvite.room_id !== c.id)) {
+                        pendingRoomInvite = {
+                            room_id: c.id,
+                            inviter_username: 'Rejoin room',
+                            media_type: c.media_type,
+                            is_rejoin: true,
+                        };
+                        showRoomInvite(pendingRoomInvite);
+                    }
+                    // Active room we left — show a rejoin prompt, unless
+                    // the user already dismissed it.
+                    if (!dismissedRejoinRooms[c.id] &&
+                        (!pendingRoomInvite || pendingRoomInvite.room_id !== c.id)) {
+                        pendingRoomInvite = {
+                            room_id: c.id,
+                            inviter_username: 'Rejoin room',
+                            media_type: c.media_type,
+                            is_rejoin: true,
+                        };
+                        showRoomInvite(pendingRoomInvite);
+                    }
+                } else if (c.status === 'incoming') {
+                    // Someone is calling us and we missed the WS message —
+                    // re-show the incoming-call modal.
+                    if (!pendingInvitation || pendingInvitation.call_id !== c.id) {
+                        pendingInvitation = {
+                            call_id: c.id,
+                            invitation_id: c.invitation_id,
+                            caller_id: c.caller_id,
+                            caller_username: c.caller_username,
+                            media_type: c.media_type,
+                        };
+                        showIncoming(pendingInvitation);
+                    }
+                } else if (c.status === 'incoming_room') {
+                    // Someone invited us to a group room — show the room-invite modal.
+                    if (!pendingRoomInvite || pendingRoomInvite.room_id !== c.id) {
+                        pendingRoomInvite = {
+                            room_id: c.id,
+                            invitation_id: c.invitation_id,
+                            inviter_username: c.caller_username,
+                            media_type: c.media_type,
+                        };
+                        showRoomInvite(pendingRoomInvite);
+                    }
+                } else if (c.status === 'ringing' && c.is_caller && !outgoingCall) {
+                    // We're the caller but lost the modal state — close any stale
+                    // ringing call so it doesn't hang forever. Then refresh.
+                    stopRecoveryPolling();
+                    fetch('/conferencing/api/end-call/' + c.id, {
+                        method: 'POST', credentials: 'include',
+                    }).finally(function() { window.location.reload(); });
+                }
+            })
+            .catch(function() { /* ignore — WS will retry */ });
+    }
+
+    function send(msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg));
+        }
+    }
+
+    function handleMessage(msg) {
+        switch (msg.type) {
+            case 'pong':
+                logPing('pong (signaling round-trip OK)');
+                break;
+            case 'online_list':
+                applyOnlineList(msg.users || []);
+                break;
+            case 'presence':
+                setOnline(msg.user_id, msg.online);
+                break;
+            case 'call_created':
+                // Server's ack that the CallRecord exists; capture its id so we can
+                // cancel or end it.
+                if (outgoingCall && !outgoingCall.call_id) {
+                    outgoingCall.call_id = msg.call_id;
+                }
+                break;
+            case 'incoming_call':
+                pendingInvitation = msg;
+                showIncoming(msg);
+                break;
+            case 'call_accepted':
+                if (modalOutgoing) modalOutgoing.hide();
+                logPing('Call accepted by ' + (msg.responder_username || 'remote'));
+                // Route to the full-screen call UI; that page owns WebRTC negotiation.
+                window.location.href = '/conferencing/call/' + msg.call_id;
+                break;
+            case 'call_rejected':
+                if (modalOutgoing) modalOutgoing.hide();
+                logPing('Call rejected');
+                outgoingCall = null;
+                break;
+            case 'call_missed':
+                // The callee let our call ring out (TTL expired). Close the
+                // "calling…" modal and offer to leave a voicemail.
+                if (modalOutgoing) modalOutgoing.hide();
+                logPing('Call missed (no answer)');
+                var missedCallId = msg.call_id;
+                var missedTo = outgoingCall ? outgoingCall.to_username : 'them';
+                var missedToId = outgoingCall ? outgoingCall.to : null;
+                outgoingCall = null;
+                showVoicemailRecorder(missedCallId, missedTo, missedToId);
+                break;
+            case 'call_ended':
+                if (modalIncoming) modalIncoming.hide();
+                if (modalOutgoing) modalOutgoing.hide();
+                pendingInvitation = null;
+                outgoingCall = null;
+                break;
+            case 'room_invite':
+                pendingRoomInvite = msg;
+                showRoomInvite(msg);
+                break;
+            default:
+                console.debug('conferencing: unhandled message', msg);
+        }
+    }
+
+    function applyOnlineList(userIds) {
+        var set = {};
+        userIds.forEach(function(id) { set[id] = true; });
+        document.querySelectorAll('#contact-list li').forEach(function(li) {
+            var uid = li.dataset.userId;
+            setOnline(uid, !!set[uid]);
+        });
+    }
+
+    function setOnline(userId, online) {
+        var li = document.querySelector('#contact-list li[data-user-id="' + userId + '"]');
+        if (!li) return;
+        var dot = li.querySelector('.presence-dot');
+        if (dot) dot.style.background = online ? '#28a745' : '#adb5bd';
+        var count = document.querySelectorAll('#contact-list li .presence-dot').length;
+        var onlineCount = 0;
+        document.querySelectorAll('#contact-list li .presence-dot').forEach(function(d) {
+            if (d.style.background === 'rgb(40, 167, 69)' || d.style.background === '#28a745') onlineCount++;
+        });
+        var cnt = document.getElementById('online-count');
+        if (cnt) cnt.textContent = onlineCount + ' online';
+    }
+
+    function showIncoming(msg) {
+        document.getElementById('incoming-caller-name').textContent = msg.caller_username || 'Unknown';
+        document.getElementById('incoming-media-type').textContent =
+            (msg.media_type === 'video' ? 'video call' : 'audio call');
+        if (!modalIncoming) modalIncoming = new bootstrap.Modal(document.getElementById('incomingCallModal'));
+        startRing();
+        modalIncoming.show();
+    }
+
+    function showRoomInvite(msg) {
+        var nameEl = document.getElementById('room-inviter-name');
+        var infoEl = document.getElementById('room-invite-info');
+        var acceptBtn = document.getElementById('room-accept-btn');
+        var declineBtn = document.getElementById('room-decline-btn');
+
+        if (msg.is_rejoin) {
+            nameEl.textContent = 'You left an active room.';
+            infoEl.textContent = (msg.media_type === 'video' ? 'Video room' : 'Audio room') + ' is still open.';
+            if (acceptBtn) acceptBtn.innerHTML = '<i class="bi bi-arrow-return-left"></i> Rejoin';
+            if (declineBtn) declineBtn.textContent = 'Dismiss';
+        } else {
+            nameEl.innerHTML = '<strong>' + (msg.inviter_username || 'Someone') + '</strong> invited you to a group room.';
+            var info = (msg.media_type === 'video' ? 'video room' : 'audio room');
+            if (msg.participant_count) info += ' · ' + msg.participant_count + ' participant(s)';
+            infoEl.textContent = info;
+            if (acceptBtn) acceptBtn.innerHTML = '<i class="bi bi-people"></i> Join Room';
+            if (declineBtn) declineBtn.textContent = 'Decline';
+        }
+        if (!modalRoomInvite) modalRoomInvite = new bootstrap.Modal(document.getElementById('roomInviteModal'));
+        if (!msg.is_rejoin) startRing();
+        modalRoomInvite.show();
+    }
+
+    function startCallTo(li, media) {
+        var toId = li.dataset.userId;
+        var toName = li.dataset.username;
+        var btn = li.querySelector('.call-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        }
+        // Use HTTP (not WS) to initiate — returns the call_id synchronously
+        // so we can navigate immediately. The WS-based call_request can be
+        // lost on mobile when the browser suspends.
+        fetch('/conferencing/api/calls/initiate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({to: toId, media_type: media}),
+            credentials: 'include',
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Failed to place call');
+            return r.json();
+        }).then(function(data) {
+            // Navigate immediately to the call page. The call page handles
+            // waiting for the callee to accept, with its own WS keepalive
+            // and recovery polling.
+            window.location.href = data.url;
+        }).catch(function(err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-telephone"></i>';
+            }
+            alert(err.message);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize ringer mute state from localStorage.
+        updateRingerIcon();
+        document.getElementById('ringer-mute-btn').addEventListener('click', function() {
+            ringerMuted = !ringerMuted;
+            localStorage.setItem('conferencing_ringer_muted', ringerMuted);
+            updateRingerIcon();
+            if (ringerMuted) stopRing();
+        });
+
+        modalIncoming = new bootstrap.Modal(document.getElementById('incomingCallModal'));
+        modalOutgoing = new bootstrap.Modal(document.getElementById('outgoingCallModal'));
+
+        connect();
+
+        // --- Create Room buttons ---
+        function createRoom(mediaType) {
+            var btn = document.getElementById('create-room-' + mediaType + '-btn');
+            var original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch('/conferencing/api/create-room', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'media_type=' + mediaType,
+                credentials: 'include',
+            }).then(function(r) {
+                if (!r.ok) throw new Error('Failed to create room');
+                return r.json();
+            }).then(function(data) {
+                window.location.href = data.url;
+            }).catch(function(err) {
+                alert(err.message);
+                btn.disabled = false;
+                btn.innerHTML = original;
+            });
+        }
+        document.getElementById('create-room-audio-btn').addEventListener('click', function() { createRoom('audio'); });
+        document.getElementById('create-room-video-btn').addEventListener('click', function() { createRoom('video'); });
+
+        // Ping button — proves the signaling round-trip works.
+        document.getElementById('ping-btn').addEventListener('click', function() {
+            send({type: 'ping'});
+            logPing('ping sent');
+        });
+
+        // Call buttons
+        document.querySelectorAll('.call-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var li = btn.closest('li');
+                if (!li) return;
+                startCallTo(li, btn.dataset.media);
+            });
+        });
+
+        // Incoming call actions
+        document.getElementById('accept-call-btn').addEventListener('click', function() {
+            if (!pendingInvitation) return;
+            stopRing();
+            var callId = pendingInvitation.call_id;
+            var btn = document.getElementById('accept-call-btn');
+            btn.disabled = true;
+            // Use HTTP (not WS) for accept — the WS frame can be lost when
+            // the page navigates away immediately after sending on mobile.
+            fetch('/conferencing/api/calls/' + callId + '/accept', {
+                method: 'POST', credentials: 'include',
+            }).then(function(r) {
+                if (!r.ok) throw new Error('Accept failed');
+                modalIncoming.hide();
+                pendingInvitation = null;
+                window.location.href = '/conferencing/call/' + callId;
+            }).catch(function(err) {
+                btn.disabled = false;
+                alert(err.message);
+            });
+        });
+
+        // Outgoing call cancel
+        document.getElementById('cancel-call-btn').addEventListener('click', function() {
+            if (outgoingCall && outgoingCall.call_id) {
+                send({type: 'call_end', call_id: outgoingCall.call_id});
+            }
+            outgoingCall = null;
+            modalOutgoing.hide();
+        });
+
+        // Room invite accept / decline
+        document.getElementById('room-accept-btn').addEventListener('click', function() {
+            if (!pendingRoomInvite) return;
+            stopRing();
+            var roomId = pendingRoomInvite.room_id;
+            var invId = pendingRoomInvite.invitation_id;
+            modalRoomInvite.hide();
+            pendingRoomInvite = null;
+            if (invId) {
+                // Normal invite — accept via HTTP.
+                fetch('/conferencing/api/room/' + roomId + '/accept-invite/' + invId, {
+                    method: 'POST', credentials: 'include',
+                }).then(function(r) {
+                    if (!r.ok) throw new Error('Failed to join');
+                    window.location.href = '/conferencing/room/' + roomId;
+                }).catch(function(err) { alert(err.message); });
+            } else {
+                // Rejoin (no invitation — just join the room).
+                fetch('/conferencing/api/room/' + roomId + '/join', {
+                    method: 'POST', credentials: 'include',
+                }).then(function(r) {
+                    if (!r.ok) throw new Error('Failed to rejoin');
+                    window.location.href = '/conferencing/room/' + roomId;
+                }).catch(function(err) { alert(err.message); });
+            }
+        });
+
+        document.getElementById('room-decline-btn').addEventListener('click', function() {
+            if (!pendingRoomInvite) return;
+            stopRing();
+            var roomId = pendingRoomInvite.room_id;
+            var invId = pendingRoomInvite.invitation_id;
+            var isRejoin = pendingRoomInvite.is_rejoin;
+            pendingRoomInvite = null;
+            if (isRejoin) {
+                // User declined to rejoin — leave permanently so we don't
+                // re-prompt on every recovery poll.
+                dismissedRejoinRooms[roomId] = true;
+                fetch('/conferencing/api/room/' + roomId + '/leave-permanently', {
+                    method: 'POST', credentials: 'include',
+                }).catch(function() {});
+            } else if (invId) {
+                fetch('/conferencing/api/room/' + roomId + '/decline-invite/' + invId, {
+                    method: 'POST', credentials: 'include',
+                }).catch(function() {});
+            }
+            modalRoomInvite.hide();
+        });
+
+        // Dismiss missed-call banner (acknowledges ALL missed calls).
+        var dismissBtn = document.getElementById('dismiss-missed-btn');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function() {
+                fetch('/conferencing/api/dismiss-missed', {
+                    method: 'POST', credentials: 'include',
+                }).then(function() {
+                    var banner = document.getElementById('missed-banner');
+                    if (banner) banner.remove();
+                }).catch(function() { /* ignore */ });
+            });
+        }
+
+        // --- Voicemail recording (after a missed call) ---
+        var voicemailModal = new bootstrap.Modal(document.getElementById('voicemailRecordModal'));
+        var voicemailRecorder = null;
+        var voicemailChunks = [];
+        var voicemailStream = null;
+        var voicemailStartTime = 0;
+        var voicemailTimerHandle = null;
+        var voicemailContext = {callId: null, toUsername: null, toId: null};
+
+        function showVoicemailRecorder(callId, toUsername, toId) {
+            voicemailContext = {callId: callId, toUsername: toUsername, toId: toId};
+            document.getElementById('voicemail-recipient-name').textContent = toUsername || 'Them';
+            document.getElementById('voicemail-record-time').textContent = '0:00';
+            document.getElementById('voicemail-record-status').textContent = '';
+            document.getElementById('voicemail-send-btn').disabled = true;
+            var recBtn = document.getElementById('voicemail-record-btn');
+            recBtn.disabled = false;
+            recBtn.innerHTML = '<i class="bi bi-record-circle"></i> Record';
+            voicemailModal.show();
+        }
+
+        function stopVoicemailTimer() {
+            if (voicemailTimerHandle) {
+                clearInterval(voicemailTimerHandle);
+                voicemailTimerHandle = null;
+            }
+        }
+
+        document.getElementById('voicemail-record-btn').addEventListener('click', async function() {
+            var btn = this;
+            if (voicemailRecorder && voicemailRecorder.state === 'recording') {
+                voicemailRecorder.stop();
+                return;
+            }
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Mic unavailable: this page must be accessed over HTTPS (or localhost), not plain HTTP');
+                }
+                voicemailStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+                    video: false,
+                });
+                voicemailChunks = [];
+                voicemailRecorder = new MediaRecorder(voicemailStream, {mimeType: 'audio/webm'});
+                voicemailRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) voicemailChunks.push(e.data);
+                };
+                voicemailRecorder.onstop = function() {
+                    stopVoicemailTimer();
+                    if (voicemailStream) {
+                        voicemailStream.getTracks().forEach(function(t) { t.stop(); });
+                        voicemailStream = null;
+                    }
+                    btn.innerHTML = '<i class="bi bi-record-circle"></i> Record';
+                    btn.disabled = true;
+                    document.getElementById('voicemail-send-btn').disabled = voicemailChunks.length === 0;
+                    document.getElementById('voicemail-record-status').textContent =
+                        voicemailChunks.length > 0 ? 'Recording captured. Click Send to deliver.' : 'No audio captured.';
+                };
+                voicemailRecorder.start();
+                voicemailStartTime = Date.now();
+                btn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop';
+                document.getElementById('voicemail-record-status').textContent = 'Recording…';
+                voicemailTimerHandle = setInterval(function() {
+                    var sec = Math.floor((Date.now() - voicemailStartTime) / 1000);
+                    var m = Math.floor(sec / 60);
+                    var s = sec % 60;
+                    document.getElementById('voicemail-record-time').textContent =
+                        m + ':' + (s < 10 ? '0' : '') + s;
+                }, 500);
+            } catch (err) {
+                document.getElementById('voicemail-record-status').textContent =
+                    'Microphone access denied: ' + err.message;
+            }
+        });
+
+        document.getElementById('voicemail-send-btn').addEventListener('click', function() {
+            if (voicemailChunks.length === 0 || !voicemailContext.toId) {
+                voicemailModal.hide();
+                window.location.reload();
+                return;
+            }
+            var blob = new Blob(voicemailChunks, {type: 'audio/webm'});
+            var duration = (Date.now() - voicemailStartTime) / 1000;
+            var fd = new FormData();
+            fd.append('file', blob, 'voicemail.webm');
+            fd.append('call_id', voicemailContext.callId || '');
+            fd.append('recipient_id', voicemailContext.toId);
+            fd.append('kind', 'voicemail');
+            fd.append('media_type', 'audio');
+            fd.append('duration_seconds', String(Math.round(duration)));
+            document.getElementById('voicemail-send-btn').disabled = true;
+            document.getElementById('voicemail-send-btn').innerHTML =
+                '<span class="spinner-border spinner-border-sm"></span> Sending…';
+            fetch('/conferencing/api/recordings/upload', {
+                method: 'POST', body: fd, credentials: 'include',
+            }).then(function(r) {
+                if (!r.ok) throw new Error('Upload failed: ' + r.status);
+                return r.json();
+            }).then(function() {
+                voicemailChunks = [];
+                voicemailModal.hide();
+                window.location.reload();
+            }).catch(function(err) {
+                document.getElementById('voicemail-record-status').textContent = err.message;
+                document.getElementById('voicemail-send-btn').disabled = false;
+                document.getElementById('voicemail-send-btn').innerHTML = '<i class="bi bi-send"></i> Send';
+            });
+        });
+
+        document.getElementById('voicemail-skip-btn').addEventListener('click', function() {
+            if (voicemailRecorder && voicemailRecorder.state === 'recording') voicemailRecorder.stop();
+            stopVoicemailTimer();
+            if (voicemailStream) {
+                voicemailStream.getTracks().forEach(function(t) { t.stop(); });
+                voicemailStream = null;
+            }
+            voicemailChunks = [];
+            voicemailModal.hide();
+            window.location.reload();
+        });
+
+        // --- Playback (voicemails + recordings) ---
+        var playbackModal = new bootstrap.Modal(document.getElementById('playbackModal'));
+        var playbackVideo = document.getElementById('playback-video');
+        var playbackAudio = document.getElementById('playback-audio');
+        var playbackDeleteBtn = document.getElementById('playback-delete-btn');
+        var currentPlaybackId = null;
+
+        function playRecording(id, mediaType) {
+            currentPlaybackId = id;
+            var url = '/conferencing/api/recordings/' + id + '/file';
+            if (mediaType === 'video') {
+                playbackVideo.src = url;
+                playbackVideo.style.display = '';
+                playbackAudio.style.display = 'none';
+                playbackAudio.removeAttribute('src');
+            } else {
+                playbackAudio.src = url;
+                playbackAudio.style.display = '';
+                playbackVideo.style.display = 'none';
+                playbackVideo.removeAttribute('src');
+            }
+            playbackModal.show();
+            // Mark voicemail as listened (best-effort).
+            fetch('/conferencing/api/recordings/' + id + '/listened', {
+                method: 'POST', credentials: 'include',
+            }).catch(function() {});
+        }
+
+        document.querySelectorAll('.play-voicemail-btn, .play-recording-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                playRecording(btn.dataset.id, btn.dataset.media);
+            });
+        });
+
+        // Delete from inside the playback modal.
+        playbackDeleteBtn.addEventListener('click', function() {
+            if (!currentPlaybackId) return;
+            if (!confirm('Delete this recording?')) return;
+            fetch('/conferencing/api/recordings/' + currentPlaybackId, {
+                method: 'DELETE', credentials: 'include',
+            }).then(function(r) {
+                if (!r.ok) throw new Error('Delete failed');
+                // Stop playback, close modal, remove any matching list rows.
+                playbackVideo.pause();
+                playbackAudio.pause();
+                playbackModal.hide();
+                document.querySelectorAll('[data-voicemail-id="' + currentPlaybackId + '"]').forEach(function(el) {
+                    el.remove();
+                });
+                currentPlaybackId = null;
+                // Reload to refresh counts (voicemail badge, missed banner, etc.).
+                setTimeout(function() { window.location.reload(); }, 400);
+            }).catch(function(err) { alert(err.message); });
+        });
+
+        // Stop media when playback modal closes.
+        document.getElementById('playbackModal').addEventListener('hidden.bs.modal', function() {
+            playbackVideo.pause();
+            playbackAudio.pause();
+            playbackVideo.removeAttribute('src');
+            playbackAudio.removeAttribute('src');
+            currentPlaybackId = null;
+        });
+
+        // --- Delete voicemail/recording ---
+        document.querySelectorAll('.delete-voicemail-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                if (!confirm('Delete this voicemail?')) return;
+                var id = btn.dataset.id;
+                fetch('/conferencing/api/recordings/' + id, {
+                    method: 'DELETE', credentials: 'include',
+                }).then(function(r) {
+                    if (!r.ok) throw new Error('Delete failed');
+                    var li = btn.closest('li');
+                    if (li) li.remove();
+                }).catch(function(err) { alert(err.message); });
+            });
+        });
+
+        // --- Dismiss call from recent list ---
+        document.querySelectorAll('.dismiss-call-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var callId = btn.dataset.callId;
+                fetch('/conferencing/api/calls/' + callId + '/dismiss', {
+                    method: 'POST', credentials: 'include',
+                }).then(function(r) {
+                    if (!r.ok) throw new Error('Dismiss failed');
+                    var tr = btn.closest('tr');
+                    if (tr) {
+                        tr.style.transition = 'opacity 0.3s';
+                        tr.style.opacity = '0';
+                        setTimeout(function() { tr.remove(); }, 300);
+                    }
+                }).catch(function() {});
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

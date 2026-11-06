@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ pretty }} - Calendar{% endblock %}
+{% block content %}
+<style>
+    .cal-appointment { background-color: #e2d9ea; color: #532b87; }
+    .cal-meeting { background-color: #cffaf1; color: #0b5f52; }
+</style>
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ date }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="/calendar/day/{{ prev }}" class="btn btn-outline-primary"><i class="bi bi-chevron-left"></i> Prev</a>
+    <h3 class="mb-0">{{ pretty }}{% if is_today %} <span class="badge bg-primary">Today</span>{% endif %}</h3>
+    <a href="/calendar/day/{{ next }}" class="btn btn-outline-primary">Next <i class="bi bi-chevron-right"></i></a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-task"></i> Tasks due</span>
+                <div class="d-flex gap-2">
+                    <a href="/calendar/events/new" class="btn btn-sm btn-outline-primary">New event</a>
+                    <a href="/calendar/tasks/new" class="btn btn-sm btn-outline-primary">New task</a>
+                </div>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for t in tasks %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="/calendar/tasks/{{ t.id }}/edit">{{ t.description }}</a>
+                    <span class="badge bg-secondary">urgency {{ t.urgency }}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No tasks due.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-calendar-event"></i> Appointments &amp; meetings</div>
+            <ul class="list-group list-group-flush">
+                {% for e in events %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span><span class="badge {{ 'cal-appointment' if e.category == 'appointment' else 'cal-meeting' }}">{{ e.category }}</span>
+                        <a href="/calendar/events/{{ e.id }}/edit">{{ e.title }}</a>
+                        <span class="text-muted small">{{ e.owner }}</span></span>
+                    <span class="text-muted small">{{ e.event_time or '' }}{% if e.duration_mins %} · {{ e.duration_mins }}m{% endif %}{% if e.location %} · {{ e.location }}{% endif %}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No events today.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-arrow-repeat"></i> Chores due</div>
+            <ul class="list-group list-group-flush">
+                {% for c in chores %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>{{ c.description }}</span>
+                    <form method="post" action="/calendar/chores/{{ c.id }}/complete">
+                        <input type="hidden" name="back" value="/calendar/day/{{ date }}">
+                        <button class="btn btn-sm btn-outline-success" type="submit"><i class="bi bi-check-lg"></i> Done</button>
+                    </form>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No chores due.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-egg-fried"></i> Meals</div>
+            <ul class="list-group list-group-flush">
+                {% for m in meals %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span><span class="badge bg-primary">{{ m.meal_type|capitalize }}</span>
+                        <a href="/cooking/recipes/{{ m.recipe_id }}">{{ m.title }}</a></span>
+                    {% if m.cook %}<span class="text-muted">cook: {{ m.cook }}</span>{% endif %}
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">Nothing on the menu.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-tree"></i> Foraging outings</div>
+            <ul class="list-group list-group-flush">
+                {% for f in foraging %}
+                <li class="list-group-item">
+                    {{ f.outing_type }}{% if f.location %} @ {{ f.location }}{% endif %}
+                    <span class="badge bg-secondary">{{ f.status }}</span>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No outings planned.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><i class="bi bi-cloud-sun"></i> Forecast</div>
+            <ul class="list-group list-group-flush">
+                {% for p in periods %}
+                <li class="list-group-item">
+                    <strong>{{ p.name }}</strong> — {{ p.temp }}{{ p.unit }},
+                    {{ p.short }}, wind {{ p.wind }}
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No forecast data (offline?).</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Movie Admin{% endblock %}
+
+{% block content %}
+<style>
+    .nav-tabs .nav-link { color: #495057; }
+    .nav-tabs .nav-link.active { font-weight: bold; }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Admin</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+            <h2><i class="bi bi-shield-lock"></i> Movie Admin</h2>
+        </div>
+
+        <ul class="nav nav-tabs mb-3" id="adminTabs">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#all">All Categories</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#public">Public Categories</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#banned">Banned Movies</a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- All Categories -->
+            <div class="tab-pane fade show active" id="all">
+                {% if all_categories %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Owner</th>
+                                <th>Movies</th>
+                                <th>Visibility</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in all_categories %}
+                            <tr>
+                                <td><a href="/library/movie/category/{{ item.category.id }}">{{ item.category.name }}</a></td>
+                                <td>{{ item.owner_username }}</td>
+                                <td>{{ item.category.movie_count }}</td>
+                                <td>
+                                    {% if item.category.is_public %}
+                                    <span class="badge bg-success">Public</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Private</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.category.is_public %}
+                                    <form action="/library/movie/admin/category/{{ item.category.id }}/remove-public" method="POST" class="d-inline"
+                                          onsubmit="return confirm('Remove {{ item.category.name }} from public?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning">
+                                            <i class="bi bi-eye-slash"></i> Remove Public
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No categories found.</div>
+                {% endif %}
+            </div>
+
+            <!-- Public Categories -->
+            <div class="tab-pane fade" id="public">
+                {% if public_categories %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Owner</th>
+                                <th>Movies</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in public_categories %}
+                            <tr>
+                                <td><a href="/library/movie/category/{{ item.category.id }}">{{ item.category.name }}</a></td>
+                                <td>{{ item.owner_username }}</td>
+                                <td>{{ item.category.movie_count }}</td>
+                                <td>
+                                    <form action="/library/movie/admin/category/{{ item.category.id }}/remove-public" method="POST" class="d-inline"
+                                          onsubmit="return confirm('Remove {{ item.category.name }} from public?')">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning">
+                                            <i class="bi bi-eye-slash"></i> Remove Public
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">No public categories.</div>
+                {% endif %}
+            </div>
+
+            <!-- Banned Movies -->
+            <div class="tab-pane fade" id="banned">
+                {% if banned_movies %}
+                <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+                    {% for item in banned_movies %}
+                    <div class="col">
+                        <div class="card">
+                            {% if item.movie.poster_filename %}
+                            <img src="/library/movie/poster/{{ item.movie.id }}"
+                                 class="card-img-top" style="aspect-ratio: 2/3; object-fit: cover;" alt="">
+                            {% else %}
+                            <div class="card-img-top bg-dark text-white d-flex align-items-center justify-content-center" style="aspect-ratio: 2/3;">
+                                <i class="bi bi-film" style="font-size: 2rem;"></i>
+                            </div>
+                            {% endif %}
+                            <div class="card-body p-2">
+                                <h6 style="font-size: 0.85rem;">{{ item.movie.title }}</h6>
+                                <small class="text-muted">{{ item.category.name }} by {{ item.owner_username }}</small>
+                                <div class="mt-2 d-flex gap-1">
+                                    <form action="/library/movie/admin/movie/{{ item.movie.id }}/unban" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="bi bi-check-circle"></i> Unban
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-success">No banned movies.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}
+

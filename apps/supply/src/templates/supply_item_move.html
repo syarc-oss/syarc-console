@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Move {{ item.key }} - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if store_id %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store_id }}">Store</a></li>
+        {% endif %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ item.category_id }}">Category</a></li>
+        <li class="breadcrumb-item active">Move Item</li>
+    </ol>
+</nav>
+
+<h2>Move Item</h2>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <strong>{{ item.key }}</strong>
+        {% if item.description %}<span class="text-muted"> — {{ item.description }}</span>{% endif %}
+    </div>
+</div>
+
+<form method="post" action="/supply/items/{{ item.id }}/move">
+    <div class="mb-3">
+        <label for="target_category_id" class="form-label">Move to category:</label>
+        <select class="form-select" id="target_category_id" name="target_category_id" required>
+            <option value="">-- Select category --</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="quantity" class="form-label">Quantity to move</label>
+        <input type="number" class="form-control" id="quantity" name="quantity"
+               min="1" max="{{ item.quantity }}" value="{{ item.quantity }}" required>
+        <div class="form-text">Available: {{ item.quantity }}</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+        <i class="bi bi-arrow-right-square"></i> Move Item
+    </button>
+    <a href="/supply/categories/{{ item.category_id }}" class="btn btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}

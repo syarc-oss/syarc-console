@@ -1,0 +1,169 @@
+<!-- Reusable directory browser modal + input widget.
+     Required JS variable before including: DIR_BROWSER_ROOT = "music"|"audiobook"|"ebook" or empty
+     Optional: DIR_BROWSER_ALLOW_FILES = true to allow selecting individual files.
+     The input element should have id="dirBrowserPath" or set DIR_BROWSER_INPUT_ID.
+     The "select" button should have id="dirBrowserSelectBtn" or set DIR_BROWSER_SELECT_BTN_ID.
+-->
+<div class="modal fade" id="dirBrowserModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-folder2-open"></i> Browse Directory</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="list-group list-group-flush" id="dirBrowserList" style="max-height:60vh; overflow-y:auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <div class="w-100">
+          <div class="input-group">
+            <input type="text" class="form-control" id="dirBrowserCurrentPath" placeholder="Type a path or browse above">
+            <button class="btn btn-outline-secondary" type="button" id="dirBrowserGoBtn">
+              <i class="bi bi-arrow-right"></i> Go
+            </button>
+            <button class="btn btn-primary" type="button" id="dirBrowserChooseBtn">
+              <i class="bi bi-check-lg"></i> Select This Directory
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+    var rootType = (typeof DIR_BROWSER_ROOT !== 'undefined') ? DIR_BROWSER_ROOT : '';
+    var inputId = (typeof DIR_BROWSER_INPUT_ID !== 'undefined') ? DIR_BROWSER_INPUT_ID : 'dirBrowserPath';
+    var selectBtnId = (typeof DIR_BROWSER_SELECT_BTN_ID !== 'undefined') ? DIR_BROWSER_SELECT_BTN_ID : 'dirBrowserSelectBtn';
+    var startPath = (typeof DIR_BROWSER_START !== 'undefined') ? DIR_BROWSER_START : '';
+    var allowFiles = (typeof DIR_BROWSER_ALLOW_FILES !== 'undefined') ? DIR_BROWSER_ALLOW_FILES : false;
+    var currentPath = '';
+    var selectedFilePath = null;
+    var inputEl = document.getElementById(inputId);
+    var selectBtnEl = document.getElementById(selectBtnId);
+    var listEl = document.getElementById('dirBrowserList');
+    var currentPathEl = document.getElementById('dirBrowserCurrentPath');
+    var chooseBtn = document.getElementById('dirBrowserChooseBtn');
+    var goBtn = document.getElementById('dirBrowserGoBtn');
+
+    currentPathEl.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            loadDir(currentPathEl.value.trim());
+        }
+    });
+
+    goBtn.addEventListener('click', function() {
+        loadDir(currentPathEl.value.trim());
+    });
+
+    function updateChooseBtn() {
+        if (selectedFilePath) {
+            var fname = selectedFilePath.split('/').pop();
+            chooseBtn.innerHTML = '<i class="bi bi-file-earmark-check"></i> Select: ' + escapeHtml(fname);
+        } else {
+            chooseBtn.innerHTML = '<i class="bi bi-check-lg"></i> Select This Directory';
+        }
+    }
+
+    function loadDir(path) {
+        currentPath = path;
+        currentPathEl.value = path;
+        selectedFilePath = null;
+        updateChooseBtn();
+        listEl.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+
+        var url = '/library/browse?path=' + encodeURIComponent(path);
+        if (rootType) url += '&root=' + encodeURIComponent(rootType);
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) {
+                    listEl.innerHTML = '<div class="text-danger p-3">' + data.error + '</div>';
+                    return;
+                }
+                listEl.innerHTML = '';
+                currentPath = data.path;
+                currentPathEl.value = data.path;
+
+                var parentDir = data.path.split('/').slice(0, -1).join('/');
+                if (parentDir && data.path !== '/') {
+                    var upItem = document.createElement('a');
+                    upItem.href = '#';
+                    upItem.className = 'list-group-item list-group-item-action text-muted';
+                    upItem.innerHTML = '<i class="bi bi-arrow-up"></i> ..';
+                    upItem.onclick = function(e) { e.preventDefault(); loadDir(parentDir); };
+                    listEl.appendChild(upItem);
+                }
+
+                var dirs = data.entries.filter(function(e) { return e.is_dir; });
+                var files = data.entries.filter(function(e) { return !e.is_dir; });
+
+                dirs.forEach(function(entry) {
+                    var item = document.createElement('a');
+                    item.href = '#';
+                    item.className = 'list-group-item list-group-item-action';
+                    item.innerHTML = '<i class="bi bi-folder-fill text-warning"></i> ' + escapeHtml(entry.name);
+                    item.onclick = function(e) { e.preventDefault(); loadDir(entry.path); };
+                    listEl.appendChild(item);
+                });
+
+                files.forEach(function(entry) {
+                    var item = document.createElement('a');
+                    item.href = '#';
+                    if (allowFiles) {
+                        item.className = 'list-group-item list-group-item-action';
+                        item.onclick = function(e) {
+                            e.preventDefault();
+                            listEl.querySelectorAll('.list-group-item').forEach(function(el) { el.classList.remove('active'); });
+                            item.classList.add('active');
+                            selectedFilePath = entry.path;
+                            updateChooseBtn();
+                        };
+                    } else {
+                        item.className = 'list-group-item text-muted small';
+                    }
+                    item.innerHTML = '<i class="bi bi-file-earmark"></i> ' + escapeHtml(entry.name);
+                    listEl.appendChild(item);
+                });
+            })
+            .catch(function(err) {
+                listEl.innerHTML = '<div class="text-danger p-3">Error loading directory</div>';
+            });
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    if (selectBtnEl) {
+        selectBtnEl.addEventListener('click', function() {
+            var initialPath = inputEl ? inputEl.value.trim() : '';
+            if (!initialPath && startPath) initialPath = startPath;
+            loadDir(initialPath || '/');
+            new bootstrap.Modal(document.getElementById('dirBrowserModal')).show();
+        });
+    }
+
+    chooseBtn.addEventListener('click', function() {
+        if (inputEl) {
+            inputEl.value = selectedFilePath || currentPath;
+            inputEl.dispatchEvent(new Event('input'));
+            inputEl.dispatchEvent(new Event('change'));
+        }
+        bootstrap.Modal.getInstance(document.getElementById('dirBrowserModal')).hide();
+    });
+
+    document.getElementById('dirBrowserModal').addEventListener('hidden.bs.modal', function() {
+        listEl.innerHTML = '';
+        selectedFilePath = null;
+        updateChooseBtn();
+    });
+})();
+</script>
+
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>

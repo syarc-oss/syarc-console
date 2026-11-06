@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Ledger - {% if is_edit %}Edit{% else %}New{% endif %} Entry{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+            <li class="breadcrumb-item"><a href="/pecuniary/ledger/select">Ledger</a></li>
+            {% if book_id %}<li class="breadcrumb-item"><a href="/pecuniary/ledger/?book_id={{ book_id }}">{{ book_name }}</a></li>{% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{% if is_edit %}Edit{% else %}New{% endif %} Entry</li>
+        </ol>
+    </nav>
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h2 class="mb-4">
+                <i class="bi bi-{% if category == 'income' %}arrow-down-circle text-success{% else %}arrow-up-circle text-danger{% endif %}"></i>
+                {% if is_edit %}Edit{% else %}New{% endif %}
+                {{ category | title }} Entry
+            </h2>
+
+            <form method="post"
+                  action="{% if is_edit %}/pecuniary/ledger/entry/{{ entry.id }}/edit{% else %}/pecuniary/ledger/entry/new{% endif %}">
+
+                {% if not is_edit %}
+                <input type="hidden" name="book_id" value="{{ book_id }}">
+                <input type="hidden" name="category" value="{{ category }}">
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="entry_type" class="form-label">Type</label>
+                        <select class="form-select" id="entry_type" name="entry_type" required>
+                            {% for t in entry_types %}
+                            <option value="{{ t }}"
+                                {% if is_edit and entry.entry_type == t %}selected{% endif %}>
+                                {{ t | replace('_', ' ') | title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="amount" class="form-label">Amount ($)</label>
+                        <input type="text" class="form-control" id="amount" name="amount" required
+                               inputmode="decimal" placeholder="0.00"
+                               value="{% if is_edit %}{{ '%.2f' | format(entry.amount) }}{% endif %}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="entry_date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="entry_date" name="entry_date" required
+                               value="{% if is_edit %}{{ entry.entry_date }}{% else %}{{ today }}{% endif %}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="recurrence" class="form-label">Recurrence</label>
+                        <select class="form-select" id="recurrence" name="recurrence">
+                            {% for p in recurrence_periods %}
+                            <option value="{{ p }}"
+                                {% if is_edit and entry.recurrence == p %}selected{% endif %}>
+                                {{ p | replace('_', ' ') | title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label for="description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="description" name="description"
+                               value="{% if is_edit %}{{ entry.description }}{% endif %}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="source" class="form-label">Source / Payee</label>
+                        <input type="text" class="form-control" id="source" name="source"
+                               value="{% if is_edit %}{{ entry.source or '' }}{% endif %}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="reference_number" class="form-label">Reference #</label>
+                        <input type="text" class="form-control" id="reference_number" name="reference_number"
+                               value="{% if is_edit %}{{ entry.reference_number or '' }}{% endif %}">
+                    </div>
+                    <div class="col-12">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="2"
+                        >{% if is_edit %}{{ entry.notes or '' }}{% endif %}</textarea>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        {% if is_edit %}Update{% else %}Save{% endif %} Entry
+                    </button>
+                    <a href="/pecuniary/ledger/?book_id={{ book_id }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

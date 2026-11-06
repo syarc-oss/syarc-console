@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Remote management — {{ node.name or node.node_id[:12] }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts">Contacts</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts/{{ node.node_id }}">{{ node.name or node.node_id[:12] }}</a></li>
+    <li class="breadcrumb-item active">Remote management</li>
+  </ol>
+</nav>
+<h2 class="mb-3"><i class="bi bi-sliders"></i> Remote management
+  <small class="text-muted">{{ node.name or node.node_id[:12] }}</small></h2>
+
+{% if err == "login" %}
+<div class="alert alert-danger">Login failed — wrong password.</div>
+{% elif err == "guest" %}
+<div class="alert alert-warning">The node accepted that password with guest permissions only — the admin password is required.</div>
+{% elif err == "unreachable" %}
+<div class="alert alert-warning">No reply from the node — it may be out of range, asleep, or the radio link is down.</div>
+{% elif err == "empty" %}
+<div class="alert alert-warning">Enter the node's admin password.</div>
+{% endif %}
+
+{% if not radio_connected %}
+<div class="alert alert-warning">The MeshCore radio link is currently down — a login will be attempted but will likely fail until the link is up.</div>
+{% endif %}
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card shadow-sm"><div class="card-body">
+      <h6 class="text-muted">Log in to the node</h6>
+      <p class="small text-muted">
+        Sends a remote login over the mesh and stores the password for this
+        node (in the console database) so later Status / Console / Settings
+        pages can re-authenticate automatically.
+      </p>
+      <form method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/login">
+        <div class="mb-3">
+          <label class="form-label" for="password">Admin password</label>
+          <input class="form-control" type="password" name="password" id="password" required autofocus>
+        </div>
+        <button class="btn btn-primary"><i class="bi bi-box-arrow-in-right"></i> Log in</button>
+        <a class="btn btn-outline-secondary" href="/platforms/meshcore/contacts/{{ node.node_id }}">Back to contact</a>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

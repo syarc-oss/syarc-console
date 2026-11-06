@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}MeshCore — Contacts{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item active">Contacts</li>
+  </ol>
+</nav>
+<h2 class="mb-3">Contacts <small class="text-muted">(latest 350)</small></h2>
+
+{% if added %}<div class="alert alert-success">Added {{ added }}.</div>{% endif %}
+{% if add_error %}<div class="alert alert-warning">{{ add_error }}</div>{% endif %}
+
+<div class="card bg-light shadow-sm mb-3">
+  <div class="card-body">
+    <form method="post" action="/platforms/meshcore/contacts/add" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label mb-0 small">Name</label>
+        <input class="form-control form-control-sm" name="name" maxlength="40" required>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label mb-0 small">Public key (full 64 hex)</label>
+        <input class="form-control form-control-sm font-monospace" name="pubkey"
+               pattern="[0-9a-fA-F\s]{64,}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-0 small">Type</label>
+        <select class="form-select form-select-sm" name="node_type">
+          <option value="3" selected>room server</option>
+          <option value="2">repeater</option>
+          <option value="1">chat</option>
+          <option value="4">sensor</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-sm btn-dark">Add contact</button>
+      </div>
+    </form>
+  </div>
+</div>
+<table class="table table-sm table-hover bg-white shadow-sm" id="contacts-table">
+  <thead><tr>
+    <th></th>
+    <th style="cursor: pointer" onclick="sortContacts(1)">Name &#8597;</th>
+    <th style="cursor: pointer" onclick="sortContacts(2)">Node ID &#8597;</th>
+    <th style="cursor: pointer" onclick="sortContacts(3)">Type &#8597;</th>
+    <th>GPS</th>
+    <th style="cursor: pointer" onclick="sortContacts(5)">Last synced &#8597;</th>
+  </tr></thead>
+  <tbody>
+  {% for c in contacts %}
+    <tr style="cursor: pointer" onclick="window.location.href='/platforms/meshcore/contacts/{{ c.node_id }}'">
+      <td class="text-warning">{% if c.is_favorite %}&#9733;{% endif %}</td>
+      <td class="c-name"><a href="/platforms/meshcore/contacts/{{ c.node_id }}" class="text-decoration-none fw-bold">{{ c.name }}</a></td>
+      <td class="font-monospace c-node">{{ c.node_id[:12] }}</td>
+      <td class="c-type">{{ 'chat' if c.node_type == 1 else 'repeater' if c.node_type == 2 else 'room server' if c.node_type == 3 else 'sensor' if c.node_type == 4 else c.node_type }}</td>
+      <td class="text-nowrap">{% if c.lat is not none %}{{ "%.4f"|format(c.lat) }}, {{ "%.4f"|format(c.lon) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td class="text-nowrap c-synced">{{ c.last_synced }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-muted">No contacts synced yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<script>
+let sortCol = null, sortAsc = true;
+function sortContacts(col) {
+  if (sortCol === col) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
+  const tbody = document.querySelector('#contacts-table tbody');
+  const cls = ['', 'c-name', 'c-node', 'c-type', '', 'c-synced'][col];
+  const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.cells.length > 1);
+  rows.sort((a, b) => {
+    const x = a.querySelector('.' + cls)?.textContent.trim() ?? '';
+    const y = b.querySelector('.' + cls)?.textContent.trim() ?? '';
+    return sortAsc ? x.localeCompare(y, undefined, {numeric: true}) : y.localeCompare(x, undefined, {numeric: true});
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+</script>
+{% endblock %}

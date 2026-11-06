@@ -1,0 +1,20 @@
+[package]
+name = "syarc-conferencing"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+syarc-plugin-api = { path = "../../crates/plugin-api" }
+axum = { workspace = true, features = ["multipart"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+form_urlencoded = "1"
+tower-sessions = { workspace = true }

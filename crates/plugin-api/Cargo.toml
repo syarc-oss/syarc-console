@@ -1,0 +1,15 @@
+[package]
+name = "syarc-plugin-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+axum = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+argon2 = { workspace = true }
+minijinja = { workspace = true }
+chrono = { workspace = true }
+tower-sessions = { workspace = true }

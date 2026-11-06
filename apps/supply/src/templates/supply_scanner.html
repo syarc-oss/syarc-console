@@ -1,0 +1,1092 @@
+{% extends "base.html" %}
+
+{% block title %}Barcode Scanner - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if store %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store.id }}">{{ store.name }}</a></li>
+        {% endif %}
+        {% if category %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ category.id }}">{{ category.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">Barcode Scanner</li>
+    </ol>
+</nav>
+
+<h2><i class="bi bi-upc-scan"></i> Barcode Scanner</h2>
+
+<div id="barcode-db-status" class="alert alert-secondary py-2 mb-3" style="display:none">
+    <div class="d-flex justify-content-between align-items-center">
+        <span id="db-status-text"><i class="bi bi-database"></i> Loading barcode database status...</span>
+        <button class="btn btn-sm btn-outline-secondary" id="reset-miss-stats" title="Reset miss counter after rebuilding DB" style="display:none">Reset Stats</button>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-3 flex-wrap">
+    <a href="/supply/supply_static/offline_scanner_terminal.py" download="offline_scanner_terminal.py" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-download"></i> Offline Scanner (Terminal)
+    </a>
+    <a href="/supply/supply_static/offline_scanner.py" download="offline_scanner.py" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-download"></i> Offline Scanner (GUI)
+    </a>
+    <a href="/supply/print-form" target="_blank" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-printer"></i> Print Worksheet
+    </a>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="scannerTabs">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#phase-scan">
+            <i class="bi bi-collection"></i> 1. Scan
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#phase-review" id="review-tab">
+            <i class="bi bi-pencil-square"></i> 2. Review &amp; Enter
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#phase-camera" id="camera-tab">
+            <i class="bi bi-camera"></i> 3. Camera
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    <!-- Phase 1: Scan -->
+    <div class="tab-pane fade show active" id="phase-scan">
+        <div class="card mb-3">
+            <div class="card-body">
+                <label for="scan-input" class="form-label">
+                    Common mode: scan one at a time. Inventory mode: scan the upload barcode, all cached barcodes will be captured.
+                </label>
+                <div class="input-group">
+                    <textarea class="form-control" id="scan-input" rows="1"
+                              placeholder="Scan barcode (common mode) or upload cache (inventory mode)"
+                              autofocus style="resize:none;font-size:1.2rem"></textarea>
+                    <button class="btn btn-primary" id="scan-btn">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="unknown-container"></div>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5>Collected (<span id="scan-count">0</span>)
+                <span id="unknown-badge" class="badge bg-warning text-dark" style="display:none">
+                    <span id="unknown-count">0</span> need description
+                </span>
+            </h5>
+            <div>
+                <button class="btn btn-outline-secondary btn-sm" id="clear-btn" disabled>Clear All</button>
+                <button class="btn btn-primary btn-sm" id="goto-review-btn" disabled>
+                    Review &amp; Enter Details <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="scan-list" class="list-group" style="max-height:400px;overflow-y:auto">
+            <div class="list-group-item text-muted">No barcodes scanned yet.</div>
+        </div>
+    </div>
+
+    <!-- Phase 2: Review & Enter -->
+    <div class="tab-pane fade" id="phase-review">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5>Review Items (<span id="review-count">0</span> remaining)</h5>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary btn-sm" id="add-all-btn" style="display:none">
+                    <i class="bi bi-collection-fill"></i> Add All to Inventory
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="back-to-scan-btn">
+                    <i class="bi bi-arrow-left"></i> Scan More
+                </button>
+            </div>
+        </div>
+
+        <div id="review-empty" class="alert alert-info">No items to review. Scan some barcodes first.</div>
+
+        <div id="review-form-card" class="card" style="display:none">
+            <div class="card-header">
+                <strong id="review-barcode-display"></strong>
+                <button class="btn btn-sm btn-outline-danger float-end" id="skip-btn">
+                    Skip <i class="bi bi-skip-forward"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="review-category" class="form-label">Category</label>
+                        <select class="form-select" id="review-category">
+                            {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if selected_category_id and cat.id == selected_category_id %}selected{% endif %}>{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="review-description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="review-description" placeholder="Auto-filled or edit">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="review-quantity" class="form-label">Quantity</label>
+                        <input type="number" class="form-control" id="review-quantity" value="1" min="1">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="review-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="review-location" list="review-location-options" placeholder="e.g. Shelf A3">
+                        <datalist id="review-location-options"></datalist>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="review-key" class="form-label">Item Key / Name</label>
+                        <input type="text" class="form-control" id="review-key" placeholder="Auto-filled from description">
+                    </div>
+                </div>
+                <button class="btn btn-success" id="submit-item-btn">
+                    <i class="bi bi-check-circle"></i> Add to Inventory
+                </button>
+                <button class="btn btn-outline-primary ms-2" id="relookup-btn" title="Re-lookup barcode online">
+                    <i class="bi bi-arrow-repeat"></i> Re-lookup
+                </button>
+            </div>
+        </div>
+
+        <h6 class="mt-4">Completed</h6>
+        <div id="completed-list" class="list-group"></div>
+    </div>
+    <!-- Phase 3: Camera Scanner -->
+    <div class="tab-pane fade" id="phase-camera">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted">Use your phone camera to scan barcodes. Requires HTTPS.</span>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm" id="camera-start-btn">
+                            <i class="bi bi-camera-video"></i> Start Camera
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="camera-stop-btn" disabled>
+                            <i class="bi bi-camera-video-off"></i> Stop Camera
+                        </button>
+                    </div>
+                </div>
+                <div id="camera-reader" style="width:100%;max-width:500px;display:none"></div>
+                <div id="camera-error" class="alert alert-danger py-2" style="display:none"></div>
+                <div id="camera-status" class="text-muted mt-2" style="display:none">
+                    <span class="spinner-border spinner-border-sm"></span> Waiting for barcode...
+                </div>
+                <div id="camera-scanned-list" class="list-group mt-3" style="max-height:250px;overflow-y:auto;display:none"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/html5-qrcode.min.js"></script>
+<script>
+const scanInput = document.getElementById('scan-input');
+const scanBtn = document.getElementById('scan-btn');
+const scanList = document.getElementById('scan-list');
+const scanCount = document.getElementById('scan-count');
+const clearBtn = document.getElementById('clear-btn');
+const gotoReviewBtn = document.getElementById('goto-review-btn');
+const reviewTab = document.getElementById('review-tab');
+const unknownContainer = document.getElementById('unknown-container');
+const unknownBadge = document.getElementById('unknown-badge');
+const unknownCountEl = document.getElementById('unknown-count');
+
+const reviewCount = document.getElementById('review-count');
+const reviewEmpty = document.getElementById('review-empty');
+const reviewFormCard = document.getElementById('review-form-card');
+const reviewBarcodeDisplay = document.getElementById('review-barcode-display');
+const reviewCategory = document.getElementById('review-category');
+const reviewDescription = document.getElementById('review-description');
+const reviewQuantity = document.getElementById('review-quantity');
+const reviewLocation = document.getElementById('review-location');
+const reviewKey = document.getElementById('review-key');
+const submitItemBtn = document.getElementById('submit-item-btn');
+const relookupBtn = document.getElementById('relookup-btn');
+const skipBtn = document.getElementById('skip-btn');
+const completedList = document.getElementById('completed-list');
+const backToScanBtn = document.getElementById('back-to-scan-btn');
+const addAllBtn = document.getElementById('add-all-btn');
+
+let barcodes = [];
+let barcodeDescriptions = {};
+let _restoring = false;
+let unknownCounts = {};
+let currentIndex = 0;
+let completed = 0;
+let placeholder = true;
+let pendingLookups = 0;
+// Cap concurrent lookup requests: each unknown barcode can hold a server
+// connection for seconds, and flooding them starves other requests
+// (e.g. "Add All to Inventory") of connections.
+var MAX_CONCURRENT_LOOKUPS = 3;
+var activeLookups = 0;
+var lookupQueue = [];
+
+function pumpLookupQueue() {
+    while (activeLookups < MAX_CONCURRENT_LOOKUPS && lookupQueue.length > 0) {
+        lookupQueue.shift()();
+    }
+}
+
+function queuedLookup(fn) {
+    lookupQueue.push(fn);
+    pumpLookupQueue();
+}
+
+var _audioCtx = null;
+function playBeep(frequency, duration) {
+    try {
+        if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = _audioCtx.createOscillator();
+        var gain = _audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(_audioCtx.destination);
+        osc.frequency.value = frequency || 400;
+        gain.gain.value = 0.3;
+        osc.start();
+        osc.stop(_audioCtx.currentTime + (duration || 0.3));
+    } catch(e) {}
+}
+function playFailBeep() { playBeep(250, 0.5); setTimeout(function(){ playBeep(250, 0.5); }, 600); }
+function playOkBeep() { playBeep(800, 0.15); }
+
+function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+var _nativeFetch = window.fetch;
+
+function extractJson(r) {
+    var ct = r.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') === -1) {
+        throw new Error('Expected JSON but got ' + ct + ' (HTTP ' + r.status + ')');
+    }
+    return r.json();
+}
+
+function fetchWithTimeout(url, options, timeoutMs) {
+    var controller = new AbortController();
+    var tid = setTimeout(function() { controller.abort(); }, timeoutMs || 30000);
+    var headers = Object.assign({'Accept': 'application/json'}, options && options.headers);
+    var opts = Object.assign(
+        {credentials: 'include', redirect: 'error'},
+        options, {signal: controller.signal, headers: headers}
+    );
+    return _nativeFetch(url, opts).finally(function() { clearTimeout(tid); });
+}
+
+function authFetch(url, options, timeoutMs) {
+    timeoutMs = timeoutMs || 30000;
+    return fetchWithTimeout(url, options, timeoutMs)
+    .then(function(r) {
+        if (r.status === 401 || r.status === 403) {
+            // The refresh and the retry each carry their own timeout so a
+            // lost connection can never leave the caller spinning forever.
+            return fetchWithTimeout('/api/v1/auth/refresh-session', {method: 'POST'}, 15000)
+            .then(function(refreshR) {
+                if (!refreshR.ok) throw new Error('Session expired');
+                return fetchWithTimeout(url, options, timeoutMs);
+            })
+            .then(function(r2) {
+                if (r2.status === 401 || r2.status === 403) {
+                    throw new Error('Session expired');
+                }
+                return extractJson(r2);
+            });
+        }
+        return extractJson(r);
+    })
+    .catch(function(e) {
+        if (e && e.name === 'AbortError') throw new Error('Request timed out');
+        throw e;
+    });
+}
+
+function killSessionManager() {
+    if (!window.sessionManager) return;
+    var sm = window.sessionManager;
+    sm.disabled = true;
+    if (sm.timeoutId) clearTimeout(sm.timeoutId);
+    if (sm.warningId) clearTimeout(sm.warningId);
+    if (sm.pollId) clearInterval(sm.pollId);
+    if (sm.countdownInterval) clearInterval(sm.countdownInterval);
+    sm.onTimeout = function() {};
+    sm.showWarning = function() {};
+    sm.redirectToLogin = function() {};
+    sm.resetTimer = function() {};
+    sm.startTimer = function() {};
+    sm.checkSession = function() {};
+    sm.refreshSession = function() {};
+}
+
+killSessionManager();
+window.addEventListener('load', killSessionManager);
+
+(function loadDbStatus() {
+    var resetBtn = document.getElementById('reset-miss-stats');
+    resetBtn.addEventListener('click', function() {
+        _nativeFetch('/supply/api/barcode/reset-stats', {method: 'POST', credentials: 'include'})
+        .then(function() { loadDbStatus(); });
+    });
+
+    _nativeFetch('/supply/api/barcode/db-status', {credentials: 'include'})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var el = document.getElementById('barcode-db-status');
+        var text = document.getElementById('db-status-text');
+        if (data.available) {
+            var built = data.last_built ? new Date(data.last_built).toLocaleDateString() : 'unknown';
+            var html = '<i class="bi bi-database-fill-check text-success"></i> Barcode DB: <strong>' +
+                data.db_count.toLocaleString() + '</strong> products (' + data.db_size_mb + ' MB) &mdash; Built: ' + built;
+            if (data.lookups > 0) {
+                html += ' &nbsp;|&nbsp; Lookups: <strong>' + data.lookups + '</strong>, Misses: <strong>' +
+                    data.misses + '</strong> (' + data.miss_rate + '%)';
+                if (data.miss_rate > 20) {
+                    html += ' <span class="text-warning"><i class="bi bi-exclamation-triangle"></i> High miss rate — consider updating the database</span>';
+                    resetBtn.style.display = '';
+                } else if (data.miss_rate > 0) {
+                    resetBtn.style.display = '';
+                }
+            }
+            text.innerHTML = html;
+            el.className = 'alert alert-success py-2 mb-3';
+        } else {
+            text.innerHTML = '<i class="bi bi-database-x text-warning"></i> No offline barcode database — lookups require internet. ' +
+                '<small class="text-muted">Run: <code>python app/apps/supply/scripts/build_barcode_db.py</code></small>';
+            el.className = 'alert alert-warning py-2 mb-3';
+        }
+        el.style.display = '';
+    })
+    .catch(function() {});
+})();
+
+setInterval(function() {
+    _nativeFetch('/supply/api/scanner/pending', {method: 'GET', credentials: 'include'})
+    .catch(function() {});
+}, 2 * 60 * 1000);
+
+setInterval(function() {
+    _nativeFetch('/api/v1/auth/session-status', {method: 'GET', credentials: 'include'})
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+        if (data && data.expires_in !== undefined && data.expires_in < 10 * 60) {
+            return _nativeFetch('/api/v1/auth/refresh-session', {method: 'POST', credentials: 'include'});
+        }
+    })
+    .catch(function() {});
+}, 5 * 60 * 1000);
+
+
+function updateScanUI() {
+    var count = barcodes.filter(function(b) { return b !== null; }).length;
+    scanCount.textContent = count;
+    clearBtn.disabled = count === 0;
+    var unkCount = Object.keys(unknownCounts).length;
+    unknownCountEl.textContent = unkCount;
+    unknownBadge.style.display = unkCount > 0 ? '' : 'none';
+    gotoReviewBtn.disabled = count === 0 || unkCount > 0;
+}
+
+// Server-side scan queue sync. Every scan appends an entry (debounced
+// batch); entries flagged updateOnly just learn a description for rows
+// already queued; removes delete a single row. No whole-list replacement,
+// so adds and removes can never race each other.
+var _queueBuffer = [];
+var _queueFlushTimer = null;
+function queueAdd(code, desc, updateOnly) {
+    _queueBuffer.push({code: code, desc: desc || null, updateOnly: !!updateOnly});
+    if (_queueFlushTimer) return;
+    _queueFlushTimer = setTimeout(function() {
+        _queueFlushTimer = null;
+        flushQueue();
+    }, 1000);
+}
+function flushQueue() {
+    if (_queueFlushTimer) { clearTimeout(_queueFlushTimer); _queueFlushTimer = null; }
+    var items = _queueBuffer.map(function(e) {
+        return e.updateOnly
+            ? {barcode: e.code, description: e.desc, update_only: true}
+            : {barcode: e.code, description: e.desc, quantity: 1};
+    });
+    _queueBuffer = [];
+    if (!items.length) return Promise.resolve();
+    return _nativeFetch('/supply/api/scanner/queue/add', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({barcodes: items})
+    }).then(function() {}).catch(function() {});
+}
+function queueRemove(code) {
+    delete _queueBuffer[code];
+    _nativeFetch('/supply/api/scanner/queue/remove', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({barcode: code})
+    }).catch(function() {});
+}
+
+function refreshScanListBadges() {
+    scanList.querySelectorAll('[data-idx]').forEach(function(el) {
+        var idx = parseInt(el.getAttribute('data-idx'));
+        var code = barcodes[idx];
+        if (!code) return;
+        var badge = el.querySelector('.scan-desc-badge');
+        if (!badge) return;
+        var desc = barcodeDescriptions[code];
+        if (desc) {
+            badge.className = 'scan-desc-badge text-success';
+            badge.innerHTML = '<i class="bi bi-check-circle"></i> ' + escHtml(desc.substring(0, 60));
+        }
+    });
+}
+
+function addBarcodeToList(code, desc) {
+    // Every scan is its own queue row — duplicate products are intentional
+    // and each adds quantity when committed to inventory.
+    if (!_restoring) queueAdd(code, desc || null);
+    var idx = barcodes.length;
+    barcodes.push(code);
+    if (desc) barcodeDescriptions[code] = desc;
+    if (placeholder) {
+        scanList.innerHTML = '';
+        placeholder = false;
+    }
+    var el = document.createElement('div');
+    el.className = 'list-group-item d-flex justify-content-between align-items-center';
+    el.setAttribute('data-idx', idx);
+    var descBadge = desc
+        ? ' <small class="scan-desc-badge text-success"><i class="bi bi-check-circle"></i> ' + escHtml(desc.substring(0, 60)) + '</small>'
+        : ' <small class="scan-desc-badge text-warning"><i class="bi bi-question-circle"></i> Pending</small>';
+    el.innerHTML =
+        '<span><i class="bi bi-upc-scan"></i> ' + escHtml(code) + descBadge + '</span>' +
+        '<span>' +
+        '<small class="text-muted me-2">' + new Date().toLocaleTimeString() + '</small>' +
+        '<button class="btn btn-sm btn-outline-danger p-0 px-1 scan-remove-btn" title="Remove"><i class="bi bi-x"></i></button>' +
+        '</span>';
+    scanList.prepend(el);
+    el.querySelector('.scan-remove-btn').addEventListener('click', function() {
+        removeBarcode(idx, el);
+        scanInput.focus();
+    });
+    updateScanUI();
+}
+
+function removeBarcode(idx, el) {
+    if (barcodes[idx]) { queueRemove(barcodes[idx]); delete barcodeDescriptions[barcodes[idx]]; }
+    barcodes[idx] = null;
+    if (el) el.remove();
+    if (barcodes.every(function(b) { return b === null; })) {
+        scanList.innerHTML = '<div class="list-group-item text-muted">No barcodes scanned yet.</div>';
+        placeholder = true;
+    }
+    updateScanUI();
+}
+
+function removeScanListItem(idx, keepServer) {
+    // keepServer: the server already deleted this row (single review add /
+    // batch-all committed it) — deleting again would eat a sibling scan of
+    // the same product.
+    if (!keepServer && barcodes[idx]) { queueRemove(barcodes[idx]); delete barcodeDescriptions[barcodes[idx]]; }
+    var el = scanList.querySelector('[data-idx="' + idx + '"]');
+    if (el) el.remove();
+    barcodes[idx] = null;
+    if (barcodes.every(function(b) { return b === null; })) {
+        scanList.innerHTML = '<div class="list-group-item text-muted">No barcodes scanned yet.</div>';
+        placeholder = true;
+    }
+    updateScanUI();
+}
+
+function extractBarcodes(text) {
+    var codes = text.split(/[\r\n]+/);
+    var found = [];
+    for (var i = 0; i < codes.length; i++) {
+        var c = codes[i].trim();
+        if (c) found.push(c);
+    }
+    return found;
+}
+
+function addUnknownCard(code) {
+    var existing = unknownContainer.querySelector('[data-barcode="' + CSS.escape(code) + '"]');
+    if (existing) {
+        unknownCounts[code] = (unknownCounts[code] || 0) + 1;
+        var badge = existing.querySelector('.dup-count');
+        if (badge) badge.textContent = ' (x' + unknownCounts[code] + ')';
+        updateScanUI();
+        return;
+    }
+
+    unknownCounts[code] = 1;
+    updateScanUI();
+
+    var card = document.createElement('div');
+    card.className = 'card mb-2 border-warning';
+    card.setAttribute('data-barcode', code);
+    card.innerHTML =
+        '<div class="card-header bg-warning text-dark py-1">' +
+        '<i class="bi bi-exclamation-triangle"></i> <strong>Unknown: ' + escHtml(code) + '</strong>' +
+        '<span class="dup-count"></span>' +
+        '</div>' +
+        '<div class="card-body py-2">' +
+        '<div class="row align-items-center">' +
+        '<div class="col-md-8">' +
+        '<input type="text" class="form-control form-control-sm" placeholder="Enter description for this item">' +
+        '</div>' +
+        '<div class="col-md-4 text-end">' +
+        '<button class="btn btn-success btn-sm save-unknown-btn me-1"><i class="bi bi-check-circle"></i> Save</button>' +
+        '<button class="btn btn-outline-danger btn-sm dismiss-unknown-btn" title="Discard this scan"><i class="bi bi-x-lg"></i></button>' +
+        '</div>' +
+        '</div>' +
+        '</div>';
+    unknownContainer.appendChild(card);
+
+    var input = card.querySelector('input');
+    var saveBtn = card.querySelector('.save-unknown-btn');
+    var dismissBtn = card.querySelector('.dismiss-unknown-btn');
+
+    dismissBtn.addEventListener('click', function() {
+        // Scanner mistake: drop the item entirely — unknown card, ALL scan
+        // list entries for it, and their server queue rows — so counts stay
+        // consistent.
+        delete unknownCounts[code];
+        card.remove();
+        var idx;
+        while ((idx = barcodes.indexOf(code)) !== -1) {
+            removeBarcode(idx, scanList.querySelector('[data-idx="' + idx + '"]'));
+        }
+        updateScanUI();
+        scanInput.focus();
+    });
+
+    saveBtn.addEventListener('click', function() {
+        var desc = input.value.trim();
+        if (!desc) {
+            input.classList.add('is-invalid');
+            input.focus();
+            return;
+        }
+        input.classList.remove('is-invalid');
+        barcodeDescriptions[code] = desc;
+        queueAdd(code, desc, true);
+        delete unknownCounts[code];
+        card.remove();
+        refreshScanListBadges();
+        updateScanUI();
+        scanInput.focus();
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveBtn.click();
+        }
+    });
+}
+
+function processScan() {
+    var raw = scanInput.value;
+    if (!raw.trim()) return;
+    var codes = extractBarcodes(raw);
+    scanInput.value = '';
+    scanInput.focus();
+
+    for (var i = 0; i < codes.length; i++) {
+        (function(code) {
+            if (barcodeDescriptions[code]) {
+                addBarcodeToList(code, barcodeDescriptions[code]);
+                playOkBeep();
+                return;
+            }
+            pendingLookups++;
+            addBarcodeToList(code, null);
+            queuedLookup(function() {
+                activeLookups++;
+                authFetch('/supply/api/barcode/lookup', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({barcode: code})
+                })
+                .then(function(data) {
+                    pendingLookups--;
+                    activeLookups--;
+                    if (data.description) {
+                        barcodeDescriptions[code] = data.description;
+                        refreshScanListBadges();
+                        queueAdd(code, data.description, true);
+                        playOkBeep();
+                    } else if (!barcodeDescriptions[code]) {
+                        addUnknownCard(code);
+                        playFailBeep();
+                    }
+                    pumpLookupQueue();
+                })
+                .catch(function(err) {
+                    pendingLookups--;
+                    activeLookups--;
+                    if (!barcodeDescriptions[code]) {
+                        addUnknownCard(code);
+                        playFailBeep();
+                    }
+                    pumpLookupQueue();
+                });
+            });
+        })(codes[i]);
+    }
+}
+
+scanBtn.addEventListener('click', processScan);
+
+scanInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        processScan();
+    }
+});
+
+scanInput.addEventListener('input', function() {
+    var val = scanInput.value;
+    if (val.indexOf('\n') !== -1 || val.indexOf('\r') !== -1) {
+        processScan();
+    }
+});
+
+clearBtn.addEventListener('click', function() {
+    _queueBuffer = [];
+    _nativeFetch('/supply/api/scanner/pending/clear', {method: 'POST', credentials: 'include'}).catch(function() {});
+    barcodes = [];
+    barcodeDescriptions = {};
+    unknownCounts = {};
+    unknownContainer.innerHTML = '';
+    scanList.innerHTML = '<div class="list-group-item text-muted">No barcodes scanned yet.</div>';
+    placeholder = true;
+    updateScanUI();
+    scanInput.focus();
+});
+
+backToScanBtn.addEventListener('click', function() {
+    document.querySelector('[data-bs-target="#phase-scan"]').click();
+    scanInput.focus();
+});
+
+function initReview() {
+    barcodes = barcodes.filter(function(b) { return b !== null; });
+    scanList.querySelectorAll('[data-idx]').forEach(function(el, i) {
+        el.setAttribute('data-idx', i);
+        el.querySelector('.scan-remove-btn').onclick = function() { removeBarcode(i, el); scanInput.focus(); };
+    });
+    currentIndex = 0;
+    completed = 0;
+    completedList.innerHTML = '';
+    showCurrentReview();
+}
+
+gotoReviewBtn.addEventListener('click', function() {
+    initReview();
+    reviewTab.click();
+});
+
+reviewTab.addEventListener('shown.bs.tab', function() {
+    if (currentIndex === 0 && completed === 0 && barcodes.filter(function(b) { return b !== null; }).length > 0) {
+        initReview();
+    }
+});
+
+var locationOptions = document.getElementById('review-location-options');
+var locationCache = {};
+
+function refreshLocationOptions(bc) {
+    locationOptions.innerHTML = '';
+    if (!bc) return;
+    if (locationCache[bc] !== undefined) {
+        fillLocationOptions(locationCache[bc]);
+        return;
+    }
+    authFetch('/supply/api/scanner/locations?barcode=' + encodeURIComponent(bc))
+    .then(function(data) {
+        locationCache[bc] = data.locations || [];
+        fillLocationOptions(locationCache[bc]);
+    })
+    .catch(function() { locationCache[bc] = []; });
+}
+
+function fillLocationOptions(locs) {
+    var seen = {};
+    var html = '';
+    [reviewLocation.value.trim()].concat(locs || []).forEach(function(l) {
+        l = (l || '').trim();
+        if (!l || seen[l]) return;
+        seen[l] = true;
+        html += '<option value="' + escHtml(l) + '"></option>';
+    });
+    locationOptions.innerHTML = html;
+}
+
+reviewLocation.addEventListener('change', function() {
+    fillLocationOptions(locationCache[barcodes[currentIndex]] || []);
+});
+
+function showCurrentReview() {
+    if (currentIndex >= barcodes.length) {
+        reviewFormCard.style.display = 'none';
+        addAllBtn.style.display = 'none';
+        reviewEmpty.style.display = '';
+        reviewEmpty.textContent = 'All done! ' + completed + ' item' + (completed !== 1 ? 's' : '') + ' added.';
+        reviewCount.textContent = 0;
+        return;
+    }
+    reviewFormCard.style.display = '';
+    addAllBtn.style.display = '';
+    addAllBtn.disabled = false;
+    addAllBtn.innerHTML = '<i class="bi bi-collection-fill"></i> Add Remaining to Inventory';
+    reviewEmpty.style.display = 'none';
+    var bc = barcodes[currentIndex];
+    if (!bc) {
+        currentIndex++;
+        showCurrentReview();
+        return;
+    }
+    reviewBarcodeDisplay.textContent = 'Barcode: ' + bc;
+    reviewDescription.value = '';
+    reviewKey.value = '';
+    reviewQuantity.value = 1;
+    reviewCount.textContent = barcodes.length - currentIndex;
+    refreshLocationOptions(bc);
+
+    var cachedDesc = barcodeDescriptions[bc];
+    if (cachedDesc) {
+        reviewDescription.value = cachedDesc;
+        reviewKey.value = cachedDesc.substring(0, 100);
+        submitItemBtn.disabled = false;
+        submitItemBtn.innerHTML = '<i class="bi bi-check-circle"></i> Add to Inventory';
+    } else {
+        submitItemBtn.disabled = true;
+        submitItemBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Looking up...';
+    }
+
+    authFetch('/supply/api/barcode/lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({barcode: bc})
+    })
+    .then(function(data) {
+        var desc = data.description || cachedDesc || '';
+        reviewDescription.value = desc;
+        reviewKey.value = (desc || bc).substring(0, 100);
+        submitItemBtn.disabled = false;
+        submitItemBtn.innerHTML = '<i class="bi bi-check-circle"></i> Add to Inventory';
+    })
+    .catch(function() {
+        if (!cachedDesc) {
+            reviewDescription.value = '';
+            reviewKey.value = bc;
+            submitItemBtn.disabled = false;
+            submitItemBtn.innerHTML = '<i class="bi bi-check-circle"></i> Add to Inventory';
+        }
+    });
+}
+
+submitItemBtn.addEventListener('click', function() {
+    if (!reviewLocation.value.trim()) {
+        alert('Location is required. Enter a location (e.g. Shelf A3) before adding to inventory.');
+        reviewLocation.focus();
+        return;
+    }
+    submitItemBtn.disabled = true;
+    var bc = barcodes[currentIndex];
+
+    authFetch('/supply/api/scanner/batch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            barcode: bc,
+            category_id: parseInt(reviewCategory.value, 10),
+            quantity: parseInt(reviewQuantity.value) || 1,
+            description: reviewDescription.value,
+            key: reviewKey.value,
+            location: reviewLocation.value
+        })
+    }, 60000)
+    .then(function(data) {
+        if (!data.action) {
+            throw new Error(data.error || data.detail || 'Server returned no result');
+        }
+        var icon = data.action === 'created' ? 'check-circle-fill text-success' : 'arrow-up-circle-fill text-warning';
+        completedList.insertAdjacentHTML('afterbegin',
+            '<div class="list-group-item">' +
+            '<i class="bi bi-' + icon + '"></i> ' +
+            '<strong>' + escHtml(data.key || bc) + '</strong> ' +
+            '<span class="badge bg-' + (data.action === 'created' ? 'success' : 'warning') + '">' + data.action.toUpperCase() + '</span>' +
+            ' &mdash; Qty: ' + data.quantity +
+            (data.description ? '<br><small class="text-muted">' + escHtml(data.description) + '</small>' : '') +
+            '</div>'
+        );
+        completed++;
+        removeScanListItem(currentIndex, true);
+        currentIndex++;
+        showCurrentReview();
+    })
+    .catch(function(e) {
+        alert('Error: ' + e.message);
+        submitItemBtn.disabled = false;
+    });
+});
+
+relookupBtn.addEventListener('click', function() {
+    var bc = barcodes[currentIndex];
+    if (!bc) return;
+    relookupBtn.disabled = true;
+    relookupBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    authFetch('/supply/api/barcode/lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({barcode: bc})
+    })
+    .then(function(data) {
+        if (data.description) {
+            reviewDescription.value = data.description;
+            reviewKey.value = data.description.substring(0, 100);
+        }
+        relookupBtn.disabled = false;
+        relookupBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Re-lookup';
+    })
+    .catch(function() {
+        relookupBtn.disabled = false;
+        relookupBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Re-lookup';
+    });
+});
+
+skipBtn.addEventListener('click', function() {
+    removeScanListItem(currentIndex);
+    currentIndex++;
+    showCurrentReview();
+});
+
+addAllBtn.addEventListener('click', function() {
+    if (!reviewLocation.value.trim()) {
+        alert('Location is required. Enter a location (e.g. Shelf A3) before adding to inventory.');
+        reviewLocation.focus();
+        return;
+    }
+    addAllBtn.disabled = true;
+    addAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+    var catId = parseInt(reviewCategory.value, 10);
+    var loc = reviewLocation.value;
+    var startIndex = currentIndex;
+    var remaining = barcodes.filter(function(b, i) { return b !== null && i >= currentIndex; });
+
+    function applyResults(results) {
+        results.forEach(function(r) {
+            if (!r.action) {
+                throw new Error(r.error || r.detail || 'Server returned no result for ' + (r.barcode || 'an item'));
+            }
+            var icon = r.action === 'created' ? 'check-circle-fill text-success' : 'arrow-up-circle-fill text-warning';
+            completedList.insertAdjacentHTML('afterbegin',
+                '<div class="list-group-item">' +
+                '<i class="bi bi-' + icon + '"></i> ' +
+                '<strong>' + escHtml(r.key || r.barcode) + '</strong> ' +
+                '<span class="badge bg-' + (r.action === 'created' ? 'success' : 'warning') + '">' + r.action.toUpperCase() + '</span>' +
+                ' &mdash; Qty: ' + r.quantity +
+                (r.description ? '<br><small class="text-muted">' + escHtml(r.description) + '</small>' : '') +
+                '</div>'
+            );
+            completed++;
+            var listIdx = barcodes.indexOf(r.barcode, currentIndex);
+            if (listIdx !== -1) removeScanListItem(listIdx, true);
+        });
+        currentIndex += results.length;
+    }
+
+    // One request: the server processes the caller's pending scan queue
+    // directly and deletes each row as it is committed to inventory. A lost
+    // response or retry can never double-add — retrying just continues with
+    // whatever rows are still queued.
+    flushQueue()
+    .then(function() {
+        return authFetch('/supply/api/scanner/batch-all', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({category_id: catId, location: loc})
+        }, 120000);
+    })
+    .then(function(data) {
+        if (!data || !data.results) {
+            throw new Error((data && (data.error || data.detail)) || 'Server returned no results');
+        }
+        applyResults(data.results);
+        addAllBtn.disabled = false;
+        addAllBtn.innerHTML = '<i class="bi bi-collection-fill"></i> Add Remaining to Inventory';
+        addAllBtn.style.display = 'none';
+        reviewCount.textContent = 0;
+        reviewEmpty.style.display = '';
+        reviewEmpty.textContent = 'All done! ' + completed + ' item' + (completed !== 1 ? 's' : '') + ' added.';
+        reviewFormCard.style.display = 'none';
+    })
+    .catch(function(e) {
+        addAllBtn.disabled = false;
+        addAllBtn.innerHTML = '<i class="bi bi-collection-fill"></i> Add Remaining to Inventory';
+        var added = currentIndex - startIndex;
+        var left = remaining.length - added;
+        reviewCount.textContent = left;
+        alert('Added ' + added + ' of ' + remaining.length + ' items before the connection failed (' +
+            (e.message || 'unknown error') + ').\nPress "Add Remaining to Inventory" to retry the other ' + left + '.');
+    });
+});
+
+window.loadBarcodesFromUpload = function(codes) {
+    for (var i = 0; i < codes.length; i++) {
+        addBarcodeToList(codes[i], null);
+    }
+    gotoReviewBtn.click();
+};
+
+authFetch('/supply/api/scanner/pending')
+.then(function(data) {
+    if (data.count > 0) {
+        _restoring = true;
+        for (var i = 0; i < data.barcodes.length; i++) {
+            var entry = data.barcodes[i];
+            addBarcodeToList(entry.barcode, entry.description || null);
+        }
+        _restoring = false;
+    }
+})
+.catch(function() {});
+
+var cameraScanner = null;
+var cameraRunning = false;
+var cameraRecentCodes = {};
+var cameraStartBtn = document.getElementById('camera-start-btn');
+var cameraStopBtn = document.getElementById('camera-stop-btn');
+var cameraReader = document.getElementById('camera-reader');
+var cameraError = document.getElementById('camera-error');
+var cameraStatus = document.getElementById('camera-status');
+var cameraScannedList = document.getElementById('camera-scanned-list');
+
+function handleCameraBarcode(code) {
+    if (cameraRecentCodes[code]) return;
+    cameraRecentCodes[code] = true;
+    // Short window: only long enough to swallow duplicate decode events for
+    // the SAME physical scan (decoders fire several reads per second) — a
+    // genuine quick rescan of the same product must still queue a new row.
+    setTimeout(function() { delete cameraRecentCodes[code]; }, 1500);
+
+    if (barcodeDescriptions[code]) {
+        addBarcodeToList(code, barcodeDescriptions[code]);
+        playOkBeep();
+    } else {
+        pendingLookups++;
+        addBarcodeToList(code, null);
+        authFetch('/supply/api/barcode/lookup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({barcode: code})
+        })
+        .then(function(data) {
+            pendingLookups--;
+            if (data.description) {
+                barcodeDescriptions[code] = data.description;
+                refreshScanListBadges();
+                queueAdd(code, data.description, true);
+                playOkBeep();
+            } else if (!barcodeDescriptions[code]) {
+                addUnknownCard(code);
+                playFailBeep();
+            }
+        })
+        .catch(function() {
+            pendingLookups--;
+            if (!barcodeDescriptions[code]) {
+                addUnknownCard(code);
+                playFailBeep();
+            }
+        });
+    }
+
+    cameraScannedList.style.display = '';
+    var el = document.createElement('div');
+    el.className = 'list-group-item list-group-item-action py-1';
+    el.innerHTML = '<i class="bi bi-upc-scan"></i> ' + escHtml(code) +
+        ' <small class="text-muted">' + new Date().toLocaleTimeString() + '</small>';
+    cameraScannedList.prepend(el);
+}
+
+function startCamera() {
+    if (cameraRunning) return;
+    cameraError.style.display = 'none';
+    cameraReader.style.display = '';
+    cameraStartBtn.disabled = true;
+    cameraStartBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Starting...';
+
+    if (typeof Html5Qrcode === 'undefined') {
+        cameraError.textContent = 'Camera scanner library not loaded. Check that /static/vendor/html5-qrcode.min.js exists.';
+        cameraError.style.display = '';
+        cameraReader.style.display = 'none';
+        cameraStartBtn.disabled = false;
+        cameraStartBtn.innerHTML = '<i class="bi bi-camera-video"></i> Start Camera';
+        return;
+    }
+
+    cameraScanner = new Html5Qrcode('camera-reader');
+    cameraScanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.333 },
+        function(decodedText) {
+            var code = decodedText.trim();
+            if (!code) return;
+            handleCameraBarcode(code);
+        },
+        function() {}
+    ).then(function() {
+        cameraRunning = true;
+        cameraStartBtn.innerHTML = '<i class="bi bi-camera-video"></i> Start Camera';
+        cameraStopBtn.disabled = false;
+        cameraStatus.style.display = '';
+    }).catch(function(err) {
+        cameraReader.style.display = 'none';
+        cameraError.textContent = 'Could not start camera: ' + (err.message || err);
+        cameraError.style.display = '';
+        cameraStartBtn.disabled = false;
+        cameraStartBtn.innerHTML = '<i class="bi bi-camera-video"></i> Start Camera';
+    });
+}
+
+function stopCamera() {
+    if (cameraScanner && cameraRunning) {
+        cameraScanner.stop().then(function() {
+            cameraScanner.clear();
+            cameraRunning = false;
+            cameraStartBtn.disabled = false;
+            cameraStopBtn.disabled = true;
+            cameraReader.style.display = 'none';
+            cameraStatus.style.display = 'none';
+        }).catch(function() {});
+    }
+}
+
+cameraStartBtn.addEventListener('click', startCamera);
+cameraStopBtn.addEventListener('click', stopCamera);
+
+document.querySelector('[data-bs-target="#phase-scan"]').addEventListener('shown.bs.tab', function() {
+    stopCamera();
+});
+document.getElementById('review-tab').addEventListener('shown.bs.tab', function() {
+    stopCamera();
+});
+</script>
+{% endblock %}

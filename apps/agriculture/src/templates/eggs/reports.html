@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Production Reports - Eggs{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/eggs/">Eggs</a></li>
+        <li class="breadcrumb-item"><a href="/eggs/coops/{{ coop_id }}">{{ coop_name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Reports</li>
+    </ol>
+</nav>
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Production Reports</h2>
+                <p class="text-muted">View and export egg production data</p>
+            </div>
+            <div>
+                <a href="/eggs/coops/{{ coop_id }}" class="btn btn-outline-primary">
+                    <i class="bi bi-house-door me-2"></i>Menu
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <form id="reportForm" class="needs-validation" novalidate>
+            <h5>Report Filters</h5>
+
+            <div class="mb-3 row">
+                <label for="startDate" class="col-sm-4 col-form-label">Start Date</label>
+                <div class="col-sm-8">
+                    <input type="date" class="form-control" id="startDate" name="start_date">
+                </div>
+            </div>
+
+            <div class="mb-3 row">
+                <label for="endDate" class="col-sm-4 col-form-label">End Date</label>
+                <div class="col-sm-8">
+                    <input type="date" class="form-control" id="endDate" name="end_date">
+                </div>
+            </div>
+
+            <div class="mb-3 row">
+                <label for="henFilter" class="col-sm-4 col-form-label">Hen</label>
+                <div class="col-sm-8">
+                    <select class="form-select" id="henFilter" name="hen_id">
+                        <option value="">All Hens</option>
+                        {% for hen in hens if hen.is_active %}
+                            <option value="{{ hen.id }}">{{ hen.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary">Generate Report</button>
+                <button id="exportBtn" type="button" class="btn btn-success ms-2">Export to CSV</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-md-6">
+        <h5>Summary Statistics</h5>
+        <div id="summaryStats" class="card p-3 mb-4">
+            <p class="text-muted">Select date range and click "Generate Report"</p>
+        </div>
+
+        <h5>Producers Ranked by Production</h5>
+        <div id="topProducer" class="card p-3 mb-4">
+            <div class="text-center mb-3">
+                <p class="text-muted small">All hens ranked by production in selected period</p>
+            </div>
+            <div id="producersList" class="list-group"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Results Table -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <h3>Production Details</h3>
+        <div id="productionTable"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const coopId = "{{ coop_id }}";
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 30);
+
+        document.getElementById('startDate').valueAsDate = startDate;
+        document.getElementById('endDate').valueAsDate = endDate;
+
+        document.getElementById('reportForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const filters = Object.fromEntries(formData.entries());
+
+            fetch(`/eggs/coops/${coopId}/reports/summary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(filters),
+                credentials: 'include'
+            })
+            .then(response => response.json())
+            .then(data => displaySummary(data));
+
+            fetch(`/eggs/coops/${coopId}/reports/details`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(filters),
+                credentials: 'include'
+            })
+            .then(response => response.json())
+            .then(data => displayTable(data));
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            const formData = new FormData(document.getElementById('reportForm'));
+            const filters = Object.fromEntries(formData.entries());
+
+            fetch(`/eggs/coops/${coopId}/reports/export`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(filters),
+                credentials: 'include'
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.setAttribute('download', 'egg_production.csv');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            })
+            .catch(error => console.error('Error exporting CSV:', error));
+        });
+
+        document.getElementById('reportForm').dispatchEvent(new Event('submit'));
+    });
+
+    function displaySummary(data) {
+        let html = `
+            <div class="row text-center">
+                <div class="col-md-3"><h4>${data.total_eggs}</h4><p>Total Eggs</p></div>
+                <div class="col-md-3"><h4>${data.total_days}</h4><p>Days Tracked</p></div>
+                <div class="col-md-3"><h4>${data.average_per_day}</h4><p>Avg/Day</p></div>
+                <div class="col-md-3"><h4 class="text-primary">${data.total_hens}</h4><p>Active Hens</p></div>
+            </div>
+        `;
+        document.getElementById('summaryStats').innerHTML = html;
+        displayProducersList();
+    }
+
+    function displayProducersList() {
+        const filters = {
+            start_date: document.getElementById('startDate').value,
+            end_date: document.getElementById('endDate').value,
+            hen_id: document.getElementById('henFilter').value
+        };
+
+        fetch(`/eggs/coops/${coopId}/reports/producers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(filters),
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => renderProducerRankings(data))
+        .catch(error => {
+            console.error('Error loading producer rankings:', error);
+            document.getElementById('producersList').innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Error loading producer rankings</div>';
+        });
+    }
+
+    function renderProducerRankings(data) {
+        if (!data.producers || data.producers.length === 0) {
+            document.getElementById('producersList').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No production data available for this period</div>';
+            return;
+        }
+
+        const sortedProducers = data.producers;
+        let html = `
+            <div class="mb-3 d-flex justify-content-between align-items-center">
+                <div class="text-info small">
+                    Showing ${sortedProducers.length} producers
+                    ${data.period_start && data.period_end ? `from ${data.period_start} to ${data.period_end}` : ''}
+                </div>
+            </div>
+        `;
+
+        sortedProducers.forEach((producer, index) => {
+            const rank = index + 1;
+            const rankClass = rank === 1 ? 'badge bg-warning' : 'badge bg-secondary';
+            const readyBadge = producer.is_active && producer.total_eggs > 0
+                ? '<span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Production Ready</span>'
+                : '<span class="badge bg-secondary ms-2"><i class="bi bi-x-circle"></i> Not Ready</span>';
+
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-start ${index < 3 ? 'border-warning' : ''}">
+                    <div class="d-flex align-items-center">
+                        <span class="${rankClass} me-2">#${rank}</span>
+                        <div>
+                            <h6 class="mb-1">${producer.hen_name}</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge bg-info">${producer.total_eggs} eggs</span>
+                                ${readyBadge}
+                            </div>
+                            <div class="mt-2 small text-muted">Active: ${producer.days_active} days</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+            <div class="mt-4 p-3 bg-light border rounded">
+                <div class="text-center">
+                    <small class="text-muted mb-2">Top 3 Producers</small>
+                    <div class="d-flex justify-content-center gap-3">
+                        ${sortedProducers.slice(0, 3).map((p, i) => `
+                            <div class="card ${i === 0 ? 'border-warning' : ''}" style="min-width: 150px;">
+                                <div class="card-body p-3 text-center">
+                                    <div class="mb-2"><span class="badge bg-warning">Top #${i+1}</span></div>
+                                    <h6 class="mb-2">${p.hen_name}</h6>
+                                    <div class="display-6 fw-bold text-primary">${p.total_eggs}</div>
+                                    <p class="mb-1 small text-muted">Total Eggs</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('producersList').innerHTML = html;
+    }
+
+    function displayTable(data) {
+        let html = '';
+        if (data.length > 0) {
+            html = '<table class="table"><thead><tr><th>Date</th><th>Hen</th><th>Eggs</th><th>Notes</th></tr></thead><tbody>';
+            data.forEach(record => {
+                const date = new Date(record.collection_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                html += `<tr><td>${date}</td><td>${record.hen_name}</td><td>${record.quantity || 1}</td><td>${record.notes || '-'}</td></tr>`;
+            });
+            html += '</tbody></table>';
+        } else {
+            html = '<p>No data matches your filters</p>';
+        }
+        document.getElementById('productionTable').innerHTML = html;
+    }
+</script>
+{% endblock %}

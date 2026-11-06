@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}{{ photo.filename }} - Photo{% endblock %}
+
+{% block content %}
+<style>
+    .photo-viewer {
+        max-width: 100%;
+        max-height: 80vh;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12 mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/photo/"><i class="bi bi-camera"></i> Photos</a></li>
+                <li class="breadcrumb-item"><a href="/library/photo/album/{{ album.id }}">{{ album.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ photo.filename }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-9">
+        <div class="text-center">
+            <img src="/library/photo/photo/{{ photo.id }}/file" class="photo-viewer" alt="{{ photo.filename }}">
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <h5 class="mb-3">Photo Details</h5>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><th>Album:</th><td><a href="/library/photo/album/{{ album.id }}">{{ album.name }}</a></td></tr>
+                    <tr><th>Owner:</th><td>{{ album.owner.username }}</td></tr>
+                    <tr><th>File:</th><td>{{ photo.filename }}</td></tr>
+                    <tr><th>Size:</th><td>{{ (photo.file_size / 1024)|round(1) }} KB</td></tr>
+                    {% if photo.width and photo.height %}
+                    <tr><th>Dimensions:</th><td>{{ photo.width }}x{{ photo.height }}</td></tr>
+                    {% endif %}
+                    <tr><th>Type:</th><td>{{ photo.file_type|upper }}</td></tr>
+                    <tr><th>Public:</th><td>{% if photo.is_public %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td></tr>
+                    {% if photo.is_banned %}
+                    <tr><th>Status:</th><td><span class="badge bg-danger">Banned</span></td></tr>
+                    {% endif %}
+                    <tr><th>Added:</th><td>{{ photo.created_at[0:10] }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mb-3" id="captionCard" style="{% if not photo.caption %}display:none{% endif %}">
+            <div class="card-body bg-white text-dark">
+                <h6>Caption</h6>
+                <p class="mb-0" id="captionText">{{ photo.caption or "" }}</p>
+            </div>
+        </div>
+
+        <div class="card mb-3" id="annotationCard" style="{% if not photo.annotation %}display:none{% endif %}">
+            <div class="card-body bg-white text-dark">
+                <h6>Annotation</h6>
+                <p class="mb-0" id="annotationText">{{ photo.annotation or "" }}</p>
+            </div>
+        </div>
+
+        {% if is_owner and full_access %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6>Move to Album/Section</h6>
+                <select class="form-select form-select-sm mb-2" id="moveAlbumSelect">
+                    <option value="">-- Select --</option>
+                    {% for a in own_albums %}
+                    <option value="{{ a.id }}" {% if a.id == album.id %}disabled{% endif %}>
+                        {{ a.name }}{% if a.id == album.id %} (current){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn btn-sm btn-info w-100 mb-2" id="movePhotoBtn" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> Move Photo
+                </button>
+                <a href="/library/photo/album/new?parent_id={{ album.id }}" class="btn btn-sm btn-outline-secondary w-100">
+                    <i class="bi bi-folder-plus"></i> Create Section
+                </a>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6>Actions</h6>
+                {% if not photo.is_banned %}
+                {% if photo.is_public %}
+                <form action="/library/photo/photo/{{ photo.id }}/remove-public" method="POST">
+                    <button type="submit" class="btn btn-sm btn-outline-warning w-100 mb-2">
+                        <i class="bi bi-eye-slash"></i> Remove from Public
+                    </button>
+                </form>
+                {% else %}
+                <form action="/library/photo/photo/{{ photo.id }}/make-public" method="POST">
+                    <button type="submit" class="btn btn-sm btn-outline-success w-100 mb-2">
+                        <i class="bi bi-eye"></i> Make Public
+                    </button>
+                </form>
+                {% endif %}
+                {% endif %}
+
+                <form action="/library/photo/photo/{{ photo.id }}/delete" method="POST"
+                      onsubmit="return confirm('Delete this photo? This cannot be undone.')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                        <i class="bi bi-trash"></i> Delete Photo
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h6>Edit Caption / Annotation</h6>
+                <form id="editCaptionForm">
+                    <input type="hidden" name="photo_id" value="{{ photo.id }}">
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Caption</label>
+                        <textarea name="caption" class="form-control form-control-sm" rows="2"
+                                  placeholder="Add a caption...">{{ photo.caption or "" }}</textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1">Annotation</label>
+                        <textarea name="annotation" class="form-control form-control-sm" rows="2"
+                                  placeholder="e.g., View from top of Mt. Somewhere">{{ photo.annotation or "" }}</textarea>
+                    </div>
+                    <div id="editCaptionResult" class="mb-2" style="display:none;"></div>
+                    <button type="submit" class="btn btn-sm btn-primary w-100">Save</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if is_owner and full_access %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var moveSelect = document.getElementById('moveAlbumSelect');
+    var moveBtn = document.getElementById('movePhotoBtn');
+
+    moveSelect.addEventListener('change', function() {
+        moveBtn.disabled = !this.value;
+    });
+
+    moveBtn.addEventListener('click', async function() {
+        var targetId = moveSelect.value;
+        if (!targetId) return;
+
+        var selectedOption = moveSelect.options[moveSelect.selectedIndex];
+        var albumName = selectedOption.textContent.trim();
+
+        if (!confirm('Move this photo to "' + albumName + '"? The file will be moved on disk.')) return;
+
+        moveBtn.disabled = true;
+        moveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Moving...';
+
+        try {
+            var fd = new FormData();
+            fd.append('target_album_id', targetId);
+
+            var response = await fetch('/library/photo/photo/{{ photo.id }}/move', {
+                method: 'POST', body: new URLSearchParams(fd)
+            });
+            var data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                window.location.href = data.redirect || ('/library/photo/photo/{{ photo.id }}');
+            } else {
+                alert('Error: ' + (data.detail || 'Failed to move photo'));
+                moveBtn.disabled = false;
+                moveBtn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Move Photo';
+            }
+        } catch (err) {
+            alert('Error moving photo: ' + err.message);
+            moveBtn.disabled = false;
+            moveBtn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Move Photo';
+        }
+    });
+
+    var editForm = document.getElementById('editCaptionForm');
+    var editResult = document.getElementById('editCaptionResult');
+    if (editForm) {
+        editForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            var btn = editForm.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                var fd = new FormData(editForm);
+                var response = await fetch('/library/photo/photo/{{ photo.id }}/edit', {
+                    method: 'POST', body: new URLSearchParams(fd)
+                });
+                var data = await response.json();
+                if (response.ok) {
+                    editResult.innerHTML = '<div class="alert alert-success py-1 small">Saved</div>';
+                    editResult.style.display = 'block';
+                    setTimeout(function() { location.reload(); }, 500);
+                } else {
+                    editResult.innerHTML = '<div class="alert alert-danger py-1 small">' + (data.detail || 'Error') + '</div>';
+                    editResult.style.display = 'block';
+                }
+            } catch (err) {
+                editResult.innerHTML = '<div class="alert alert-danger py-1 small">Error: ' + err.message + '</div>';
+                editResult.style.display = 'block';
+            }
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        });
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

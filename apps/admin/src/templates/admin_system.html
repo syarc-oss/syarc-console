@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}System — Admin{% endblock %}
+{% block content %}
+<h2 class="mb-3 d-flex justify-content-between align-items-center">System
+  <a class="btn btn-sm btn-outline-primary" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
+</h2>
+<div class="row row-cols-1 row-cols-md-3 g-3">
+  <div class="col"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="card-subtitle text-muted mb-2">Users</h6>
+    <h3>{{ user_count }}</h3>
+  </div></div></div>
+  <div class="col"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="card-subtitle text-muted mb-2">Active apps</h6>
+    <h3>{{ app_count }}</h3>
+  </div></div></div>
+  <div class="col"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="card-subtitle text-muted mb-2">Console</h6>
+    <h6>syarc-console (Rust)</h6>
+  </div></div></div>
+</div>
+
+<h4 class="mt-4 mb-3">Cluster status</h4>
+<div class="card shadow-sm"><div class="card-body p-0">
+  <table class="table table-sm mb-0 align-middle">
+    <tbody>
+      <tr>
+        <th class="ps-3" style="width:30%">Node</th>
+        <td>{{ cluster.hostname }}</td>
+      </tr>
+      <tr>
+        <th class="ps-3">LiteFS role (Consul-elected)</th>
+        <td>{% if cluster.litefs_role == "primary" %}
+              <span class="badge text-bg-success">primary</span>
+            {% elif "standalone" in cluster.litefs_role %}
+              <span class="badge text-bg-warning">{{ cluster.litefs_role }}</span>
+            {% else %}
+              <span class="badge text-bg-secondary">{{ cluster.litefs_role }}</span>
+            {% endif %}</td>
+      </tr>
+      <tr>
+        <th class="ps-3">Consul-elected primary</th>
+        <td>{{ cluster.consul_primary }}
+          {% if cluster.consul_primary == cluster.hostname %}
+            <span class="badge text-bg-success">this node</span>
+          {% endif %}</td>
+      </tr>
+      <tr>
+        <th class="ps-3">Media library writable (zfs pool rw)</th>
+        <td>{% if cluster.library_writable %}
+              <span class="badge text-bg-success">read-write</span>
+            {% else %}
+              <span class="badge text-bg-danger">read-only</span>
+            {% endif %}</td>
+      </tr>
+      <tr>
+        <th class="ps-3">Storage role (failover handler)</th>
+        <td>{{ cluster.storage_state.storage_role }} on {{ cluster.storage_state.host }}
+          since {{ cluster.storage_state.changed }}</td>
+      </tr>
+      <tr>
+        <th class="ps-3">zfs zsync replication</th>
+        <td>last sync: {{ cluster.zsync_last }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div></div>
+<p class="text-muted small mt-2">
+  This page is served by the LiteFS primary node. Read-only media library on
+  the primary means zfs pool mastership and the LiteFS primary have split —
+  run the storage failover handler to realign.
+</p>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<div class="modal fade" id="aboutModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-info-circle"></i> About syarc console</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>syarc console</strong> <span class="text-muted">v{{ version }}</span> — home automation and services console.</p>
+        <ul class="mb-0 small">
+          <li>Rust / axum implementation that runs on a single server or a Proxmox cluster</li>
+          <li>SQLite via LiteFS replication across prox-lxc1/prox-lxc2</li>
+          <li>Consul primary election, keepalived VIPs, ZFS-backed media</li>
+          <li>Use the included apps or build your own</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

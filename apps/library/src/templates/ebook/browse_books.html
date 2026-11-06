@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Books - Library{% endblock %}
+
+{% block content %}
+<style>
+    .alphabet-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    .alphabet-nav a {
+        display: inline-block;
+        width: 35px;
+        height: 35px;
+        line-height: 35px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        text-decoration: none;
+        color: #495057;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    .alphabet-nav a:hover {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    .alphabet-nav a.active {
+        background: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    .book-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+    }
+    .book-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .book-cover {
+        aspect-ratio: 2/3;
+        object-fit: cover;
+        background: #e9ecef;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+                <li class="breadcrumb-item active">Browse Books</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-book"></i> Browse Books</h2>
+            <div class="d-flex gap-2">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-filetype"></i> {% if file_type == 'pdf' %}PDF{% elif file_type == 'epub' %}EPUB{% else %}All Files{% endif %}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="dropdown-item {% if not file_type %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}per_page={{ per_page }}">
+                                All Files
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item {% if file_type == 'epub' %}active{% endif %}"
+                               href="?file_type=epub{% if current_letter %}&letter={{ current_letter }}{% endif %}{% if author_id %}&author_id={{ author_id }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}&per_page={{ per_page }}">
+                                <i class="bi bi-book"></i> EPUB Only
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if file_type == 'pdf' %}active{% endif %}"
+                               href="?file_type=pdf{% if current_letter %}&letter={{ current_letter }}{% endif %}{% if author_id %}&author_id={{ author_id }}{% endif %}{% if category_id %}&category_id={{ category_id }}{% endif %}&per_page={{ per_page }}">
+                                <i class="bi bi-file-earmark-pdf"></i> PDF Only
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-list-ol"></i> {{ per_page }} per page
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">Items per page</h6></li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 24 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page=1&per_page=24">
+                                24
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 48 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page=1&per_page=48">
+                                48
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 72 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page=1&per_page=72">
+                                72
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 96 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page=1&per_page=96">
+                                96
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 120 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page=1&per_page=120">
+                                120
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    {% if selected_author or selected_category or file_type %}
+                    <a href="/library/ebook/browse/books?per_page={{ per_page }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Clear Filter
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Info -->
+        {% if selected_author %}
+        <div class="alert alert-info">
+            Filtering by author: <strong>{{ selected_author.name }}</strong>
+        </div>
+        {% elif selected_category %}
+        <div class="alert alert-info">
+            Filtering by category: <strong>{{ selected_category.name }}</strong>
+        </div>
+        {% else %}
+        <!-- Alphabet Navigation -->
+        <div class="alphabet-nav">
+            <a href="/library/ebook/browse/books?per_page={{ per_page }}" class="{% if not current_letter %}active{% endif %}">All</a>
+            {% set alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
+            {% for char in alphabet %}
+            <a href="/library/ebook/browse/books?letter={{ char }}&per_page={{ per_page }}" 
+               class="{% if current_letter == char %}active{% endif %}">{{ char }}</a>
+            {% endfor %}
+            <a href="/library/ebook/browse/books?letter=0&per_page={{ per_page }}" 
+               class="{% if current_letter == '0' %}active{% endif %}">#</a>
+        </div>
+        {% endif %}
+
+        <!-- Summary -->
+        <div class="alert alert-secondary">
+            Showing {{ books|length }} of {{ total }} books
+            {% if current_letter %} starting with "{{ current_letter }}"{% endif %}
+        </div>
+
+        <!-- Books Grid -->
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
+            {% for book in books %}
+            <div class="col">
+                <div class="card book-card">
+                    <a href="/library/ebook/book/{{ book.id }}{% if current_letter %}?from_letter={{ current_letter }}{% endif %}">
+                        {% if book.cover_filename %}
+                        <img src="/library/ebook/cover/{{ book.id }}" 
+                             class="card-img-top book-cover" alt="{{ book.title }}">
+                        {% else %}
+                        <img src="/static/vendor/no-cover.svg"
+                             class="card-img-top book-cover" alt="No Cover">
+                        {% endif %}
+                        {% if book.file_type == 'pdf' %}
+                        <span class="badge bg-warning position-absolute top-0 end-0 m-2">PDF</span>
+                        {% endif %}
+                    </a>
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-1" style="font-size: 0.85rem; line-height: 1.2;">
+                            <a href="/library/ebook/book/{{ book.id }}{% if current_letter %}?from_letter={{ current_letter }}{% endif %}" class="text-decoration-none">
+                                {{ book.title[:40] }}{% if book.title|length > 40 %}...{% endif %}
+                            </a>
+                        </h6>
+                        <p class="card-text text-muted mb-2" style="font-size: 0.75rem;">
+                            <a href="/library/ebook/author/{{ book.author_id }}{% if current_letter %}?from_letter={{ current_letter }}{% endif %}" class="text-decoration-none text-muted">
+                                {{ book.author.name }}
+                            </a>
+                        </p>
+                        {% if reading_lists %}
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-success dropdown-toggle w-100" type="button"
+                                    data-bs-toggle="dropdown" style="font-size: 0.75rem;">
+                                <i class="bi bi-plus-circle"></i> Add to List
+                            </button>
+                            <ul class="dropdown-menu">
+                                {% for rl in reading_lists %}
+                                <li>
+                                    <a href="#" onclick="addToReadingList('book', {{ book.id }}, '{{ rl.name }}')"
+                                       class="dropdown-item" style="font-size: 0.75rem;">{{ rl.name }}</a>
+                                </li>
+                                {% endfor %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a href="/library/ebook/reading-lists" class="dropdown-item" style="font-size: 0.75rem;">
+                                        <i class="bi bi-plus-circle"></i> Create New Reading List
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if books|length == 0 %}
+        <div class="alert alert-warning mt-3">
+            No books found
+            {% if current_letter %} starting with "{{ current_letter }}"{% endif %}
+            {% if selected_author %} by {{ selected_author.name }}{% endif %}
+            {% if selected_category %} in {{ selected_category.name }}{% endif %}.
+        </div>
+        {% endif %}
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav class="mt-4" aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page={{ current_page - 1 }}&per_page={{ per_page }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+
+                {% set start_page = [1, current_page - 2]|max %}
+                {% set end_page = [total_pages, current_page + 2]|min %}
+
+                {% if start_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page=1&per_page={{ per_page }}">1</a>
+                </li>
+                {% if start_page > 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endif %}
+
+                {% for page_num in range(start_page, end_page + 1) %}
+                <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page={{ page_num }}&per_page={{ per_page }}">
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% endfor %}
+
+                {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page={{ total_pages }}&per_page={{ per_page }}">
+                        {{ total_pages }}
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if category_id %}category_id={{ category_id }}&{% endif %}page={{ current_page + 1 }}&per_page={{ per_page }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+async function addToReadingList(type, itemId, readingListName) {
+    const formData = new FormData();
+    formData.append('type', type);
+    formData.append('item_id', itemId);
+
+    try {
+        const response = await fetch(`/library/ebook/reading-lists/${readingListName}/add`, {
+            method: 'POST',
+            body: new URLSearchParams(formData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+        } else {
+            alert(result.detail || 'Error adding to reading list');
+        }
+    } catch (error) {
+        alert('Error adding to reading list: ' + error.message);
+    }
+}
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Chat Link{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+  {% if request_msg %}
+  <div class="alert alert-info">{{ request_msg }}</div>
+  {% endif %}
+
+  <div class="card shadow mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">Chat Link</h4>
+      <span class="badge bg-secondary">Bear Den bridge</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted">
+        Link your chat identity on the Bear Den mesh bridge to your console
+        account. Once verified, your messages reach the LoRa mesh — from the
+        Matrix room <code>#mesh:matrix.example.net</code> or the XMPP room
+        <code>mesh@conference.server1.example.net</code>.
+      </p>
+
+      <h6>Your links</h6>
+      {% if links %}
+      <table class="table table-sm">
+        <thead><tr><th>Backend</th><th>Nick</th><th>Status</th><th>Linked</th><th></th></tr></thead>
+        <tbody>
+          {% for l in links %}
+          <tr>
+            <td>{{ l.backend }}</td>
+            <td>{{ l.uid }}</td>
+            <td>
+              {% if l.state == "verified" %}
+              <span class="badge bg-success">verified</span>
+              {% else %}
+              <span class="badge bg-warning text-dark">pending code</span>
+              {% endif %}
+            </td>
+            <td>{{ l.linked_at | localtime }}</td>
+            <td>
+              <form method="post" action="/meshlink/unlink"
+                    onsubmit="return confirm('Unlink {{ l.uid }}?')">
+                <input type="hidden" name="backend" value="{{ l.backend }}">
+                <input type="hidden" name="nick" value="{{ l.uid }}">
+                <button class="btn btn-sm btn-outline-danger">Unlink</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted">No links yet.</p>
+      {% endif %}
+
+      <hr>
+      <div class="card bg-light mb-3">
+        <div class="card-body">
+          <h6>No chat account yet? Create one</h6>
+          <p class="text-muted small mb-2">Creates <code>&lt;name&gt;@server1.example.net</code> on the
+            Syarc chat server and approves its room nick automatically.</p>
+          <form method="post" action="/meshlink/provision" class="d-flex gap-2">
+            <input class="form-control" name="xmpp_user" placeholder="chat username"
+                   pattern="[a-z0-9][a-z0-9._-]{2,19}" required>
+            <input class="form-control" name="password" type="password"
+                   placeholder="password (8+ chars)" minlength="8" required>
+            <button class="btn btn-dark">Create</button>
+          </form>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <h6>1. Request a code</h6>
+          <form method="post" action="/meshlink/link" class="d-flex gap-2">
+            <select class="form-select" name="backend" style="max-width:9rem">
+              <option value="matrix">Matrix</option>
+              <option value="xmpp">XMPP</option>
+            </select>
+            <input class="form-control" name="nick" placeholder="Username / room nick" required>
+            <button class="btn btn-primary">Send code</button>
+          </form>
+          <small class="text-muted">Matrix: your username on matrix.example.net (code
+            arrives as a DM from <code>@bearden</code> in Element). XMPP: join the
+            room with this nick first; the code comes as a private message from
+            <code>bridge</code>.</small>
+        </div>
+        <div class="col-md-6">
+          <h6>2. Enter the code</h6>
+          <form method="post" action="/meshlink/verify" class="d-flex gap-2">
+            <select class="form-select" name="backend" style="max-width:9rem">
+              <option value="matrix">Matrix</option>
+              <option value="xmpp">XMPP</option>
+            </select>
+            <input class="form-control" name="nick" placeholder="Username / nick" required>
+            <input class="form-control" name="code" placeholder="6-digit code" required>
+            <button class="btn btn-success">Verify</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if admin_users %}
+  <div class="card shadow mb-4">
+    <div class="card-header bg-dark text-white"><h5 class="mb-0">Bridge users (admin)</h5></div>
+    <div class="card-body">
+      <table class="table table-sm">
+        <thead><tr><th>Key</th><th>Name</th><th>State</th><th>Console user</th><th></th></tr></thead>
+        <tbody>
+          {% for u in admin_users %}
+          <tr>
+            <td>{{ u.backend }}:{{ u.uid }}</td>
+            <td>{{ u.name }}</td>
+            <td>
+              {% if u.state == "approved" %}<span class="badge bg-success">approved</span>
+              {% elif u.state == "banned" %}<span class="badge bg-danger">banned</span>
+              {% else %}<span class="badge bg-warning text-dark">pending</span>{% endif %}
+            </td>
+            <td>{{ u.console_uid if u.console_uid else "—" }}</td>
+            <td class="d-flex gap-1">
+              <form method="post" action="/meshlink/admin/state">
+                <input type="hidden" name="backend" value="{{ u.backend }}">
+                <input type="hidden" name="uid" value="{{ u.uid }}">
+                <input type="hidden" name="action" value="approve">
+                <button class="btn btn-sm btn-outline-success">Approve</button>
+              </form>
+              <form method="post" action="/meshlink/admin/state">
+                <input type="hidden" name="backend" value="{{ u.backend }}">
+                <input type="hidden" name="uid" value="{{ u.uid }}">
+                <input type="hidden" name="action" value="ban">
+                <button class="btn btn-sm btn-outline-danger">Ban</button>
+              </form>
+              {% if u.state != "approved" %}
+              <form method="post" action="/meshlink/admin/state"
+                    onsubmit="return confirm('Deny and remove {{ u.uid }}?')">
+                <input type="hidden" name="backend" value="{{ u.backend }}">
+                <input type="hidden" name="uid" value="{{ u.uid }}">
+                <input type="hidden" name="action" value="deny">
+                <button class="btn btn-sm btn-outline-danger">Deny</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if tunnel %}
+  <div class="card shadow mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Bear Den tunnel (admin)</h5>
+      {% if tunnel.enabled %}
+      <span class="badge bg-success">connected</span>
+      {% else %}
+      <span class="badge bg-secondary">disabled</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <table class="table table-sm" style="max-width:40rem">
+        <tbody>
+          <tr><th>Peer Bear Den</th><td>{{ tunnel.peer }}</td></tr>
+          <tr><th>Local tag</th><td>{{ tunnel.tag }}</td></tr>
+          <tr><th>Flush interval</th><td>{{ tunnel.flush_interval_secs }} s</td></tr>
+          <tr><th>Queued for peer</th><td>{{ tunnel.queue_pending }}</td></tr>
+          <tr><th>Sent to peer</th><td>{{ tunnel.queue_sent }}</td></tr>
+        </tbody>
+      </table>
+      <form method="post" action="/meshlink/admin/tunnel_flush">
+        <button class="btn btn-dark">Flush now</button>
+      </form>
+      <small class="text-muted">Store-and-forward relay between Bear Dens: messages
+        queue locally and are pushed to the peer as digests.</small>
+
+      <hr>
+      <h6>Configure tunnel</h6>
+      <form method="post" action="/meshlink/admin/tunnel_config">
+        <input type="hidden" name="enabled" value="1">
+        <div class="row g-2 mb-2">
+          <div class="col-md-5">
+            <label class="form-label small mb-1">Peer Bear Den URL</label>
+            <input class="form-control form-control-sm" name="peer"
+                   value="{{ tunnel_cfg.peer }}" placeholder="http://peer:8095">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Shared secret</label>
+            <input class="form-control form-control-sm" name="token"
+                   value="{{ tunnel_cfg.token }}" placeholder="token">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">Our tag</label>
+            <input class="form-control form-control-sm" name="tag"
+                   value="{{ tunnel_cfg.tag }}" placeholder="US">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">Peer tag</label>
+            <input class="form-control form-control-sm" name="peer_tag"
+                   value="{{ tunnel_cfg.peer_tag }}" placeholder="AU">
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Flush interval (seconds)</label>
+            <input class="form-control form-control-sm" name="flush_interval_secs" type="number" min="30"
+                   value="{{ tunnel_cfg.flush_interval_secs }}" placeholder="1800">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Mode</label>
+            <select class="form-select form-select-sm" name="mode">
+              <option value="push" {% if tunnel_cfg.mode != "poll" %}selected{% endif %}>push (we POST to peer)</option>
+              <option value="poll" {% if tunnel_cfg.mode == "poll" %}selected{% endif %}>poll (we GET from peer)</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary btn-sm">Save &amp; enable</button>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-outline-danger btn-sm" formaction="/meshlink/admin/tunnel_config"
+                    formnovalidate name="enabled" value="0"
+                    onclick="return confirm('Disable tunnel?')">Disable</button>
+          </div>
+        </div>
+        <small class="text-muted">Changes apply immediately and persist on the bridge.</small>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if bridge_error %}
+  <div class="alert alert-warning">Bridge unreachable: {{ bridge_error }}</div>
+  {% endif %}
+
+  {% if admin_events %}
+  <div class="card shadow">
+    <div class="card-header bg-dark text-white"><h5 class="mb-0">Recent bridge events (admin)</h5></div>
+    <div class="card-body">
+      <table class="table table-sm">
+        <thead><tr><th>Time</th><th>Kind</th><th>Source</th><th>Text</th></tr></thead>
+        <tbody>
+          {% for e in admin_events %}
+          <tr>
+            <td>{{ e.ts | localtime }}</td>
+            <td>{{ e.kind }}</td>
+            <td>{{ e.source }}</td>
+            <td>{{ e.text }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

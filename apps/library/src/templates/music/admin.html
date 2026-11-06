@@ -1,0 +1,667 @@
+{% extends "base.html" %}
+
+{% block title %}Music Admin - Edit Metadata{% endblock %}
+
+{% block content %}
+
+<div class="card mb-3">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Album Visibility</h5>
+    </div>
+    <div class="card-body d-flex gap-2">
+        <form action="/library/music/admin/albums/all-public" method="POST" class="d-inline"
+              onsubmit="return confirm('Make ALL music albums public (except banned)?');">
+            <button type="submit" class="btn btn-outline-success">
+                <i class="bi bi-globe"></i> Make All Albums Public
+            </button>
+        </form>
+        <form action="/library/music/admin/albums/all-private" method="POST" class="d-inline"
+              onsubmit="return confirm('Make ALL music albums private?');">
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="bi bi-lock"></i> Make All Albums Private
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <button class="btn btn-outline-success" id="rebuildArtBtn" title="Register cover files in album directories and extract missing artwork from tracks">
+        <i class="bi bi-image"></i> Rebuild Album Art
+    </button>
+    <span id="rebuildArtStatus" class="text-muted"></span>
+</div>
+<script>
+document.getElementById('rebuildArtBtn').addEventListener('click', async function() {
+    if (!confirm('Rebuild album art? Covers are written as cover.jpg inside each album directory.')) return;
+    this.disabled = true;
+    var st = document.getElementById('rebuildArtStatus');
+    st.textContent = 'Working...';
+    try {
+        var resp = await fetch('/library/music/admin/rebuild-art', { method: 'POST' });
+        var data = await resp.json();
+        st.textContent = data.message || data.detail || 'Done.';
+    } catch(e) { st.textContent = 'Error: ' + e.message; }
+    this.disabled = false;
+});
+</script>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+        <li class="breadcrumb-item"><a href="/library/music/">Music</a></li>
+        {% if album %}
+        <li class="breadcrumb-item"><a href="/library/music/browse/albums{% if from_letter %}?letter={{ from_letter }}{% endif %}">Albums</a></li>
+        <li class="breadcrumb-item"><a href="/library/music/album/{{ album.id }}{% if from_letter %}?from_letter={{ from_letter }}{% endif %}">{{ album.title }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active" aria-current="page">Edit Metadata</li>
+    </ol>
+</nav>
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <h2><i class="bi bi-gear-fill"></i> Music Admin - Edit Metadata</h2>
+        <p class="text-muted">Extract embedded album artwork from a track file, or upload an image file and embed it into album tracks.</p>
+
+        <!-- Edit Metadata Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Edit Album Metadata</h5>
+            </div>
+            <div class="card-body">
+                <form id="editMetadataForm">
+                    <div class="mb-3">
+                        <label for="metaArtist" class="form-label fw-bold">Artist Name</label>
+                        <input type="text" class="form-control" id="metaArtist" placeholder="e.g., The Beatles" required>
+                        <div class="form-text">Change the artist name for this album</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="metaAlbum" class="form-label fw-bold">Album Title</label>
+                        <input type="text" class="form-control" id="metaAlbum" placeholder="e.g., Abbey Road" required>
+                        <div class="form-text">Change the album title</div>
+                    </div>
+
+                    <input type="hidden" id="metaAlbumId" value="{% if album_id %}{{ album_id }}{% endif %}">
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-info btn-lg" id="metaBtn">
+                            <i class="bi bi-check-lg"></i> Save Metadata
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="row mb-4" id="previewSection">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-image"></i> Target Album Art (Will Be Updated)</h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="targetPreview" class="text-muted">
+                            <p>Enter target artist and album above to see current artwork</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="bi bi-image"></i> Source Album Art (Will Extract From)</h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="sourcePreview" class="text-muted">
+                            <p>Enter source artist and album to see artwork</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-image"></i> Extract & Update Album Artwork</h5>
+            </div>
+            <div class="card-body">
+                <form id="updateArtForm">
+                    <div class="mb-3">
+                        <label for="targetArtist" class="form-label fw-bold">Target Artist (Album to Update)</label>
+                        <input type="text" class="form-control lookup-field" id="targetArtist" data-type="target" placeholder="e.g., The Beatles" required>
+                        <div class="form-text">Enter the artist name of the album whose artwork you want to update</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="targetAlbum" class="form-label fw-bold">Target Album</label>
+                        <input type="text" class="form-control lookup-field" id="targetAlbum" data-type="target" placeholder="e.g., Abbey Road" required>
+                        <div class="form-text">Enter the album title whose artwork you want to update</div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label for="sourceArtist" class="form-label fw-bold">Source Artist (Get Art From)</label>
+                        <input type="text" class="form-control lookup-field" id="sourceArtist" data-type="source" placeholder="e.g., The Beatles" required>
+                        <div class="form-text">The artist whose track contains the embedded artwork</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="sourceAlbum" class="form-label fw-bold">Source Album</label>
+                        <input type="text" class="form-control lookup-field" id="sourceAlbum" data-type="source" placeholder="e.g., Revolver" required>
+                        <div class="form-text">The album that contains the track with the desired artwork</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="sourceTrack" class="form-label fw-bold">Source Track (Required)</label>
+                        <input type="text" class="form-control" id="sourceTrack" placeholder="e.g., Eleanor Rigby" required>
+                        <div class="form-text">Required: Enter the track name to extract artwork from. The artwork embedded in this track's file will be used.</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="updateBtn">
+                            <i class="bi bi-arrow-repeat"></i> Update Album Art
+                        </button>
+                        {% if album %}
+                        <a href="/library/music/album/{{ album.id }}{% if from_letter %}?from_letter={{ from_letter }}{% endif %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to {{ album.title }}
+                        </a>
+                        {% else %}
+                        <a href="/library/music/" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Music
+                        </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-upload"></i> Upload & Embed Album Artwork</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    Upload a .jpg image file to set as the album artwork and embed it into all tracks for this album on disk.
+                    This will update both the database and the actual audio files.
+                </p>
+                <form id="uploadArtForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="uploadArtist" class="form-label fw-bold">Artist</label>
+                        <input type="text" class="form-control" id="uploadArtist" placeholder="e.g., The Beatles" required>
+                        <div class="form-text">The artist whose album artwork you want to update</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="uploadAlbum" class="form-label fw-bold">Album</label>
+                        <input type="text" class="form-control" id="uploadAlbum" placeholder="e.g., Abbey Road" required>
+                        <div class="form-text">The album title to update</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="artworkFile" class="form-label fw-bold">Artwork File (JPG)</label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="artworkFile" accept="image/jpeg,image/jpg">
+                            <button type="button" class="btn btn-outline-secondary" id="pasteArtworkBtn" title="Paste image from clipboard">
+                                <i class="bi bi-clipboard"></i> Paste from Clipboard
+                            </button>
+                        </div>
+                        <div class="form-text">Select a .jpg image file or paste from clipboard</div>
+                        <input type="hidden" id="artworkData" name="artwork_data" value="">
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="embedInTracks" checked>
+                        <label class="form-check-label" for="embedInTracks">
+                            Embed artwork into all tracks on disk
+                        </label>
+                        <div class="form-text small">This will modify the actual audio files. This operation cannot be undone.</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning btn-lg" id="uploadBtn">
+                            <i class="bi bi-upload"></i> Upload & Embed Artwork
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="resultCard" class="card mt-4" style="display: none;">
+            <div class="card-body">
+                <div id="resultMessage"></div>
+            </div>
+        </div>
+
+        <!-- Delete Album -->
+        <div class="card mt-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-trash"></i> Delete Album</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Remove an album and all its tracks from the library. This action cannot be undone.</p>
+                <form id="deleteAlbumForm">
+                    <div class="mb-3">
+                        <label for="deleteArtist" class="form-label fw-bold">Artist</label>
+                        <input type="text" class="form-control" id="deleteArtist" placeholder="e.g., The Beatles" required>
+                        <div class="form-text">The artist whose album you want to delete</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="deleteAlbum" class="form-label fw-bold">Album</label>
+                        <input type="text" class="form-control" id="deleteAlbum" placeholder="e.g., Abbey Road" required>
+                        <div class="form-text">The album title to delete</div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-danger" id="deleteDbOnlyBtn">
+                            <i class="bi bi-database"></i> Delete from Database Only
+                        </button>
+                        <button type="button" class="btn btn-danger" id="deleteWithDiskBtn">
+                            <i class="bi bi-hard-drive"></i> Delete from Database &amp; Disk
+                        </button>
+                    </div>
+                    <div class="form-text mt-2">
+                        <strong>Database Only:</strong> Removes album, tracks, and cover art. Audio files remain on disk.<br>
+                        <strong>Database &amp; Disk:</strong> Also permanently deletes all audio files from disk.
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Lookup album art preview with debounce
+let lookupTimeout = {};
+
+async function lookupAlbumArt(type) {
+    const artist = document.getElementById(`${type}Artist`).value.trim();
+    const album = document.getElementById(`${type}Album`).value.trim();
+
+    if (!artist || !album) {
+        const previewDiv = document.getElementById(`${type}Preview`);
+        previewDiv.innerHTML = '<p>Enter artist and album to see artwork</p>';
+        return;
+    }
+
+    // Clear previous timeout
+    if (lookupTimeout[type]) {
+        clearTimeout(lookupTimeout[type]);
+    }
+
+    // Debounce lookup
+    lookupTimeout[type] = setTimeout(async () => {
+        const previewDiv = document.getElementById(`${type}Preview`);
+        previewDiv.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> Loading...</div>';
+
+        try {
+            const response = await fetch(`/library/music/admin/album-info?artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`);
+            const data = await response.json();
+
+            if (data.found && data.art_url) {
+                previewDiv.innerHTML = `
+                    <img src="${data.art_url}" class="img-fluid rounded" style="max-height: 200px;" alt="Album art">
+                    <p class="mt-2 mb-0"><small class="text-muted">Album: ${data.title} (ID: ${data.album_id})</small></p>
+                    <p><small class="text-muted">File: ${data.art_filename || 'No art'}</small></p>
+                `;
+            } else {
+                previewDiv.innerHTML = `<p class="text-warning">${data.error || 'No artwork found'}</p>`;
+            }
+        } catch (error) {
+            previewDiv.innerHTML = `<p class="text-danger">Error loading album info</p>`;
+            console.error('Lookup error:', error);
+        }
+    }, 500); // 500ms debounce
+}
+
+// Add event listeners for lookup fields
+document.querySelectorAll('.lookup-field').forEach(field => {
+    field.addEventListener('input', () => {
+        const type = field.dataset.type;
+        lookupAlbumArt(type);
+    });
+});
+
+// Edit metadata form submission
+document.getElementById('editMetadataForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const artist = document.getElementById('metaArtist').value.trim();
+    const album = document.getElementById('metaAlbum').value.trim();
+
+    if (!artist || !album) {
+        alert("Please fill in both artist name and album title.");
+        return;
+    }
+
+    const btn = document.getElementById('metaBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+    const resultCard = document.getElementById('resultCard');
+    const resultMessage = document.getElementById('resultMessage');
+    resultCard.style.display = 'none';
+
+    try {
+        const formData = new FormData();
+        formData.append('artist', artist);
+        formData.append('album', album);
+
+        const albumId = document.getElementById('metaAlbumId').value;
+        if (albumId) {
+            formData.append('album_id', albumId);
+        }
+
+        const response = await fetch('/library/music/admin/update-metadata', {
+            method: 'POST',
+            body: new URLSearchParams(formData)
+        });
+
+        const data = await response.json();
+
+        resultCard.className = 'card mt-4';
+        resultCard.classList.add(data.success ? 'border-success' : 'border-danger');
+        resultMessage.innerHTML = `<div class="alert ${data.success ? 'alert-success' : 'alert-danger'}">${data.message}</div>`;
+        resultCard.style.display = 'block';
+
+        if (data.success) {
+            document.getElementById('targetArtist').value = artist;
+            document.getElementById('uploadArtist').value = artist;
+            if (data.new_title) {
+                document.getElementById('targetAlbum').value = data.new_title;
+                document.getElementById('uploadAlbum').value = data.new_title;
+            }
+        }
+    } catch (error) {
+        resultCard.className = 'card mt-4 border-danger';
+        resultMessage.innerHTML = `<div class="alert alert-danger">Error: Failed to update metadata.</div>`;
+        resultCard.style.display = 'block';
+        console.error('Error:', error);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> Save Metadata';
+});
+
+// Form submission
+document.getElementById('updateArtForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const targetArtist = document.getElementById('targetArtist').value.trim();
+    const targetAlbum = document.getElementById('targetAlbum').value.trim();
+    const sourceArtist = document.getElementById('sourceArtist').value.trim();
+    const sourceAlbum = document.getElementById('sourceAlbum').value.trim();
+    const sourceTrack = document.getElementById('sourceTrack').value.trim();
+
+    if (!targetArtist || !targetAlbum || !sourceArtist || !sourceAlbum || !sourceTrack) {
+        alert("Please fill in all required fields, including the source track.");
+        return;
+    }
+
+    const btn = document.getElementById('updateBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Updating...';
+
+    const resultCard = document.getElementById('resultCard');
+    const resultMessage = document.getElementById('resultMessage');
+    resultCard.style.display = 'none';
+
+    try {
+        const formData = new FormData();
+        formData.append('target_artist', targetArtist);
+        formData.append('target_album', targetAlbum);
+        formData.append('source_artist', sourceArtist);
+        formData.append('source_album', sourceAlbum);
+        formData.append('source_track', sourceTrack);
+
+        const response = await fetch('/library/music/admin/update-art', {
+            method: 'POST',
+            body: new URLSearchParams(formData)
+        });
+
+        const data = await response.json();
+
+        resultCard.className = 'card mt-4';
+        resultCard.classList.add(data.success ? 'border-success' : 'border-danger');
+        resultMessage.innerHTML = `<div class="alert ${data.success ? 'alert-success' : 'alert-danger'}">${data.message}</div>`;
+
+        if (data.details) {
+            resultMessage.innerHTML += `<div class="mt-3"><pre class="bg-light p-3 rounded">${data.details}</pre></div>`;
+        }
+
+        resultCard.style.display = 'block';
+
+        // Refresh previews with cache busting
+        if (data.success) {
+            await lookupAlbumArt('target');
+            await lookupAlbumArt('source');
+        }
+
+    } catch (error) {
+        resultCard.className = 'card mt-4 border-danger';
+        resultMessage.innerHTML = `<div class="alert alert-danger">Error: Failed to update album art.</div><div class="mt-3"><pre class="bg-light p-3 rounded">${error.toString()}</pre></div>`;
+        resultCard.style.display = 'block';
+        console.error('Error:', error);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Update Album Art';
+});
+
+// Resize image helper
+function resizeImage(dataUrl, maxWidth, maxHeight, quality) {
+    return new Promise(function(resolve) {
+        var img = new Image();
+        img.onload = function() {
+            var w = img.width, h = img.height;
+            if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+            if (h > maxHeight) { w = w * maxHeight / h; h = maxHeight; }
+            var canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = dataUrl;
+    });
+}
+
+function handleArtworkData(dataUrl) {
+    resizeImage(dataUrl, 800, 800, 0.85).then(function(resized) {
+        document.getElementById('artworkData').value = resized;
+        document.getElementById('artworkFile').value = '';
+        alert('Image pasted and resized from clipboard.');
+    });
+}
+
+// Paste artwork from clipboard
+var waitingForPaste = false;
+document.getElementById('pasteArtworkBtn').addEventListener('click', async function() {
+    try {
+        var clipboardItems = await navigator.clipboard.read();
+        for (var item of clipboardItems) {
+            var imageType = item.types.find(function(t) { return t.startsWith('image/'); });
+            if (imageType) {
+                var blob = await item.getType(imageType);
+                var reader = new FileReader();
+                reader.onload = function(e) { handleArtworkData(e.target.result); };
+                reader.readAsDataURL(blob);
+                return;
+            }
+        }
+        alert('No image found in clipboard. Copy an image first.');
+    } catch (err) {
+        waitingForPaste = true;
+        this.textContent = 'Press Ctrl+V now...';
+        this.classList.add('active');
+    }
+});
+
+document.addEventListener('paste', function(e) {
+    if (!waitingForPaste) return;
+    waitingForPaste = false;
+    var btn = document.getElementById('pasteArtworkBtn');
+    btn.innerHTML = '<i class="bi bi-clipboard"></i> Paste from Clipboard';
+    btn.classList.remove('active');
+
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (var item of items) {
+        if (item.type.startsWith('image/')) {
+            e.preventDefault();
+            var blob = item.getAsFile();
+            var reader = new FileReader();
+            reader.onload = function(ev) { handleArtworkData(ev.target.result); };
+            reader.readAsDataURL(blob);
+            return;
+        }
+    }
+    alert('No image found in clipboard. Copy an image first.');
+});
+
+// Upload artwork form submission
+document.getElementById('uploadArtForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const artist = document.getElementById('uploadArtist').value.trim();
+    const album = document.getElementById('uploadAlbum').value.trim();
+    const fileInput = document.getElementById('artworkFile');
+    const artworkDataInput = document.getElementById('artworkData');
+    const embedInTracks = document.getElementById('embedInTracks').checked;
+
+    if (!artist || !album) {
+        alert("Please fill in all required fields.");
+        return;
+    }
+
+    if (!fileInput.files.length && !artworkDataInput.value) {
+        alert("Please select an image file or paste from clipboard.");
+        return;
+    }
+
+    const btn = document.getElementById('uploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+
+    const resultCard = document.getElementById('resultCard');
+    const resultMessage = document.getElementById('resultMessage');
+    resultCard.style.display = 'none';
+
+    try {
+        const params = new URLSearchParams();
+        params.append('artist', artist);
+        params.append('album', album);
+        params.append('embed_in_tracks', embedInTracks ? 'true' : 'false');
+
+        if (fileInput.files.length) {
+            const file = fileInput.files[0];
+            if (!file.name.toLowerCase().endsWith('.jpg') && !file.name.toLowerCase().endsWith('.jpeg')) {
+                alert("Please upload a .jpg or .jpeg file.");
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-upload"></i> Upload & Embed Artwork';
+                return;
+            }
+            const b64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            params.append('artwork_data', b64);
+        } else if (artworkDataInput.value) {
+            params.append('artwork_data', artworkDataInput.value);
+        }
+
+        const response = await fetch('/library/music/admin/upload-art', {
+            method: 'POST',
+            body: params
+        });
+
+        const data = await response.json();
+
+        resultCard.className = 'card mt-4';
+        resultCard.classList.add(data.success ? 'border-success' : 'border-danger');
+        resultMessage.innerHTML = `<div class="alert ${data.success ? 'alert-success' : 'alert-danger'}">${data.message}</div>`;
+
+        if (data.details) {
+            resultMessage.innerHTML += `<div class="mt-3"><pre class="bg-light p-3 rounded">${data.details}</pre></div>`;
+        }
+
+        resultCard.style.display = 'block';
+
+        // Clear inputs on success
+        if (data.success) {
+            fileInput.value = '';
+            artworkDataInput.value = '';
+        }
+
+    } catch (error) {
+        resultCard.className = 'card mt-4 border-danger';
+        resultMessage.innerHTML = `<div class="alert alert-danger">Error: Failed to upload artwork.</div><div class="mt-3"><pre class="bg-light p-3 rounded">${error.toString()}</pre></div>`;
+        resultCard.style.display = 'block';
+        console.error('Error:', error);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-upload"></i> Upload & Embed Artwork';
+});
+
+// Delete album
+async function deleteAlbum(fromDisk) {
+    var artist = document.getElementById('deleteArtist').value.trim();
+    var album = document.getElementById('deleteAlbum').value.trim();
+    if (!artist || !album) {
+        alert("Please enter both artist and album name.");
+        return;
+    }
+    var msg = fromDisk
+        ? 'This will permanently delete the album "' + album + '" by "' + artist + '" from the database AND remove all audio files from disk. Are you sure?'
+        : 'This will remove the album "' + album + '" by "' + artist + '" from the database. Audio files will remain on disk. Are you sure?';
+    if (!confirm(msg)) return;
+    if (!confirm('This cannot be undone. Proceed?')) return;
+
+    var resultCard = document.getElementById('resultCard');
+    var resultMessage = document.getElementById('resultMessage');
+    resultCard.style.display = 'none';
+
+    try {
+        var fd = new FormData();
+        fd.append('artist', artist);
+        fd.append('album', album);
+        fd.append('delete_from_disk', fromDisk ? 'true' : 'false');
+        var response = await fetch('/library/music/admin/album/delete', {
+            method: 'POST',
+            body: new URLSearchParams(fd)
+        });
+        var data = await response.json();
+        resultCard.className = 'card mt-4';
+        resultCard.classList.add(data.success ? 'border-success' : 'border-danger');
+        resultMessage.innerHTML = '<div class="alert ' + (data.success ? 'alert-success' : 'alert-danger') + '">' + data.message + '</div>';
+        resultCard.style.display = 'block';
+        if (data.success) {
+            document.getElementById('deleteArtist').value = '';
+            document.getElementById('deleteAlbum').value = '';
+        }
+    } catch (err) {
+        resultCard.className = 'card mt-4 border-danger';
+        resultMessage.innerHTML = '<div class="alert alert-danger">Error: Failed to delete album.</div>';
+        resultCard.style.display = 'block';
+    }
+}
+
+document.getElementById('deleteDbOnlyBtn').addEventListener('click', function() { deleteAlbum(false); });
+document.getElementById('deleteWithDiskBtn').addEventListener('click', function() { deleteAlbum(true); });
+
+{% if album and author %}
+document.getElementById('metaArtist').value = {{ author.name | tojson }};
+document.getElementById('metaAlbum').value = {{ album.title | tojson }};
+document.getElementById('targetArtist').value = {{ author.name | tojson }};
+document.getElementById('targetAlbum').value = {{ album.title | tojson }};
+document.getElementById('uploadArtist').value = {{ author.name | tojson }};
+document.getElementById('uploadAlbum').value = {{ album.title | tojson }};
+lookupAlbumArt('target');
+{% endif %}
+</script>
+{% endblock %}

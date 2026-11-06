@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Weather - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Weather</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-cloud-sun"></i> Weather</h2>
+    <span class="text-muted">forecast point {{ lat }}, {{ lon }}</span>
+</div>
+
+{% if error %}
+<div class="alert alert-warning"><i class="bi bi-wifi-off"></i> {{ error }}</div>
+{% endif %}
+
+{% if alerts %}
+{% for a in alerts %}
+<div class="alert alert-danger">
+    <strong>{{ a.event }}</strong> <span class="badge bg-danger">{{ a.severity }}</span>
+    <div>{{ a.headline }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="row g-3">
+    {% if current %}
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">Current conditions
+                {% if current_stale %}<span class="badge bg-warning text-dark">cached</span>{% endif %}</div>
+            <div class="card-body">
+                <h1 class="mb-1">{{ current.temp_f }}°F</h1>
+                <div class="text-muted mb-2">{{ current.conditions|capitalize }}
+                    · feels like {{ current.feels_like_f }}°F</div>
+                <ul class="list-unstyled mb-0 small">
+                    <li>Humidity {{ current.humidity }}%</li>
+                    <li>Wind {{ current.wind_mph }} mph
+                        {% if current.wind_gust_mph %}(gusts {{ current.wind_gust_mph }} mph){% endif %}</li>
+                    <li>Observed {{ current.time }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header">NWS forecast
+                {% if forecast_stale %}<span class="badge bg-warning text-dark">cached</span>{% endif %}</div>
+            <ul class="list-group list-group-flush">
+                {% for p in periods %}
+                <li class="list-group-item">
+                    <strong>{{ p.name }}</strong> — {{ p.temp }}°{{ p.unit }},
+                    {{ p.short }}, wind {{ p.wind }}
+                    {% if p.detail %}<div class="text-muted small">{{ p.detail }}</div>{% endif %}
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">No forecast data available.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+{% if is_admin %}
+<div class="card mt-3">
+    <div class="card-header"><i class="bi bi-gear"></i> Forecast location</div>
+            <form method="post" action="/calendar/weather/location" class="card-body d-flex gap-2 align-items-end flex-wrap">
+                <div>
+                    <label class="form-label">Latitude</label>
+                    <input class="form-control" name="latitude" value="{{ lat }}">
+                </div>
+                <div>
+                    <label class="form-label">Longitude</label>
+                    <input class="form-control" name="longitude" value="{{ lon }}">
+                </div>
+                <button class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                <span class="text-muted small mb-2">NWS covers the US; Open-Meteo works worldwide.</span>
+            </form>
+</div>
+{% endif %}
+{% endblock %}

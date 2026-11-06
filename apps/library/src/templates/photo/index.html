@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}Photo Library{% endblock %}
+
+{% block content %}
+<style>
+    .photo-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+    }
+    .photo-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .feature-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Photos</li>
+            </ol>
+        </nav>
+        <h2><i class="bi bi-camera"></i> Photo Library</h2>
+        {% if full_access %}
+        <p class="text-muted">Browse and manage your photo albums</p>
+        {% else %}
+        <p class="text-muted">Browse public photo albums</p>
+        {% endif %}
+
+        {% if full_access %}
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ own_albums|length }}</h2>
+                            <p class="mb-0">My Albums</p>
+                        </div>
+                        <i class="bi bi-collection" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="background: linear-gradient(135deg, #1565c0 0%, #42a5f5 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ total_photos }}</h2>
+                            <p class="mb-0">My Photos</p>
+                        </div>
+                        <i class="bi bi-image" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="background: linear-gradient(135deg, #6a1b9a 0%, #ab47bc 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ public_albums|length }}</h2>
+                            <p class="mb-0">Public Albums</p>
+                        </div>
+                        <i class="bi bi-globe" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="row mt-4">
+            <div class="col-md-6 offset-md-3">
+                <div class="stat-card" style="background: linear-gradient(135deg, #6a1b9a 0%, #ab47bc 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ public_albums|length }}</h2>
+                            <p class="mb-0">Public Albums</p>
+                        </div>
+                        <i class="bi bi-globe" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row row-cols-1 row-cols-md-3 row-cols-lg-4 g-4 mt-3 mb-4">
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/photo/browse/photos'">
+                    <div class="card-body">
+                        <div class="feature-icon text-primary"><i class="bi bi-images"></i></div>
+                        <h5 class="card-title">Browse All</h5>
+                        <p class="card-text text-muted">All accessible photos</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/photo/browse/albums'">
+                    <div class="card-body">
+                        <div class="feature-icon text-success"><i class="bi bi-collection"></i></div>
+                        <h5 class="card-title">Browse Albums</h5>
+                        <p class="card-text text-muted">All accessible albums</p>
+                    </div>
+                </div>
+            </div>
+            {% if full_access %}
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/photo/album/new'">
+                    <div class="card-body">
+                        <div class="feature-icon text-info"><i class="bi bi-plus-circle"></i></div>
+                        <h5 class="card-title">New Album</h5>
+                        <p class="card-text text-muted">Create an album</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% if user.is_superuser %}
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/photo/admin'">
+                    <div class="card-body">
+                        <div class="feature-icon text-danger"><i class="bi bi-shield-lock"></i></div>
+                        <h5 class="card-title">Admin</h5>
+                        <p class="card-text text-muted">Manage public photos</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Search -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5><i class="bi bi-search"></i> Search</h5>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="quickSearchInput" placeholder="Search albums &amp; photos...">
+                    <button class="btn btn-primary" id="quickSearchBtn"><i class="bi bi-search"></i></button>
+                </div>
+            </div>
+        </div>
+
+        {% if full_access %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Library Management</h5>
+            </div>
+            <div class="card-body">
+                <h6><i class="bi bi-plus-circle"></i> Add Photos by Path</h6>
+                <p class="text-muted small">Browse or enter the path to a directory containing image files to add to an album or section.</p>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" id="addPhotoPath"
+                           placeholder="/path/to/photos/">
+                    <button class="btn btn-outline-secondary" type="button" id="dirBrowserSelectBtn">
+                        <i class="bi bi-folder2-open"></i>
+                    </button>
+                    <select class="form-select" id="addPhotoAlbum" style="max-width:200px;">
+                        <option value="">-- Select --</option>
+                        {% for album in own_albums %}
+                        <option value="{{ album.id }}">{{ album.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-success" type="button" id="addPhotoBtn">
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                </div>
+                <div id="addPhotoResult" class="mt-2" style="display:none;"></div>
+
+                <hr>
+
+                <h6><i class="bi bi-arrow-clockwise"></i> Scan</h6>
+                <p class="text-muted small">Scan your photo directories to discover and index new photos.</p>
+                <button class="btn btn-primary me-2" id="scanMyLibraryBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Scan My Library
+                </button>
+                <button class="btn btn-danger" id="fullRescanBtn">
+                    <i class="bi bi-trash"></i> Full Rescan
+                </button>
+                <p class="text-muted small mt-1">Full Rescan deletes all photo data and rebuilds from disk.</p>
+                <div id="scanStatus" class="mt-2"></div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('quickSearchBtn').addEventListener('click', function() {
+    const q = document.getElementById('quickSearchInput').value.trim();
+    if (q) window.location = '/library/photo/search?q=' + encodeURIComponent(q);
+});
+document.getElementById('quickSearchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        const q = this.value.trim();
+        if (q) window.location = '/library/photo/search?q=' + encodeURIComponent(q);
+    }
+});
+
+var addPhotoBtnEl = document.getElementById('addPhotoBtn');
+if (addPhotoBtnEl) {
+    addPhotoBtnEl.addEventListener('click', async function() {
+        var path = document.getElementById('addPhotoPath').value.trim();
+        var albumId = document.getElementById('addPhotoAlbum').value;
+        var resultDiv = document.getElementById('addPhotoResult');
+        if (!path) {
+            resultDiv.innerHTML = '<div class="alert alert-warning py-1">Please enter a directory path.</div>';
+            resultDiv.style.display = 'block';
+            return;
+        }
+        if (!albumId) {
+            resultDiv.innerHTML = '<div class="alert alert-warning py-1">Please select an album.</div>';
+            resultDiv.style.display = 'block';
+            return;
+        }
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+        try {
+            var fd = new FormData();
+            fd.append('file_path', path);
+            fd.append('album_id', albumId);
+            var response = await fetch('/library/photo/add', { method: 'POST', body: new URLSearchParams(fd) });
+            var data = await response.json();
+            if (response.ok && data.success) {
+                resultDiv.innerHTML = '<div class="alert alert-success py-1">' + data.message + '</div>';
+                document.getElementById('addPhotoPath').value = '';
+            } else {
+                resultDiv.innerHTML = '<div class="alert alert-danger py-1">' + (data.message || data.detail || 'Failed to add') + '</div>';
+            }
+        } catch (err) {
+            resultDiv.innerHTML = '<div class="alert alert-danger py-1">Error: ' + err.message + '</div>';
+        }
+        resultDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plus-lg"></i> Add';
+    });
+}
+
+var scanMyLibraryBtnEl = document.getElementById('scanMyLibraryBtn');
+if (scanMyLibraryBtnEl) {
+    scanMyLibraryBtnEl.addEventListener('click', async function() {
+        var btn = this;
+        var status = document.getElementById('scanStatus');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
+        status.innerHTML = '<div class="text-muted">Scanning your library, this may take a moment...</div>';
+        try {
+            var res = await fetch('/library/photo/scan/my-library', {method: 'POST'});
+            var data = await res.json();
+            if (res.ok) {
+                status.innerHTML = '<div class="alert alert-success py-1">' + data.message + '</div>';
+                setTimeout(function() { location.reload(); }, 3000);
+            } else {
+                status.innerHTML = '<div class="alert alert-warning py-1">' + (data.error || 'Scan failed') + '</div>';
+            }
+        } catch(e) {
+            status.innerHTML = '<div class="alert alert-danger py-1">Error starting scan.</div>';
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Scan My Library';
+    });
+}
+
+var fullRescanBtnEl = document.getElementById('fullRescanBtn');
+if (fullRescanBtnEl) {
+    fullRescanBtnEl.addEventListener('click', async function() {
+        if (!confirm('This will delete ALL your photo data and rescan from disk. Continue?')) return;
+        var btn = this;
+        var status = document.getElementById('scanStatus');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Rescanning...';
+        status.innerHTML = '<div class="text-muted">Deleting photo data and rescanning from disk...</div>';
+        try {
+            var res = await fetch('/library/photo/scan/full-rescan', {method: 'POST'});
+            var data = await res.json();
+            if (res.ok) {
+                status.innerHTML = '<div class="alert alert-success py-1">' + data.message + '</div>';
+                setTimeout(function() { location.reload(); }, 5000);
+            } else {
+                status.innerHTML = '<div class="alert alert-warning py-1">' + (data.error || 'Rescan failed') + '</div>';
+            }
+        } catch(e) {
+            status.innerHTML = '<div class="alert alert-danger py-1">Error starting rescan.</div>';
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-trash"></i> Full Rescan';
+    });
+}
+
+var DIR_BROWSER_ROOT = "photo";
+var DIR_BROWSER_INPUT_ID = "addPhotoPath";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "/usr/local/library/photos/{{ user.username }}";
+</script>
+{% include "library/dir_browser.html" %}
+{% endblock %}

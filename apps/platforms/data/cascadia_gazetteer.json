@@ -1,0 +1,537 @@
+{
+ "_comment": "Cascadia gazetteer for sage. places: name -> facts/elevation/population (lat/lon come from sage.PLACES). routes: curated point-to-point notes incl. ferries; key is 'a|b' sorted alphabetically. ferries: WSF + major crossings.",
+ "places": {
+  "port townsend": {
+   "population": 10600,
+   "elevation_m": 40,
+   "facts": "County seat of Jefferson County, WA. Victorian seaport at the northeast tip of the Olympic Peninsula. Home of Wooden Boat Festival, Paper & Book Arts, Fort Worden State Park.",
+   "connections": [
+    "Ferry: Coupeville (Keystone) on Whidbey Is., ~30 min, reservation advised",
+    "SR-20 west to Sequim and Port Angeles",
+    "Ferry via Whidbey connects to I-5 at Burlington"
+   ]
+  },
+  "bellingham": {
+   "population": 92000,
+   "elevation_m": 0,
+   "facts": "Seat of Whatcom County, WA, on Bellingham Bay. Home of Western Washington University. Last major US city before the Canadian border; Mt. Baker 30+ mi east.",
+   "connections": [
+    "I-5 north to Blaine/Canada, south to Seattle (~88 mi)",
+    "Alaska Ferry terminal (Fairhaven) for Bellingham-Skagway runs",
+    "SR-542 (Mt. Baker Hwy) east"
+   ]
+  },
+  "seattle": {
+   "population": 750000,
+   "elevation_m": 45,
+   "facts": "King County seat and largest city in Washington, on Puget Sound between Elliot Bay and Lake Washington. Space Needle (1962 Worlds Fair), Pike Place Market, major port.",
+   "connections": [
+    "I-5 and I-90 corridors",
+    "Ferry: Bainbridge 35 min, Bremerton 60 min",
+    "SR-520 and I-90 bridges over Lake Washington"
+   ]
+  },
+  "port angeles": {
+   "population": 20000,
+   "elevation_m": 10,
+   "facts": "Clallam County seat, WA, on the Strait of Juan de Fuca. Gateway to Olympic National Park (Hurricane Ridge) and Coho ferry to Victoria BC.",
+   "connections": [
+    "US-101 hub of the Olympic Peninsula loop",
+    "Black Ball Coho ferry to Victoria BC, 90 min",
+    "Hurricane Ridge Rd 17 mi up to 5,242 ft"
+   ]
+  },
+  "sequim": {
+   "population": 8200,
+   "elevation_m": 20,
+   "facts": "Lavender capital of North America, in the rain shadow of the Olympics: ~16 in/yr rain vs 36+ in Port Angeles. Dungeness Spit (5.5 mi natural spit) and Dungeness NWR just north.",
+   "connections": [
+    "US-101 between Port Angeles and the Hood Canal bridge",
+    "Olympic Discovery Trail passes through"
+   ]
+  },
+  "forks": {
+   "population": 3800,
+   "elevation_m": 95,
+   "facts": "Logging town on the west side of the Olympic Peninsula, famous as the Twilight saga setting. Rain: ~120 in/yr. Gateway to Rialto Beach, Hoh Rain Forest (31 mi SE), La Push.",
+   "connections": [
+    "US-101 loops through",
+    "SR-110 (La Push Rd) west 14 mi to Mora/La Push",
+    "US-101 S to Lake Quinault ~60 mi"
+   ]
+  },
+  "victoria": {
+   "population": 92000,
+   "elevation_m": 20,
+   "facts": "Capital of British Columbia, Canada, on Vancouver Island. Just outside WA/OR coverage for road distances but reachable by ferry.",
+   "connections": [
+    "Black Ball Coho ferry from Port Angeles, 90 min",
+    "Clipper passenger ferry from Seattle, ~3 hr",
+    "BC Ferries from Tsawwassen (Vancouver) 95 min"
+   ]
+  },
+  "whidbey island": {
+   "population": 70000,
+   "elevation_m": 0,
+   "facts": "Longest island in Washington (~45 mi). Coupeville (2nd oldest town in WA), Deception Pass State Park, Naval Air Station Whidbey. Ebey's Landing National Historical Reserve.",
+   "connections": [
+    "Ferry: Coupeville-Port Townsend (reservable)",
+    "Ferry: Clinton-Mukilteo 20 min (drive-on)",
+    "Deception Pass Bridge (SR-20) north end to Fidalgo Island, no ferry needed"
+   ]
+  },
+  "san juan islands": {
+   "population": 18000,
+   "elevation_m": 0,
+   "facts": "Archipelago of 172 named islands in the Salish Sea; four served by ferry: San Juan, Orcas, Lopez, Shaw. Friday Harbor is the county seat. Whale watching (J/K/L orca pods), Lime Kiln lighthouse.",
+   "connections": [
+    "WSF Anacortes-Friday Harbor, ~1 hr (reservation for cars)",
+    "Direct sailings only westbound stop at islands; eastbound via Sidney BC"
+   ]
+  },
+  "port ludlow": {
+   "population": 2900,
+   "elevation_m": 10,
+   "facts": "Resort community on Ludlow Bay, WA, at the north end of Hood Canal. Historic 1878 Pope & Talbot lumber mill site; Sheltered bay marina.",
+   "connections": [
+    "SR-104 to the Hood Canal Bridge (5 mi east)",
+    "Nordic skiing, golf resort; 20 min to Port Townsend"
+   ]
+  },
+  "hood canal": {
+   "population": 0,
+   "elevation_m": 0,
+   "facts": "Long (50+ mi), narrow fjord forming the eastern lobe of Puget Sound. Famous for oysters (Hama Hama), shrimp season, and the Hood Canal Bridge (floating pontoon bridge) at its mouth on SR-104.",
+   "connections": [
+    "Hood Canal Bridge carries SR-104 between Port Ludlow area and the Olympic Peninsula; opens for marine traffic",
+    "SR-101/US-101 south along the west shore to Hoodsport, shelton"
+   ]
+  },
+  "tacoma": {
+   "population": 220000,
+   "elevation_m": 75,
+   "facts": "Pierce County seat on Commencement Bay. Museum of Glass, Point Defiance Park (760 acres), Tacoma Narrows Bridge ('Galloping Gertie' collapsed 1940; current twin bridges 1950/2007).",
+   "connections": [
+    "I-5, SR-16 across the Narrows to the Kitsap Peninsula",
+    "SR-7 to Mt. Rainier (Paradise ~85 mi)",
+    "Sounder train to Seattle ~1 hr"
+   ]
+  },
+  "olympia": {
+   "population": 56000,
+   "elevation_m": 30,
+   "facts": "Washington state capital at the south end of Puget Sound. Capitol campus dome is one of the tallest masonry domes in the world (~287 ft). Evergreen State College nearby.",
+   "connections": [
+    "I-5 junction with US-101 (west to the Peninsula)",
+    "US-101 north along Hood Canal or west to Aberdeen (~60 mi)",
+    "Port of Olympia marina, Percival Landing"
+   ]
+  },
+  "bremerton": {
+   "population": 41000,
+   "elevation_m": 10,
+   "facts": "Kitsap County seat; Puget Sound Naval Shipyard (since 1891) home of the mothball fleet. USS Turner Joy museum ship on the waterfront.",
+   "connections": [
+    "WSF Seattle ferry 60 min (fastest link to Seattle)",
+    "SR-3 / SR-304 corridors; Tacoma Narrows Bridge via SR-16, ~40 mi to Tacoma"
+   ]
+  },
+  "mount rainier": {
+   "elevation_m": 4392,
+   "facts": "Highest peak in Washington and the Cascades, 14,411 ft. Active stratovolcano, most glaciated peak in the lower 48. Established 1899 as the 5th national park. Paradise (~5,400 ft) and Sunrise visitor areas. Prominent from Seattle/Tacoma on clear days.",
+   "connections": [
+    "Paradise via SR-706 from Ashford (SW entrance)",
+    "Sunrise via SR-410 (White River entrance), July-Oct only",
+    "Wonderland Trail: 93 mi loop around the mountain"
+   ]
+  },
+  "mount baker": {
+   "elevation_m": 3288,
+   "facts": "10,781 ft glaciated volcano in the North Cascades, second most glaciated in the Cascades after Rainier. Holds the world record snowfall: 1,140 in (95 ft) at Baker Lake in 1998-99 season. Artist Point (SR-542 end) at 5,140 ft.",
+   "connections": [
+    "SR-542 (Mt. Baker Hwy) from Bellingham, 56 mi to Artist Point (summer only)",
+    "Heather Meadows / Artist Ridge at road end"
+   ]
+  },
+  "mount olympus": {
+   "elevation_m": 2432,
+   "facts": "7,965 ft, highest peak of the Olympic Mountains, in the heart of Olympic National Park. Not visible from Puget Sound cities. Receives enormous snowfall; Blue Glacier on its north flank. Summit approach is ~30+ mi hike via Hoh or Elwha.",
+   "connections": [
+    "Hoh Rain Forest visitor center, then off-trail/mountaineering routes",
+    "Hurricane Ridge gives the closest road view of the Olympics crest"
+   ]
+  },
+  "mount st helens": {
+   "elevation_m": 2549,
+   "facts": "8,363 ft volcano that erupted May 18, 1980, losing 1,300 ft of summit and 57 lives. Johnston Ridge Observatory overlooks the crater and lava dome (dome-building resumed 2004-08). National Volcanic Monument.",
+   "connections": [
+    "Spirit Lake Memorial Hwy (SR-504) from Castle Rock, 52 mi to Johnston Ridge",
+    "South side: Ape Cave lava tube, Climber's Bivouac route to the rim (permit)",
+    "Pumice plain research area between crater and Spirit Lake"
+   ]
+  },
+  "mount adams": {
+   "elevation_m": 3743,
+   "facts": "12,281 ft, second highest peak in Washington, east of St. Helens in the Gifford Pinchot NF. Heavily glaciated, popular non-technical south route summit climb.",
+   "connections": [
+    "Trout Lake, WA is the gateway community",
+    "South Climb trailhead via FR-23/8040"
+   ]
+  },
+  "mount hood": {
+   "elevation_m": 3429,
+   "facts": "11,239 ft, highest Oregon peak, glaciated stratovolcano. Timberline Lodge (WPA, 1937) at 5,960 ft on the south flank; year-round skiing on Palmer snowfield. Timberline Trail: 40 mi loop.",
+   "connections": [
+    "US-26 from Portland (~60 mi to Government Camp)",
+    "Timberline Rd (FR-2656) 6 mi up to the lodge",
+    "Mt. Hood Meadows and Ski Bowl resorts on the east/west sides"
+   ]
+  },
+  "glacier peak": {
+   "elevation_m": 3213,
+   "facts": "10,541 ft, most isolated of Washington's five major volcanoes, in Glacier Peak Wilderness (Henry M. Jackson). Erupted as recently as ~1700. No road access; 10+ mi hike in via Darrington or Lake Chelan sides.",
+   "connections": [
+    "Nearest roadheads: Suiattle River Rd from Darrington, or Image Lake via Chiwawa drainage"
+   ]
+  },
+  "snoqualmie pass": {
+   "elevation_m": 921,
+   "facts": "I-90 summit, 3,022 ft, across the Cascades. Ski areas (Summit at Snoqualmie), Snoqualmie Summit tunnel trail (John Wayne Pioneer Trail). Heavy snow: avg ~450 in/yr; requires chains sometimes.",
+   "connections": [
+    "I-5 Seattle to Snoqualmie Pass ~50 mi; Ellensburg on the east side, 50 mi further",
+    "Alternative in winter: US-2 Stevens Pass or White Pass SR-410/12"
+   ]
+  },
+  "stevens pass": {
+   "elevation_m": 1241,
+   "facts": "US-2 summit, 4,061 ft. Stevens Pass ski area; heavy avalanche terrain; closed occasionally in winter. Scenic Railway (formerly) and the Iron Goat Trail (old GN grade, site of 1910 Wellington disaster) below the pass.",
+   "connections": [
+    "US-2 from Monroe (west, 40 mi) to Leavenworth (east, 35 mi)",
+    "US-2 continues to Wenatchee via Tumwater Canyon"
+   ]
+  },
+  "hurricane ridge": {
+   "elevation_m": 1598,
+   "facts": "5,242 ft viewpoint in Olympic NP, 17 mi south of Port Angeles. Panoramas of the Olympic crest, Mt. Anderson, and across the Strait to Victoria. Road open year-round (weather permitting); lifts-free sledding/tubing in winter.",
+   "connections": [
+    "Hurricane Ridge Rd from Port Angeles",
+    "Obstruction Point Rd (rough, summer only) continues 8 mi further"
+   ]
+  },
+  "deception pass": {
+   "elevation_m": 0,
+   "facts": "Narrow tidal channel between Whidbey and Fidalgo Islands; currents can exceed 8 knots. Deception Pass Bridge (1935), 180 ft above the water, is the most-photographed structure in Washington. State park is WA's most visited.",
+   "connections": [
+    "SR-20 crosses the bridge: no ferry needed to reach Whidbey's north end",
+    "From the south: Whidbey via Clinton-Mukilteo ferry then SR-525/20"
+   ]
+  },
+  "leavenworth": {
+   "population": 2400,
+   "elevation_m": 380,
+   "facts": "Bavarian-themed town in the Wenatchee foothills that reinvented itself in the 1960s after the railroad/rail moved away. Oktoberfest, Christmas lighting, Nutcracker Museum. Icicle Creek canyon and Enchantments permit area nearby.",
+   "connections": [
+    "US-2, 35 mi west over Stevens Pass to Monroe",
+    "Chumstick Rd to Plain/Lake Wenatchee"
+   ]
+  },
+  "winthrop": {
+   "population": 400,
+   "elevation_m": 572,
+   "facts": "Western-themed town in the Methow Valley, Okanogan County WA. Gateway to the nation's largest cross-country ski network (Mazama-to-Winthrop, 120+ mi groomed). North Cascades Highway western terminus.",
+   "connections": [
+    "SR-20 (North Cascades Hwy) west over Washington Pass and Rainy Pass to Newhalem (~60 mi)",
+    "SR-153 south along the Methow to Pateros/US-97"
+   ]
+  },
+  "north cascades highway": {
+   "elevation_m": 0,
+   "facts": "SR-20, the most scenic highway in Washington. Washington Pass 5,477 ft; Rainy Pass trailhead for Pacific Crest Trail/Maple Pass. Closed Nov-April (~4.5 mi stretch between Newhalem and Mazama) due to avalanche danger.",
+   "connections": [
+    "West end: Burlington/I-5; east end: Winthrop/Twisp",
+    "Reopens typically late April/May; check WSDOT"
+   ]
+  },
+  "columbia river gorge": {
+   "elevation_m": 0,
+   "facts": "80-mile canyon of the Columbia through the Cascades, forming the WA/OR boundary. National Scenic Area (1986). Waterfall alley on the Oregon side: Multnomah Falls (620 ft, most visited OR natural site), 30+ major falls. Windsurfing/kiteboarding capital at Hood River.",
+   "connections": [
+    "I-84 on the Oregon side; SR-14 on the Washington side",
+    "Historic Columbia River Hwy and its pedestrian loops",
+    "Bridge of the Gods (Cascade Locks) and Hood River bridge cross the river"
+   ]
+  },
+  "crater lake": {
+   "elevation_m": 2432,
+   "facts": "Oregon's only national park. Deepest lake in the US (1,943 ft), formed when Mt. Mazama collapsed ~7,700 years ago. Rim Drive 33 mi; Rim Village and Cleetwood Cove (only lake access trail, 1.1 mi steep).",
+   "connections": [
+    "South entrance on OR-62 from Medford/Klamath Falls area",
+    "Rim Drive open July-Oct (north rim shorter season)"
+   ]
+  },
+  "mount hood railroad": {
+   "elevation_m": 0,
+   "facts": "Heritage railroad from Hood River to Parkdale, 22 mi, built 1906 for fruit shipping.",
+   "connections": [
+    "Depot in downtown Hood River at the I-84 exit"
+   ]
+  },
+  "poulsbo": {
+   "population": 11600,
+   "elevation_m": 8,
+   "facts": "Norwegian-heritage town on Liberty Bay, Kitsap WA. 'Little Norway'; Poulsbo Bread, Maritime Museum, summer Viking Fest.",
+   "connections": [
+    "SR-305 to Bainbridge ferry (15 min ride to Seattle across the Sound from Winslow, 35 min)",
+    "SR-3 corridor to Bremerton"
+   ]
+  },
+  "vancouver wa": {
+   "population": 190000,
+   "elevation_m": 50,
+   "facts": "Fourth largest WA city, on the Columbia opposite Portland OR. Fort Vancouver NHS (Hudson's Bay Co. fur trade HQ, 1825) and Pearson Field, one of the oldest operating airfields in the US.",
+   "connections": [
+    "I-5 and I-205 bridges to Portland",
+    "SR-14 scenic route east through the Gorge",
+    "I-5 north to Centralia/Chehalis (~90 mi to Seattle)"
+   ]
+  },
+  "astoria": {
+   "population": 10000,
+   "elevation_m": 8,
+   "facts": "Oldest US settlement west of the Rockies (1811, John Jacob Astor's fur post). Clatsop County seat OR. Astoria Column, Columbia River Maritime Museum, Goonies filming sites. Mouth of the Columbia: 'Graveyard of the Pacific.', ~2,000 ships lost.",
+   "connections": [
+    "US-101 Astoria-Megler Bridge (4.1 mi) crosses the Columbia to WA",
+    "US-26 east to Portland, ~96 mi",
+    "Cape Disappointment and Fort Stevens at the river mouth"
+   ]
+  },
+  "bend": {
+   "population": 100000,
+   "elevation_m": 1110,
+   "facts": "Largest city in central Oregon, Deschutes County seat. High-desert climate with 300 days of sun; ~3,600 ft elevation. Craft beer capital (Deschutes Brewery etc.), Mt. Bachelor 22 mi west.",
+   "connections": [
+    "US-97 north-south spine",
+    "Cascade Lakes Hwy (SR-372/46) scenic summer loop",
+    "Santiam Pass US-20 to Salem, 130 mi"
+   ]
+  },
+  "spokane": {
+   "population": 230000,
+   "elevation_m": 590,
+   "facts": "Second-largest WA city, on the Spokane River. Hosted Expo '74, the first environmentally themed world's fair, in what is now Riverfront Park (grand 1974 US Pavilion cable structure). Spokane Falls runs through downtown.",
+   "connections": [
+    "I-90 terminus city; Seattle 280 mi west",
+    "US-2 west to Wenatchee/Leavenworth",
+    "Palouse wheat country and Idaho (Coeur d'Alene 33 mi east)"
+   ]
+  },
+  "walla walla": {
+   "population": 35000,
+   "elevation_m": 300,
+   "facts": "SE Washington wine country (over 100 wineries; Cab Sauv/Syrah). Whitman Mission NHS nearby; 1847 attack catalyzed the creation of Washington Territory. Famous sweet onions.",
+   "connections": [
+    "US-12 main route; Tri-Cities 55 mi NW",
+    "Portland 245 mi; Seattle 270 mi"
+   ]
+  },
+  "hoh rain forest": {
+   "elevation_m": 180,
+   "facts": "Temperate rain forest in Olympic NP's west side, up to 140 in/yr rain. Hall of Mosses trail 0.8 mi; bigleaf maple draped in club moss. Elk herds in the meadows. UNESCO Biosphere.",
+   "connections": [
+    "Upper Hoh Rd from US-101 at Forks area, ~13 mi inland",
+    "Olympic NP entrance fee station at the visitor center"
+   ]
+  }
+ },
+ "ferries": [
+  {
+   "route": "Seattle-Bainbridge",
+   "operator": "WSF",
+   "crossing": "35 min",
+   "notes": "Most-used WSF run; drive-on, no reservations."
+  },
+  {
+   "route": "Seattle-Bremerton",
+   "operator": "WSF",
+   "crossing": "60 min",
+   "notes": "Rich Passage route; no reservations."
+  },
+  {
+   "route": "Edmonds-Kingston",
+   "operator": "WSF",
+   "crossing": "30 min",
+   "notes": "Main Kitsap Peninsula link from the east side of Puget Sound."
+  },
+  {
+   "route": "Mukilteo-Clinton",
+   "operator": "WSF",
+   "crossing": "20 min",
+   "notes": "Shortest run onto south Whidbey Island; frequent sailings."
+  },
+  {
+   "route": "Coupeville-Port Townsend",
+   "operator": "WSF",
+   "crossing": "30 min",
+   "notes": "KEY Olympic Peninsula shortcut. Keystone landing; reservations strongly advised; limited sailings (roughly every 1.5-2 hr)."
+  },
+  {
+   "route": "Anacortes-San Juan Islands (Friday Harbor/Orcas/Lopez/Shaw)",
+   "operator": "WSF",
+   "crossing": "1-1.5 hr",
+   "notes": "Vehicle reservations recommended in summer; eastbound international run via Sidney BC seasonal."
+  },
+  {
+   "route": "Anacortes-Sidney BC",
+   "operator": "WSF",
+   "crossing": "3 hr",
+   "notes": "Seasonal; passport required."
+  },
+  {
+   "route": "Port Angeles-Victoria",
+   "operator": "Black Ball Coho",
+   "crossing": "90 min",
+   "notes": "Vehicle ferry; passport required."
+  },
+  {
+   "route": "Seattle-Victoria",
+   "operator": "Clipper",
+   "crossing": "3 hr",
+   "notes": "Passengers only, no cars."
+  },
+  {
+   "route": "Fauntleroy-Southworth-Vashon",
+   "operator": "WSF",
+   "crossing": "20-40 min",
+   "notes": "Triangle route serving Vashon Island and the south Kitsap Peninsula."
+  },
+  {
+   "route": "Point Defiance-Tahlequah",
+   "operator": "WSF",
+   "crossing": "15 min",
+   "notes": "South end of Vashon Island from Tacoma."
+  },
+  {
+   "route": "Steilacoom-Anderson Island",
+   "operator": "Pierce County",
+   "crossing": "20 min",
+   "notes": "County-run; small run to Anderson/Ketron islands."
+  }
+ ],
+ "routes": {
+  "bellingham|port townsend": {
+   "road_mi": 62,
+   "time": "about 1 hr 45 min",
+   "notes": "Fastest: SR-20 via Deception Pass Bridge onto Whidbey Is., SR-20 to Coupeville, Coupeville-Port Townsend ferry (30 min, reservation). Alternative without that ferry: I-5 to Seattle, Bainbridge ferry, SR-104 across Hood Canal Bridge, ~150 mi and 4+ hr. NOT via US-101 around: there is no road across the eastern Olympics without the Hood Canal crossing."
+  },
+  "bellingham|seattle": {
+   "road_mi": 88,
+   "time": "about 1 hr 30 min",
+   "notes": "I-5 the whole way."
+  },
+  "port townsend|seattle": {
+   "road_mi": 60,
+   "time": "about 1 hr 50 min (with ferry)",
+   "notes": "Bainbridge or Kingston ferry to the Kitsap side; SR-104 over the Hood Canal Bridge (or via SR-19/104) to Port Townsend."
+  },
+  "port angeles|seattle": {
+   "road_mi": 82,
+   "time": "about 2 hr 15 min (with ferry)",
+   "notes": "Edmonds-Kingston ferry then SR-104/101, or Bainbridge ferry + SR-104. Direct drive around via Tacoma is ~130 mi."
+  },
+  "port angeles|port townsend": {
+   "road_mi": 47,
+   "time": "about 55 min",
+   "notes": "US-101 along Discovery Bay. No ferry involved."
+  },
+  "port angeles|victoria": {
+   "road_mi": 0,
+   "time": "90 min ferry",
+   "notes": "Black Ball Coho vehicle ferry, multiple daily sailings; passport required."
+  },
+  "seattle|victoria": {
+   "road_mi": 0,
+   "time": "3 hr ferry",
+   "notes": "Clipper passenger ferry from downtown Seattle."
+  },
+  "seattle|vancouver bc": {
+   "road_mi": 141,
+   "time": "about 2 hr 30 min",
+   "notes": "I-5 to the border at Blaine, then BC-99."
+  },
+  "seattle|portland": {
+   "road_mi": 173,
+   "time": "about 2 hr 45 min",
+   "notes": "I-5 the whole way."
+  },
+  "portland|astoria": {
+   "road_mi": 96,
+   "time": "about 1 hr 45 min",
+   "notes": "US-26 over the Coast Range."
+  },
+  "portland|bend": {
+   "road_mi": 160,
+   "time": "about 3 hr",
+   "notes": "US-26 over Mount Hood, or Santiam Pass US-20 via Salem, similar time."
+  },
+  "seattle|leavenworth": {
+   "road_mi": 118,
+   "time": "about 2 hr",
+   "notes": "US-2 over Stevens Pass; I-90/Snoqualmie to Blewett Pass is the alternative."
+  },
+  "seattle|spokane": {
+   "road_mi": 279,
+   "time": "about 4 hr 15 min",
+   "notes": "I-90 over Snoqualmie Pass."
+  },
+  "seattle|whidbey island": {
+   "road_mi": 65,
+   "time": "about 1 hr 30 min (with ferry)",
+   "notes": "I-5 to Mukilteo, ferry to Clinton (20 min), then SR-525/20 up the island."
+  },
+  "port townsend|sequim": {
+   "road_mi": 25,
+   "time": "about 30 min",
+   "notes": "US-101; no ferry."
+  },
+  "bremerton|seattle": {
+   "road_mi": 0,
+   "time": "60 min ferry",
+   "notes": "WSF Bremerton ferry, or drive around via Tacoma Narrows, 75 mi, 90 min."
+  },
+  "bremerton|tacoma": {
+   "road_mi": 40,
+   "time": "about 50 min",
+   "notes": "SR-16 across the Tacoma Narrows Bridge (toll)."
+  },
+  "aberdeen|seattle": {
+   "road_mi": 110,
+   "time": "about 2 hr",
+   "notes": "US-12/I-5, or SR-16/US-101 via Olympia."
+  },
+  "port angeles|forks": {
+   "road_mi": 56,
+   "time": "about 1 hr 10 min",
+   "notes": "US-101 along Lake Crescent (12 mi lake, 600+ ft deep)."
+  },
+  "olympia|port angeles": {
+   "road_mi": 130,
+   "time": "about 2 hr 20 min",
+   "notes": "US-101 along Hood Canal, across the Hood Canal Bridge."
+  },
+  "vancouver wa|portland": {
+   "road_mi": 10,
+   "time": "about 20 min",
+   "notes": "I-5 or I-205 bridge; technically the same metro area."
+  },
+  "bellingham|mount baker": {
+   "road_mi": 56,
+   "time": "about 1 hr 15 min",
+   "notes": "SR-542 (Mt. Baker Hwy) to Artist Point (summer only); ski area at 48 mi."
+  },
+  "kingston|edmonds": {
+   "road_mi": 9,
+   "time": "about 35 min ferry crossing",
+   "notes": "WSF Edmonds-Kingston ferry (30 min crossing plus terminal wait). No road route across Puget Sound; driving around is 80+ mi via Tacoma Narrows."
+  }
+ }
+}

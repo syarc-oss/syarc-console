@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Add PMS Transaction - Pecuniary{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+            <li class="breadcrumb-item"><a href="/pecuniary/pms/select">Precious Metals</a></li>
+            <li class="breadcrumb-item active">Add Transaction</li>
+        </ol>
+    </nav>
+    <div class="row">
+    <div class="col-md-12">
+        <h2>Add Precious Metals Transaction</h2>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Transaction Details</h5>
+                <div>
+                    <a href="/pecuniary/pms/?portfolio_id={{ portfolio_id }}" class="btn btn-primary">
+                        <i class="bi bi-list"></i> View Transactions
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="transactionForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="metal" class="form-label">Metal</label>
+                                <select class="form-select" id="metal" name="metal" required>
+                                    <option value="">Select Metal</option>
+                                    <option value="gold">Gold</option>
+                                    <option value="silver">Silver</option>
+                                    <option value="platinum">Platinum</option>
+                                    <option value="palladium">Palladium</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date_purchased" class="form-label">Date Purchased</label>
+                                <input type="date" class="form-control" id="date_purchased" name="date_purchased" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="date_received" class="form-label">Date Received</label>
+                                <input type="date" class="form-control" id="date_received" name="date_received" value="">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="vendor" class="form-label">Vendor</label>
+                                <input type="text" class="form-control" id="vendor" name="vendor" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="units" class="form-label">Units</label>
+                                <input type="number" class="form-control" id="units" name="units" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="mint" class="form-label">Mint</label>
+                                <input type="text" class="form-control" id="mint" name="mint" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <input type="text" class="form-control" id="description" name="description" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cost" class="form-label">Total Cost ($)</label>
+                                <input type="number" class="form-control" id="cost" name="cost" step="0.01" min="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="ounces" class="form-label">Total Ounces</label>
+                                <input type="number" class="form-control" id="ounces" name="ounces" step="0.001" min="0.001" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="disposition" class="form-label">Disposition</label>
+                                <select class="form-select" id="disposition" name="disposition" required>
+                                    <option value="pending">Pending</option>
+                                    <option value="held">Held</option>
+                                    <option value="transferred">Transferred</option>
+                                    <option value="sold">Sold</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">Save Transaction</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- Update app/templates/pms/input.html to use formatCurrency -->
+
+{% block scripts %}
+<script>
+    // --- HELPER FUNCTIONS ---
+    async function authenticatedFetch(url, options = {}) {
+        options.credentials = options.credentials || 'include';
+        options.headers = options.headers || {};
+        if (options.body) {
+            if (!options.headers['Content-Type'] && !options.headers['content-type']) {
+                options.headers['Content-Type'] = 'application/json';
+            }
+        }
+        const response = await fetch(url, options);
+        return response;
+    }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set today's date as default for date_purchased
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date_purchased').value = today;
+    
+    // Transaction form submission
+    document.getElementById('transactionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        // Convert numeric fields
+        data.units = parseFloat(data.units);
+        data.cost = parseFloat(data.cost);
+        data.ounces = parseFloat(data.ounces);
+
+        // FIX: Handle empty date_received
+        // If the date input is empty, formData returns an empty string.
+        // Pydantic Optional[date] requires null, not an empty string.
+        if (data.date_received === "") {
+            data.date_received = null;
+        }
+        
+        authenticatedFetch('/pecuniary/pms/transactions?portfolio_id={{ portfolio_id }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(text => {
+                    throw new Error(`HTTP ${response.status}: ${JSON.stringify(text)}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.id) {
+                alert('Transaction saved successfully!');
+                document.getElementById('transactionForm').reset();
+                // Reset date to today
+                document.getElementById('date_purchased').value = today;
+            } else {
+                alert('Failed to save transaction');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (error.message !== 'Redirecting to login') {
+                alert('Error saving transaction: ' + error.message);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

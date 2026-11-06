@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ garden.name if garden else "New Garden" }} - Gardens{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/garden/">Gardens</a></li>
+        <li class="breadcrumb-item active">{{ garden.name if garden else "New Garden" }}</li>
+    </ol>
+</nav>
+
+<h2>{{ "Edit Garden" if garden else "New Garden" }}</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" action="{{ '/agriculture/agronomy/garden/' ~ garden.id ~ '/edit' if garden else '/agriculture/agronomy/garden/new' }}">
+            <div class="mb-3">
+                <label for="name" class="form-label">Garden Name</label>
+                <input type="text" class="form-control" id="name" name="name"
+                       value="{{ garden.name if garden else '' }}" required>
+            </div>
+            <div class="mb-3">
+                <label for="location" class="form-label">Location</label>
+                <input type="text" class="form-control" id="location" name="location"
+                       value="{{ garden.location if garden and garden.location else '' }}"
+                       placeholder="e.g. South field, Greenhouse 1">
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="2">{{ garden.description if garden else '' }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle"></i> {{ "Update" if garden else "Create" }} Garden
+            </button>
+            <a href="/agriculture/agronomy/garden/" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

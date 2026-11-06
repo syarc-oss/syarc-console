@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Import Books - {{ topic.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+                <li class="breadcrumb-item"><a href="/library/ebook/topic/{{ topic.id }}">{{ topic.name }}</a></li>
+                <li class="breadcrumb-item active">Import</li>
+            </ol>
+        </nav>
+        <h3 class="mt-3"><i class="bi bi-upload"></i> Import Books into {{ topic.name }}</h3>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <form action="/library/ebook/topic/{{ topic.id }}/import-path" method="POST">
+                    <div class="mb-3">
+                        <label for="import_path" class="form-label">Import Path</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="import_path" name="import_path"
+                                   placeholder="/path/to/directory/or/file" required>
+                            <button type="button" class="btn btn-outline-secondary" id="dirBrowserSelectBtn">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Browse or enter the path to a directory containing epub/pdf files, or a single file path. Books will be imported into <code>{{ topic.directory_path }}</code></div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="make_public" name="make_public"
+                               {% if topic.is_public %}checked{% endif %}>
+                        <label class="form-check-label" for="make_public">Make imported books public</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-upload"></i> Import</button>
+                    <a href="/library/ebook/topic/{{ topic.id }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5>Scan Topic Directory</h5>
+                <p class="text-muted">Rescan the topic directory for any new ebook files.</p>
+                <button class="btn btn-outline-primary" onclick="rescanTopic()">
+                    <i class="bi bi-arrow-clockwise"></i> Rescan Directory
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function rescanTopic() {
+    if (!confirm('Rescan topic directory for new books?')) return;
+    try {
+        const res = await fetch('/library/ebook/topic/{{ topic.id }}/rescan', {method: 'POST'});
+        const data = await res.json();
+        alert(data.message);
+        if (res.ok) location.href = '/library/ebook/topic/{{ topic.id }}';
+    } catch(e) { alert('Error rescanning topic.'); }
+}
+
+var DIR_BROWSER_ROOT = "ebook";
+var DIR_BROWSER_INPUT_ID = "import_path";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "{{ topic.directory_path }}";
+</script>
+{% include "library/dir_browser.html" %}
+{% endblock %}

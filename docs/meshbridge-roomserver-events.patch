@@ -1,0 +1,74 @@
+diff --git a/examples/simple_room_server/MyMesh.cpp b/examples/simple_room_server/MyMesh.cpp
+index 546d094f..9980cba0 100644
+--- a/examples/simple_room_server/MyMesh.cpp
++++ b/examples/simple_room_server/MyMesh.cpp
+@@ -1,5 +1,33 @@
+ #include "MyMesh.h"
+ 
++// ---------------------------------------------------------------------------
++// Bear Den bridge: structured event lines for the serial bridge daemon.
++// Every event is one ASCII-safe line:  BRIDGE <json>
++// The daemon greps for the "BRIDGE " prefix and ignores everything else
++// (CLI echoes, debug logs, stats output).
++static void bridgeEmit(const char *json) {
++  Serial.print("BRIDGE ");
++  Serial.println(json);
++}
++
++static void bridgeJsonEscape(char *dst, size_t dstSize, const char *src) {
++  size_t o = 0;
++  for (size_t i = 0; src[i] && o + 7 < dstSize; i++) {
++    char c = src[i];
++    if (c == '"' || c == '\\') { dst[o++] = '\\'; dst[o++] = c; }
++    else if ((uint8_t)c < 0x20) { o += snprintf(&dst[o], dstSize - o, "\\u%04x", (uint8_t)c); }
++    else dst[o++] = c;
++  }
++  dst[o] = 0;
++}
++
++static void bridgeKeyHex(char *dst, const uint8_t *key) {
++  for (int i = 0; i < 4; i++) sprintf(&dst[i * 2], "%02X", key[i]);
++  dst[8] = 0;
++}
++// ---------------------------------------------------------------------------
++
++
+ #define REPLY_DELAY_MILLIS          1500
+ #define PUSH_NOTIFY_DELAY_MILLIS    2000
+ #define SYNC_PUSH_INTERVAL          1200
+@@ -64,6 +92,19 @@ void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
+   next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS);
+   _num_posted++; // stats
+   MESH_DEBUG_PRINTLN("room.post: next_post_idx=%d num_posted=%d push scheduled", next_post_idx, _num_posted);
++
++  // bridge event: every stored post, whoever authored it (clients, admins,
++  // and our own room.post injections - "sys":1 lets the daemon dedupe).
++  {
++    char esc[MAX_POST_TEXT_LEN * 2];
++    char key[9];
++    char ev[80 + MAX_POST_TEXT_LEN * 2];
++    bridgeJsonEscape(esc, sizeof(esc), posts[idx].text);
++    bridgeKeyHex(key, author.pub_key);
++    snprintf(ev, sizeof(ev), "{\"evt\":\"msg\",\"key\":\"%s\",\"ts\":%lu,\"sys\":%d,\"text\":\"%s\"}",
++             key, (unsigned long)posts[idx].post_timestamp, author.matches(self_id) ? 1 : 0, esc);
++    bridgeEmit(ev);
++  }
+ }
+ 
+ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
+@@ -390,6 +431,15 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
+     getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
+     reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
+ 
++    // bridge event: a client just logged in (joined the room)
++    {
++      char key[9];
++      char ev[80];
++      bridgeKeyHex(key, sender.pub_key);
++      snprintf(ev, sizeof(ev), "{\"evt\":\"join\",\"key\":\"%s\",\"perm\":%d}", key, client->permissions);
++      bridgeEmit(ev);
++    }
++
+     next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS); // delay next push, give RESPONSE packet time to arrive first
+ 
+     if (packet->isRouteFlood()) {

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Albums - Photos{% endblock %}
+
+{% block content %}
+<style>
+    .album-card { transition: transform 0.2s, box-shadow 0.2s; height: 100%; cursor: pointer; }
+    .album-card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/library/photo/">Photos</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Albums</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-collection"></i> Browse Albums</h2>
+            <div class="d-flex gap-2">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-list-ol"></i> {{ per_page }} per page
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">Albums per page</h6></li>
+                        {% for pp in [24, 48, 72, 96, 120] %}
+                        <li>
+                            <a class="dropdown-item {% if per_page == pp %}active{% endif %} per-page-option" href="?page=1&per_page={{ pp }}">{{ pp }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-secondary">
+            Showing {{ albums|length }} of {{ total }} accessible albums
+        </div>
+
+        {% if albums %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
+            {% for item in albums %}
+            <div class="col">
+                <div class="card album-card" onclick="window.location='/library/photo/album/{{ item.id }}'">
+                    <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="aspect-ratio: 1/1;">
+                        <div class="text-center text-muted">
+                            <i class="bi bi-images" style="font-size: 2rem;"></i>
+                            <div class="mt-1">{{ item.photo_count }} photos</div>
+                        </div>
+                    </div>
+                    <div class="card-body p-2">
+                        <h6 style="font-size: 0.85rem;">{{ item.name }}</h6>
+                        <small class="text-muted">by {{ item.owner_username if item.owner_username is defined else '' }}</small>
+                        <div class="mt-1">
+                            {% if item.is_public %}
+                            <span class="badge bg-success">Public</span>
+                            {% else %}
+                            <span class="badge bg-info">Shared</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info">No accessible albums found.</div>
+        {% endif %}
+
+        {% if total_pages > 1 %}
+        <nav class="mt-4" aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item"><a class="page-link" href="?page={{ current_page - 1 }}&per_page={{ per_page }}">Previous</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                {% endif %}
+
+                {% set start_page = [1, current_page - 2]|max %}
+                {% set end_page = [total_pages, current_page + 2]|min %}
+
+                {% if start_page > 1 %}
+                <li class="page-item"><a class="page-link" href="?page=1&per_page={{ per_page }}">1</a></li>
+                {% if start_page > 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endif %}
+
+                {% for p in range(start_page, end_page + 1) %}
+                <li class="page-item {% if p == current_page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+
+                {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                <li class="page-item"><a class="page-link" href="?page={{ total_pages }}&per_page={{ per_page }}">{{ total_pages }}</a></li>
+                {% endif %}
+
+                {% if current_page < total_pages %}
+                <li class="page-item"><a class="page-link" href="?page={{ current_page + 1 }}&per_page={{ per_page }}">Next</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var STORAGE_KEY = 'photo_browse_per_page';
+    var currentPerPage = {{ per_page }};
+
+    document.querySelectorAll('.per-page-option').forEach(function(link) {
+        link.addEventListener('click', function() {
+            var href = this.getAttribute('href');
+            var match = href.match(/per_page=(\d+)/);
+            if (match) {
+                localStorage.setItem(STORAGE_KEY, match[1]);
+            }
+        });
+    });
+
+    document.querySelectorAll('.pagination .page-link').forEach(function(link) {
+        var href = link.getAttribute('href');
+        if (href && !href.includes('per_page=')) {
+            link.setAttribute('href', href + '&per_page=' + currentPerPage);
+        }
+    });
+})();
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

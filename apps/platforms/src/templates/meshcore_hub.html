@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}MeshCore{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item active">MeshCore</li>
+  </ol>
+</nav>
+<h2 class="mb-3"><i class="bi bi-broadcast-pin"></i> MeshCore</h2>
+<div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+  <div class="col"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Transport</h6>
+    <h5><span class="badge {{ 'bg-success' if radio_connected else 'bg-secondary' }}">{{ 'connected' if radio_connected else 'offline' }}</span></h5>
+    <small class="text-muted">{{ 'MeshCore radio (direct)' if transport == 'radio' else 'mesh broker' }}</small>
+    {% if transport_detail %}<div><small class="text-body-secondary font-monospace">{{ transport_detail }}</small></div>{% endif %}
+  </div></div></div>
+  <div class="col"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Contacts</h6>
+    <h3>{{ contact_count }}</h3>
+    <small class="text-muted">directory (max 350)</small>
+  </div></div></div>
+  <div class="col"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Followed channels</h6>
+    <h3>{{ followed_count }}</h3>
+    <small class="text-muted">channel 0 is Public</small>
+  </div></div></div>
+</div>
+<div class="row g-3 w-75">
+  <div class="col-md-6"><div class="list-group">
+    <a class="list-group-item list-group-item-action" href="/platforms/meshcore/contacts"><i class="bi bi-people"></i> Contacts</a>
+    <a class="list-group-item list-group-item-action" href="/platforms/meshcore/channels"><i class="bi bi-collection"></i> Channels</a>
+    <a class="list-group-item list-group-item-action" href="https://cascadiamesh.org/map/" target="_blank" rel="noopener"><i class="bi bi-map"></i> Cascadia mesh map</a>
+  </div></div>
+  <div class="col-md-6"><div class="list-group">
+    <a class="list-group-item list-group-item-action" href="/platforms/meshcore/settings"><i class="bi bi-gear"></i> Settings</a>
+  </div></div>
+</div>
+{% endblock %}

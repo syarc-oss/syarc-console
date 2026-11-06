@@ -1,0 +1,17 @@
+[Unit]
+Description=syarc console
+After=network.target go2rtc.service
+
+[Service]
+Type=simple
+User=syarc
+Group=syarc
+WorkingDirectory=/usr/local/dev_apps/syarc-console
+Environment="DATABASE_URL=sqlite:///usr/local/dev_apps/syarc-console/syarc-console.db?mode=rwc"
+Environment="RUST_LOG=info"
+ExecStart=/usr/local/dev_apps/syarc-console/target/release/syarc-console
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

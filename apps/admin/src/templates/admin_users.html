@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Users — Admin{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Users</h2>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newUser">New user</button>
+</div>
+<table class="table table-hover bg-white shadow-sm">
+  <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Active</th><th>Apps</th><th>Last login</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.username }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.role }}</td>
+      <td>{{ "yes" if u.is_active else "no" }}</td>
+      <td>{{ "all" if u.is_admin else u.permissions|length }}</td>
+      <td>{{ u.last_login_at or "never" }}</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editUser{{ u.id }}">Edit</button>
+        {% if not u.is_admin %}
+        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#permUser{{ u.id }}">Apps</button>
+        {% endif %}
+        {% if u.id != me_id %}
+        <form method="post" action="/admin/users/{{ u.id }}/delete" class="d-inline">
+          <button class="btn btn-sm btn-outline-danger">{{ "Disable" if u.is_active else "Enable" }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% for u in users %}
+<div class="modal fade" id="editUser{{ u.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="/admin/users/{{ u.id }}">
+      <div class="modal-header"><h5 class="modal-title">Edit {{ u.username }}</h5></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" value="{{ u.username }}" required></div>
+        <div class="mb-3"><label class="form-label">Email</label><input class="form-control" type="email" name="email" value="{{ u.email }}" required></div>
+        <div class="mb-3"><label class="form-label">Role</label>
+          <select class="form-select" name="role">
+            <option value="user" {{ "selected" if u.role == "user" }}>user</option>
+            <option value="admin" {{ "selected" if u.role == "admin" }}>admin</option>
+          </select>
+        </div>
+        <div class="mb-3 form-check">
+          <input class="form-check-input" type="checkbox" name="is_active" value="1" id="act{{ u.id }}" {{ "checked" if u.is_active }}>
+          <label class="form-check-label" for="act{{ u.id }}">Active</label>
+        </div>
+        <div class="mb-3"><label class="form-label">New password (leave blank to keep)</label><input class="form-control" type="password" name="password"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% if not u.is_admin %}
+<div class="modal fade" id="permUser{{ u.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="/admin/users/{{ u.id }}/permissions">
+      <div class="modal-header"><h5 class="modal-title">App access — {{ u.username }}</h5></div>
+      <div class="modal-body">
+        {% for a in apps %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="perm_{{ a.id }}" value="1" id="p{{ u.id }}_{{ a.id }}" {{ "checked" if a.id in u.permissions }}>
+          <label class="form-check-label" for="p{{ u.id }}_{{ a.id }}">{{ a.name }}</label>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<h3 class="mt-4">Mesh radio accounts</h3>
+<p class="text-muted">Auto-provisioned bindings between mesh radio nodes and DM/channel targets. These are not logins — manage them from the Platforms app.</p>
+<table class="table table-hover bg-white shadow-sm">
+  <thead><tr><th>ID</th><th>Account</th><th>Active</th><th></th></tr></thead>
+  <tbody>
+  {% for u in mesh_users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td><span class="me-1">📡</span>{{ u.username }}</td>
+      <td>{{ "yes" if u.is_active else "no" }}</td>
+      <td class="text-end">
+        <form method="post" action="/admin/users/{{ u.id }}/delete" class="d-inline">
+          <button class="btn btn-sm btn-outline-danger">{{ "Disable" if u.is_active else "Enable" }}</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="modal fade" id="newUser" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="/admin/users">
+      <div class="modal-header"><h5 class="modal-title">New user</h5></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Username</label><input class="form-control" name="username" required></div>
+        <div class="mb-3"><label class="form-label">Email</label><input class="form-control" type="email" name="email" required></div>
+        <div class="mb-3"><label class="form-label">Password</label><input class="form-control" type="password" name="password" minlength="8" required></div>
+        <div class="mb-3"><label class="form-label">Role</label>
+          <select class="form-select" name="role"><option value="user">user</option><option value="admin">admin</option></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

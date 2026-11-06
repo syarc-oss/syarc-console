@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Channels — syarc console{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+  <h1 class="h2">Mesh Channels</h1>
+  <div class="btn-toolbar mb-2 mb-md-0">
+    <a class="btn btn-sm btn-outline-secondary" href="/platforms/messaging/">Back to Messages</a>
+  </div>
+</div>
+
+{% if channels %}
+<div class="list-group">
+  {% for ch in channels %}
+  <div class="list-group-item d-flex justify-content-between align-items-center">
+    <div>
+      <strong>#{{ ch.idx }} {{ ch.name }}</strong>
+      <span class="text-muted ms-2">{{ ch.node_id }}</span>
+      {% if ch.last_activity %}
+      <div class="small text-muted">last activity {{ ch.last_activity|localtime('%b %d, %Y %H:%M') }}</div>
+      {% endif %}
+    </div>
+    <div>
+      {% if ch.conversation_id %}
+        {% if ch.joined %}
+        <a class="btn btn-sm btn-primary"
+           href="/platforms/messaging/conversations/{{ ch.conversation_id }}">Open</a>
+        {% else %}
+        <form method="post" action="/platforms/messaging/channels/{{ ch.idx }}/open" class="d-inline">
+          <button class="btn btn-sm btn-outline-primary">Join</button>
+        </form>
+        {% endif %}
+      {% else %}
+      <form method="post" action="/platforms/messaging/channels/{{ ch.idx }}/open" class="d-inline">
+        <button class="btn btn-sm btn-outline-primary">Open channel</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+  No channels known yet. Channels appear once the radio reports them
+  (on connect it reads the channel list) or after channel traffic is seen.
+</div>
+{% endif %}
+{% endblock %}

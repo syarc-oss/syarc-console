@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Coop - Eggs{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+                    <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+                    <li class="breadcrumb-item"><a href="/eggs/">Eggs</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{% if mode == 'edit' %}Edit{% else %}New{% endif %} Coop</li>
+                </ol>
+            </nav>
+            <div class="card">
+                <div class="card-header">
+                    <h4>{% if mode == 'edit' %}Edit Coop{% else %}Create New Coop{% endif %}</h4>
+                </div>
+                <div class="card-body">
+                    <form action="{% if mode == 'edit' %}/eggs/coop/{{ coop.id }}/edit{% else %}/eggs/coop/new{% endif %}" method="post">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Coop Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                   placeholder="e.g., Main Flock, Backyard Coop"
+                                   value="{% if mode == 'edit' %}{{ coop.name }}{% endif %}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                      placeholder="Optional notes about this coop">{% if mode == 'edit' %}{{ coop.description or '' }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/eggs/" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">{% if mode == 'edit' %}Update Coop{% else %}Create Coop{% endif %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

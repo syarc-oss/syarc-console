@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Search - Movies{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Search</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+            <h2><i class="bi bi-search"></i> Search Movies</h2>
+        </div>
+
+        <form method="GET" action="/library/movie/search" class="mb-4">
+            <div class="input-group">
+                <input type="text" class="form-control" name="q" value="{{ query }}"
+                       placeholder="Search categories and movies..." autofocus>
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </div>
+        </form>
+
+        {% if query %}
+        <div class="alert alert-secondary">
+            {{ total }} result{{ total != 1 }}s for "{{ query }}"
+        </div>
+
+        {% if results %}
+        {% for item in results %}
+        {% if item.type == "category" %}
+        <div class="card mb-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-tags-fill text-primary me-2"></i>
+                        <strong><a href="/library/movie/category/{{ item.category.id }}">{{ item.category.name }}</a></strong>
+                        <span class="text-muted ms-2">Category by {{ item.owner_username }}</span>
+                        <span class="badge bg-secondary ms-2">{{ item.category.movie_count }} movies</span>
+                    </div>
+                    <a href="/library/movie/category/{{ item.category.id }}" class="btn btn-sm btn-outline-primary">
+                        View
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% elif item.type == "movie" %}
+        <div class="card mb-2">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    {% if item.movie.poster_filename %}
+                    <img src="/library/movie/poster/{{ item.movie.id }}"
+                         style="width: 40px; height: 60px; object-fit: cover; border-radius: 4px;"
+                         class="me-3" alt="">
+                    {% else %}
+                    <div class="bg-dark text-white d-flex align-items-center justify-content-center me-3"
+                         style="width: 40px; height: 60px; border-radius: 4px;">
+                        <i class="bi bi-film"></i>
+                    </div>
+                    {% endif %}
+                    <div class="flex-grow-1">
+                        <strong><a href="/library/movie/movie/{{ item.movie.id }}">{{ item.movie.title }}</a></strong>
+                        <span class="text-muted ms-2">
+                            <a href="/library/movie/category/{{ item.category.id }}" class="text-decoration-none text-muted">{{ item.category.name }}</a>
+                            by {{ item.owner_username }}
+                        </span>
+                        {% if item.movie.year %}<span class="ms-2">({{ item.movie.year }})</span>{% endif %}
+                        <span class="badge bg-secondary ms-2">{{ item.movie.file_type|upper }}</span>
+                    </div>
+                    <a href="/library/movie/movie/{{ item.movie.id }}" class="btn btn-sm btn-outline-primary">
+                        View
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        <div class="alert alert-info">No results found for "{{ query }}"</div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

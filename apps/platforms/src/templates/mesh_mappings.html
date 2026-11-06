@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Mesh Bridge{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item active">Mesh Bridge</li>
+  </ol>
+</nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-broadcast"></i> Mesh Bridge Mappings</h2>
+  <a href="/platforms/meshcore/" class="btn btn-outline-secondary btn-sm"><i class="bi bi-broadcast-pin"></i> MeshCore</a>
+</div>
+
+<h4 class="mt-4"><i class="bi bi-cpu"></i> Nodes</h4>
+<p class="text-muted small">MeshCore companion nodes. Mapped nodes appear as users when composing a message.</p>
+<table class="table table-hover bg-white shadow-sm">
+  <thead><tr><th>Node</th><th>Conversation</th><th>Owner</th><th>To</th><th>Watermark</th><th>Enabled</th><th></th></tr></thead>
+  <tbody>
+  {% for m in nodes %}
+    <tr class="{{ "" if m.enabled else "table-secondary" }}">
+      <td>{{ m.node.long_name or m.node.node_id[:12] }}</td>
+      <td><a href="/platforms/messaging/conversations/{{ m.conversation_id }}">{{ m.conversation.subject }}</a></td>
+      <td>{{ m.owner_user_id or "room" }}</td>
+      <td>{{ m.to_user or "" }}</td>
+      <td class="text-nowrap">{{ m.last_forwarded_at }}</td>
+      <td>
+        <form method="post" action="/platforms/messaging/mesh/mappings/{{ m.id }}/toggle" class="d-inline">
+          <button class="btn btn-sm {{ 'btn-outline-secondary' if m.enabled else 'btn-outline-success' }}">
+            {{ "disable" if m.enabled else "enable" }}</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/platforms/messaging/mesh/mappings/{{ m.id }}/delete" class="d-inline">
+          <button class="btn btn-sm btn-outline-danger">delete</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="text-muted">No node mappings. Mappings are auto-created for mesh DMs; add one manually below.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h4 class="mt-4"><i class="bi bi-broadcast-pin"></i> Channels</h4>
+<p class="text-muted small">Public and private MeshCore channels. Channels are listed under Groups on the Messages page.</p>
+<table class="table table-hover bg-white shadow-sm">
+  <thead><tr><th>Channel</th><th>Conversation</th><th>Owner</th><th>Watermark</th><th>Enabled</th><th></th></tr></thead>
+  <tbody>
+  {% for m in channels %}
+    <tr class="{{ "" if m.enabled else "table-secondary" }}">
+      <td>{{ m.node.long_name or m.node.node_id }}</td>
+      <td><a href="/platforms/messaging/conversations/{{ m.conversation_id }}">{{ m.conversation.subject }}</a></td>
+      <td>{{ m.owner_user_id or "room" }}</td>
+      <td class="text-nowrap">{{ m.last_forwarded_at }}</td>
+      <td>
+        <form method="post" action="/platforms/messaging/mesh/mappings/{{ m.id }}/toggle" class="d-inline">
+          <button class="btn btn-sm {{ 'btn-outline-secondary' if m.enabled else 'btn-outline-success' }}">
+            {{ "disable" if m.enabled else "enable" }}</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="/platforms/messaging/mesh/mappings/{{ m.id }}/delete" class="d-inline">
+          <button class="btn btn-sm btn-outline-danger">delete</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="text-muted">No channel mappings. Open a channel from the Messages page to create one.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="card shadow-sm" style="max-width:32rem"><div class="card-body">
+  <h5 class="card-title">New mapping</h5>
+  <form method="post" action="/platforms/messaging/mesh/mappings">
+    <div class="mb-3"><label class="form-label">Node address</label>
+      <input class="form-control" name="node_id" placeholder="pubkey or #chan0" required></div>
+    <div class="mb-3"><label class="form-label">Conversation ID</label>
+      <input class="form-control" name="conversation_id" required></div>
+    <div class="mb-3"><label class="form-label">Owner user (blank = room)</label>
+      <select class="form-select" name="owner_user_id">
+        <option value="">— room (all admins) —</option>
+        {% for u in users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+      </select></div>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div></div>
+{% endblock %}

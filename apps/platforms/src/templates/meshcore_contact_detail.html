@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}MeshCore — {{ contact.name or contact.node_id[:12] }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts">Contacts</a></li>
+    <li class="breadcrumb-item active">{{ contact.name or contact.node_id[:12] }}</li>
+  </ol>
+</nav>
+<h2 class="mb-3">
+  {% if contact.is_favorite %}<span class="text-warning">&#9733; </span>{% endif %}
+  {{ contact.name or "Unnamed node" }}
+  <small class="text-muted">({{ 'chat node' if contact.node_type == 1 else 'repeater' if contact.node_type == 2 else 'room server' if contact.node_type == 3 else 'sensor' if contact.node_type == 4 else 'type ' ~ contact.node_type }})</small>
+</h2>
+
+{% if sent %}
+<div class="alert alert-success">Message sent to the mesh.</div>
+{% endif %}
+{% if send_failed %}
+<div class="alert alert-danger">Message could not be sent — check that the radio transport is connected.</div>
+{% endif %}
+{% if pin_ok %}
+<div class="alert alert-success">Contact pinned on the radio — protected from contact-store eviction.</div>
+{% endif %}
+{% if pin_failed %}
+<div class="alert alert-danger">Could not pin the contact on the radio — check that the radio transport is connected.</div>
+{% endif %}
+{% if room_login_ok %}
+<div class="alert alert-success">Logged in to the room server — posting enabled.</div>
+{% endif %}
+{% if room_login_guest %}
+<div class="alert alert-warning">Logged in, but admitted as a read-only guest — posts will be ignored by the room server.</div>
+{% endif %}
+{% if room_login_failed %}
+<div class="alert alert-danger">Room login failed — wrong password or no response from the room server.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Contact information</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-25">Name</th><td>{{ contact.name or "—" }}</td></tr>
+      <tr><th>Node ID</th><td class="font-monospace" style="word-break:break-all">{{ contact.node_id }}</td></tr>
+      <tr><th>Type</th><td>{{ 'chat node' if contact.node_type == 1 else 'repeater' if contact.node_type == 2 else 'room server' if contact.node_type == 3 else 'sensor' if contact.node_type == 4 else contact.node_type }}</td></tr>
+      <tr><th>Location</th>
+        <td>{% if contact.lat is not none %}
+            {{ "%.4f"|format(contact.lat) }}, {{ "%.4f"|format(contact.lon) }}
+            {% if map_url %} &middot; <a href="{{ map_url }}" target="_blank" rel="noopener"><i class="bi bi-map"></i> view on map</a>{% endif %}
+            {% else %}<span class="text-muted">—</span>{% endif %}</td></tr>
+      <tr><th>Last heard</th><td>{{ contact.last_heard or "—" }}</td></tr>
+      <tr><th>Last synced</th><td>{{ contact.last_synced or "—" }}</td></tr>
+    </table>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Actions</h6>
+    {% if contact.node_type == 3 %}
+    <div class="border rounded p-2 mb-2">
+      <form method="post" action="/platforms/meshcore/contacts/{{ contact.node_id }}/roomlogin" class="d-flex gap-2">
+        <input type="password" class="form-control form-control-sm" name="password" placeholder="Room password" required>
+        <button class="btn btn-sm btn-outline-primary text-nowrap" {{ 'disabled' if not radio_connected }}>
+          <i class="bi bi-box-arrow-in-right"></i> Log in
+        </button>
+      </form>
+      <small class="text-muted d-block mt-1">{{ 'Room login saved — the console logs in automatically before posting.' if contact.room_password_set else 'Room servers require a login before posts are accepted.' }}</small>
+    </div>
+    {% endif %}
+    <div class="d-grid gap-2">
+      {% if contact.node_type == 1 or contact.node_type == 3 %}
+      <form method="post" action="/platforms/meshcore/contacts/{{ contact.node_id }}/send">
+        <textarea class="form-control mb-2" name="text" rows="3" maxlength="200"
+                  placeholder="{{ 'Post text (goes to everyone in the room)' if contact.node_type == 3 else 'Message text (mesh, keep it short)' }}" required></textarea>
+        <button class="btn btn-primary btn-sm" {{ 'disabled' if not radio_connected }}>
+          <i class="bi bi-{{ 'people' if contact.node_type == 3 else 'send' }}"></i>
+          {{ 'Post to room' if contact.node_type == 3 else 'Send direct message' }}
+        </button>
+        {% if not radio_connected %}<small class="text-muted d-block mt-1">Radio offline — sending disabled.</small>{% endif %}
+      </form>
+      {% endif %}
+      <form method="post" action="/platforms/meshcore/contacts/{{ contact.node_id }}/favorite">
+        <button class="btn btn-sm {{ 'btn-outline-warning' if contact.is_favorite else 'btn-outline-secondary' }} w-100">
+          <i class="bi bi-star{{ '-fill' if contact.is_favorite }}"></i>
+          {{ 'Remove from favorites' if contact.is_favorite else 'Add to favorites' }}
+        </button>
+      </form>
+      {% if contact.node_type == 2 or contact.node_type == 3 %}
+      <a class="btn btn-sm btn-outline-danger w-100"
+         href="/platforms/meshcore/contacts/{{ contact.node_id }}/admin">
+        <i class="bi bi-sliders"></i> Remote management
+      </a>
+      {% endif %}
+      <form method="post" action="/platforms/meshcore/contacts/{{ contact.node_id }}/pin">
+        <button class="btn btn-sm btn-outline-success w-100" {{ 'disabled' if not radio_connected }}>
+          <i class="bi bi-pin-angle"></i> Pin on radio
+        </button>
+      </form>
+      <form method="post" action="/platforms/meshcore/contacts/{{ contact.node_id }}/traffic">
+        <button class="btn btn-sm {{ 'btn-outline-primary' if contact.show_traffic else 'btn-outline-secondary' }} w-100">
+          <i class="bi bi-activity"></i>
+          {{ 'Show traffic in bridge' if not contact.show_traffic else 'Hide traffic from bridge' }}
+        </button>
+      </form>
+    </div>
+  </div></div></div>
+</div>
+
+<h5 class="text-muted">Recent traffic</h5>
+<div class="card shadow-sm mb-4">
+  <div class="list-group list-group-flush">
+    {% for t in traffic %}
+    <div class="list-group-item py-2">
+      <div class="d-flex justify-content-between">
+        <small><span class="badge {{ 'bg-success' if t.direction == 'tx' else 'bg-secondary' }}">{{ 'TX' if t.direction == 'tx' else 'RX' }}</span>
+        {{ t.text }}</small>
+        <small class="text-muted text-nowrap ms-2">{{ t.created_at }}</small>
+      </div>
+    </div>
+    {% else %}
+    <div class="list-group-item text-muted py-3">No traffic recorded for this contact yet.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

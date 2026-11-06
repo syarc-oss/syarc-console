@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ album.title }} - Audiobook Library{% endblock %}
+
+{% block content %}
+<style>
+    .current-cover {
+        max-width: 200px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+    }
+    .new-cover-preview {
+        max-width: 200px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+        display: none;
+    }
+</style>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/library/audiobook/">Audiobooks</a></li>
+                <li class="breadcrumb-item"><a href="/library/audiobook/browse/albums{% if from_letter %}?letter={{ from_letter }}{% endif %}">Books</a></li>
+                <li class="breadcrumb-item"><a href="/library/audiobook/album/{{ album.id }}{% if from_letter %}?from_letter={{ from_letter }}{% endif %}">{{ album.title }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+        <h2><i class="bi bi-pencil"></i> Edit Book Metadata</h2>
+        <p class="text-muted">Update title and cover image for this audiobook</p>
+
+        <div class="card">
+            <div class="card-body">
+                <form id="editBookForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="book_id" value="{{ album.id }}">
+
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title"
+                               value="{{ album.title }}" required>
+                        <div class="form-text">Enter the correct book title</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="author" class="form-label">Author</label>
+                        <input type="text" class="form-control" id="author" name="author"
+                               value="{{ author.name }}" required>
+                        <div class="form-text">Enter the correct author name</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="cover" class="form-label">Cover Image</label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="cover" name="cover"
+                                   accept="image/jpeg,image/png,image/gif,image/webp">
+                            <button type="button" class="btn btn-outline-secondary" id="pasteCoverBtn" title="Paste image from clipboard">
+                                <i class="bi bi-clipboard"></i> Paste from Clipboard
+                            </button>
+                        </div>
+                        <div class="form-text">Upload a new cover image (JPG, PNG, GIF, WebP) or paste from clipboard</div>
+                        <input type="hidden" id="coverData" name="cover_data" value="">
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Current Cover</h6>
+                                {% if album.image_filename %}
+                                <img src="/library/audiobook/book/{{ album.id }}/art"
+                                     class="current-cover" alt="Current cover">
+                                {% else %}
+                                <p class="text-muted">No cover uploaded</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <h6>New Cover Preview</h6>
+                                <img id="newCoverPreview" class="new-cover-preview" alt="New cover preview">
+                                <p class="text-muted" id="noPreviewText">No image selected</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Save Changes
+                        </button>
+                        <a href="/library/audiobook/album/{{ album.id }}" class="btn btn-secondary"
+                           onclick="event.preventDefault(); location.replace(this.href)">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5><i class="bi bi-folder-symlink"></i> Move to Topic</h5>
+                <p class="text-muted small">Moves the book's files on disk into the target topic
+                    (target/<var>Author</var>/<var>Book</var>) and reassigns the book. The old topic
+                    keeps its other books.</p>
+                <div class="input-group">
+                    <select class="form-select" id="moveTopicSelect">
+                        <option value="">-- select topic --</option>
+                        {% for t in topics %}
+                        <option value="{{ t.id }}">{{ t.owner }} / {{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-warning" id="moveTopicBtn">
+                        <i class="bi bi-box-arrow-in-right"></i> Move Book
+                    </button>
+                </div>
+                <div id="moveTopicResult" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">Current Metadata</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="150">Author:</th>
+                        <td>{{ author.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Chapters:</th>
+                        <td>{{ tracks|length }}</td>
+                    </tr>
+                    <tr>
+                        <th>Cover File:</th>
+                        <td><code>{{ album.image_filename or 'None' }}</code></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Chapter Titles -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-list-ol"></i> Chapter Titles</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Edit chapter titles below and click "Save Chapters" to update.</p>
+                <form id="editChaptersForm">
+                    {% for track in tracks %}
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text" style="width:50px">{{ "%02d"|format(loop.index) }}</span>
+                        <input type="text" class="form-control" name="chapter_{{ track.id }}" value="{{ track.title }}">
+                        <input type="hidden" name="chapter_id_{{ track.id }}" value="{{ track.id }}">
+                    </div>
+                    {% endfor %}
+                    {% if tracks|length > 0 %}
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="submit" class="btn btn-sm btn-success">
+                            <i class="bi bi-check-lg"></i> Save Chapters
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="renumberBtn">
+                            <i class="bi bi-arrow-repeat"></i> Renumber
+                        </button>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No chapters found.</p>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+
+        <!-- Delete Audiobook -->
+        <div class="card mt-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="bi bi-trash"></i> Delete Audiobook</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Remove this audiobook from the library. This action cannot be undone.</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-danger" id="deleteDbOnlyBtn">
+                        <i class="bi bi-database"></i> Delete from Database Only
+                    </button>
+                    <button type="button" class="btn btn-danger" id="deleteWithDiskBtn">
+                        <i class="bi bi-hard-drive"></i> Delete from Database &amp; Disk
+                    </button>
+                </div>
+                <div class="form-text mt-2">
+                    <strong>Database Only:</strong> Removes the audiobook record, chapters, and cover image. Audio files remain on disk.<br>
+                    <strong>Database &amp; Disk:</strong> Also permanently deletes all chapter audio files from disk.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const coverInput = document.getElementById('cover');
+    const coverDataInput = document.getElementById('coverData');
+    const pasteCoverBtn = document.getElementById('pasteCoverBtn');
+    const newCoverPreview = document.getElementById('newCoverPreview');
+    const noPreviewText = document.getElementById('noPreviewText');
+    const editForm = document.getElementById('editBookForm');
+
+    function showPreview(dataUrl) {
+        newCoverPreview.src = dataUrl;
+        newCoverPreview.style.display = 'block';
+        noPreviewText.style.display = 'none';
+    }
+
+    function resizeImage(dataUrl, maxWidth, maxHeight, quality) {
+        return new Promise(function(resolve) {
+            var img = new Image();
+            img.onload = function() {
+                var w = img.width, h = img.height;
+                if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+                if (h > maxHeight) { w = w * maxHeight / h; h = maxHeight; }
+                var canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = dataUrl;
+        });
+    }
+
+    function handleImageData(dataUrl) {
+        resizeImage(dataUrl, 600, 900, 0.8).then(function(resized) {
+            coverDataInput.value = resized;
+            showPreview(resized);
+            coverInput.value = '';
+        });
+    }
+
+    coverInput.addEventListener('change', function(e) {
+        coverDataInput.value = '';
+        var file = e.target.files[0];
+        if (file) {
+            var reader = new FileReader();
+            reader.onload = function(e) { handleImageData(e.target.result); };
+            reader.readAsDataURL(file);
+        } else {
+            newCoverPreview.style.display = 'none';
+            noPreviewText.style.display = 'block';
+        }
+    });
+
+    var waitingForPaste = false;
+    pasteCoverBtn.addEventListener('click', async function() {
+        try {
+            var clipboardItems = await navigator.clipboard.read();
+            for (var item of clipboardItems) {
+                var imageType = item.types.find(function(t) { return t.startsWith('image/'); });
+                if (imageType) {
+                    var blob = await item.getType(imageType);
+                    var reader = new FileReader();
+                    reader.onload = function(e) { handleImageData(e.target.result); };
+                    reader.readAsDataURL(blob);
+                    return;
+                }
+            }
+            alert('No image found in clipboard. Copy an image first.');
+        } catch (err) {
+            waitingForPaste = true;
+            pasteCoverBtn.textContent = 'Press Ctrl+V now...';
+            pasteCoverBtn.classList.add('active');
+        }
+    });
+
+    document.addEventListener('paste', function(e) {
+        if (!waitingForPaste) return;
+        waitingForPaste = false;
+        pasteCoverBtn.innerHTML = '<i class="bi bi-clipboard"></i> Paste from Clipboard';
+        pasteCoverBtn.classList.remove('active');
+
+        var items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (var item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                var blob = item.getAsFile();
+                var reader = new FileReader();
+                reader.onload = function(ev) { handleImageData(ev.target.result); };
+                reader.readAsDataURL(blob);
+                return;
+            }
+        }
+        alert('No image found in clipboard. Copy an image first.');
+    });
+
+    const moveBtn = document.getElementById('moveTopicBtn');
+    if (moveBtn) moveBtn.addEventListener('click', async function() {
+        const sel = document.getElementById('moveTopicSelect');
+        const result = document.getElementById('moveTopicResult');
+        const topicId = sel.value;
+        if (!topicId) { alert('Select a target topic first'); return; }
+        moveBtn.disabled = true;
+        moveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Moving...';
+        try {
+            const response = await fetch('/library/audiobook/book/{{ album.id }}/move-topic', {
+                method: 'POST',
+                body: new URLSearchParams({ topic_id: topicId })
+            });
+            const data = await response.json().catch(() => ({}));
+            result.style.display = '';
+            if (response.ok) {
+                result.innerHTML = '<div class="alert alert-success mb-0">' + (data.message || 'Book moved') + '</div>';
+                setTimeout(() => { window.location.replace('/library/audiobook/album/{{ album.id }}'); }, 1200);
+            } else {
+                result.innerHTML = '<div class="alert alert-danger mb-0">' + (data.detail || data.message || 'Move failed') + '</div>';
+            }
+        } catch (error) {
+            result.style.display = '';
+            result.innerHTML = '<div class="alert alert-danger mb-0">Move failed: ' + error.message + '</div>';
+        } finally {
+            moveBtn.disabled = false;
+            moveBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Move Book';
+        }
+    });
+
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        try {
+            const response = await fetch('/library/audiobook/book/edit', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            });
+
+            if (response.ok) {
+                window.location.replace('/library/audiobook/album/{{ album.id }}');
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.detail || 'Failed to update metadata'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating metadata: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
+        }
+    });
+
+    // Chapter titles form
+    const chaptersForm = document.getElementById('editChaptersForm');
+    if (chaptersForm) {
+        chaptersForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+            try {
+                const response = await fetch('/library/audiobook/chapters/edit', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+                if (response.ok) {
+                    alert('Chapter titles and numbers updated!');
+                    window.location.href = '/library/audiobook/album/{{ album.id }}';
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.detail || 'Failed to update chapters'));
+                }
+            } catch (error) {
+                alert('Error updating chapters: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Chapters';
+            }
+        });
+
+        const renumberBtn = document.getElementById('renumberBtn');
+        if (renumberBtn) {
+            renumberBtn.addEventListener('click', function() {
+                if (confirm('This will save all chapter titles and renumber them sequentially (01, 02, 03...). Continue?')) {
+                    chaptersForm.dispatchEvent(new Event('submit', {cancelable: true}));
+                }
+            });
+        }
+    }
+
+    // Delete audiobook
+    async function deleteAudiobook(fromDisk) {
+        var msg = fromDisk
+            ? 'This will permanently delete this audiobook from the database AND remove all chapter audio files from disk. Are you sure?'
+            : 'This will remove this audiobook from the database. Audio files will remain on disk. Are you sure?';
+        if (!confirm(msg)) return;
+        if (!confirm('This cannot be undone. Proceed?')) return;
+
+        try {
+            var fd = new FormData();
+            fd.append('delete_from_disk', fromDisk ? 'true' : 'false');
+            var response = await fetch('/library/audiobook/book/{{ album.id }}/delete', {
+                method: 'POST',
+                body: new URLSearchParams(fd)
+            });
+            var data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                window.location.href = '/library/audiobook/';
+            } else {
+                alert('Error: ' + (data.detail || 'Failed to delete audiobook'));
+            }
+        } catch (err) {
+            alert('Error deleting audiobook: ' + err.message);
+        }
+    }
+
+    document.getElementById('deleteDbOnlyBtn').addEventListener('click', function() { deleteAudiobook(false); });
+    document.getElementById('deleteWithDiskBtn').addEventListener('click', function() { deleteAudiobook(true); });
+});
+</script>
+{% endblock %}

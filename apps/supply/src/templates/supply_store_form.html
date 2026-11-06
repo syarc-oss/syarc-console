@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Store - Supply{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+                    {% if mode == 'edit' %}
+                    <li class="breadcrumb-item"><a href="/supply/stores/{{ store.id }}">{{ store.name }}</a></li>
+                    {% endif %}
+                    <li class="breadcrumb-item active">{% if mode == 'edit' %}Edit{% else %}New{% endif %} Store</li>
+                </ol>
+            </nav>
+            <div class="card">
+                <div class="card-header">
+                    <h4>{% if mode == 'edit' %}Edit Store{% else %}Create New Store{% endif %}</h4>
+                </div>
+                <div class="card-body">
+                    <form action="{% if mode == 'edit' %}/supply/store/{{ store.id }}/edit{% else %}/supply/store/new{% endif %}" method="post">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Store Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                   placeholder="e.g., Home Supplies, Office Inventory"
+                                   value="{% if mode == 'edit' %}{{ store.name }}{% endif %}">
+                            <div class="form-text">A name to identify this store</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                      placeholder="Optional notes about this store">{% if mode == 'edit' %}{{ store.description or '' }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% if mode == 'edit' %}/supply/stores/{{ store.id }}{% else %}/supply/{% endif %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">{% if mode == 'edit' %}Update Store{% else %}Create Store{% endif %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if mode == 'edit' %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Share Access</h5>
+                </div>
+                <div class="card-body">
+                    {% if all_users %}
+                    <form action="/supply/store/{{ store.id }}/share" method="post" class="d-flex gap-2 mb-3">
+                        <select name="share_with_user_id" class="form-select" style="max-width: 300px;" required>
+                            <option value="">Select a user to share with...</option>
+                            {% for u in all_users %}
+                                <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-success">Grant Access</button>
+                    </form>
+                    {% else %}
+                    <p class="text-muted">No additional users available to share with.</p>
+                    {% endif %}
+
+                    {% if shared_users %}
+                    <h6 class="text-muted">Users with access:</h6>
+                    <div class="list-group">
+                        {% for share, shared_user in shared_users %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>{{ shared_user.username }} ({{ shared_user.email }})</span>
+                            <form action="/supply/store/{{ store.id }}/revoke/{{ share.id }}" method="post"
+                                  onsubmit="return confirm('Revoke access from {{ shared_user.username }}?');" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

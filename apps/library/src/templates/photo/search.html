@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Search Photos{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-search"></i> Search Photos</h2>
+            <a href="/library/photo/" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Photos
+            </a>
+        </div>
+
+        <form action="/library/photo/search" method="GET" class="mb-4">
+            <div class="input-group">
+                <input type="text" class="form-control" name="q" value="{{ query }}"
+                       placeholder="Search albums, photos, captions, or usernames..." autofocus>
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </div>
+        </form>
+
+        {% if query %}
+        <div class="alert alert-secondary">
+            Found {{ results|length }} result{{ results|length != 1 }}s for "{{ query }}"
+        </div>
+
+        {% if results %}
+        {% for item in results %}
+        {% if item.type == "album" %}
+        <div class="card mb-2">
+            <div class="card-body d-flex align-items-center">
+                <i class="bi bi-collection text-primary me-3" style="font-size: 2rem;"></i>
+                <div>
+                    <h6 class="mb-0">
+                        <a href="/library/photo/album/{{ item.album.id }}">{{ item.album.name }}</a>
+                    </h6>
+                    <small class="text-muted">
+                        Album by {{ item.owner_username }}
+                        &middot; {{ item.album.photo_count }} photos
+                        {% if item.album.is_public %}<span class="badge bg-success">Public</span>{% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% elif item.type == "photo" %}
+        <div class="card mb-2">
+            <div class="card-body d-flex align-items-center">
+                <div class="me-3" style="width:60px; height:60px; overflow:hidden; border-radius:4px;">
+                    <a href="/library/photo/photo/{{ item.photo.id }}">
+                        <img src="/library/photo/photo/{{ item.photo.id }}/thumbnail"
+                             style="width:100%; height:100%; object-fit:cover;">
+                    </a>
+                </div>
+                <div>
+                    <h6 class="mb-0">
+                        <a href="/library/photo/photo/{{ item.photo.id }}">{{ item.photo.filename }}</a>
+                    </h6>
+                    <small class="text-muted">
+                        In <a href="/library/photo/album/{{ item.album.id }}">{{ item.album.name }}</a>
+                        by {{ item.owner_username }}
+                    </small>
+                    {% if item.photo.caption %}
+                    <div class="text-muted" style="font-size: 0.8rem;">{{ item.photo.caption[:100] }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        <div class="alert alert-info">No results found for "{{ query }}".</div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

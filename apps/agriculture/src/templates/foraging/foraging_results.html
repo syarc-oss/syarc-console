@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Results - {{ outing.outing_date[5:7] ~ '/' ~ outing.outing_date[8:10] ~ '/' ~ outing.outing_date[0:4] }} {{ outing.outing_type|title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/foraging/">Foraging</a></li>
+        <li class="breadcrumb-item active">Results</li>
+    </ol>
+</nav>
+<h2><i class="bi bi-clipboard-data"></i> Results</h2>
+<p class="text-muted">{{ outing.outing_date[5:7] ~ '/' ~ outing.outing_date[8:10] ~ '/' ~ outing.outing_date[0:4] }} &middot; {{ outing.outing_type|title }}{% if outing.location %} &middot; {{ outing.location }}{% endif %}</p>
+
+<!-- Add/Edit Result Form -->
+<div class="card mb-3">
+    <div class="card-header py-2"><i class="bi bi-plus-circle"></i> <span id="formTitle">Add Result</span></div>
+    <div class="card-body">
+        <form id="resultForm" class="row g-2 align-items-end">
+            <input type="hidden" id="editId" value="">
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Date *</small></label>
+                <input type="date" class="form-control form-control-sm" id="result_date" name="result_date" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-0"><small>Person</small></label>
+                <select class="form-select form-select-sm" id="participant" name="participant">
+                    <option value="">-- select --</option>
+                    {% for p in participants %}
+                    <option value="{{ p.name }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label mb-0"><small>Results *</small></label>
+                <textarea class="form-control form-control-sm" id="item" name="item" rows="2" placeholder="What was found / caught..." required></textarea>
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-sm"><i class="bi bi-plus"></i> <span id="submitText">Add</span></button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<h5>Results History</h5>
+{% if results %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr><th>Date</th><th>Person</th><th>Results</th><th>Qty</th><th>Lbs</th><th>By</th><th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td class="text-nowrap">{{ r.result_date }}</td>
+                <td>{{ r.participant or '' }}</td>
+                <td class="fw-bold">{{ r.item }}</td>
+                <td>{{ r.quantity or '' }}</td>
+                <td>{{ r.lbs or '' }}</td>
+                <td><small>{{ r.recorded_by }}</small></td>
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary py-0" onclick='editResult({{ r|tojson }})' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteResult('{{ r.id }}')" title="Delete"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">No results yet.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const outingId = '{{ outing_id }}';
+let editingId = null;
+
+document.getElementById('resultForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var data = new FormData(this);
+    if (editingId) {
+        fetch('/agriculture/foraging/' + outingId + '/results/' + editingId, {method: 'PUT', body: data, credentials: 'include'})
+            .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    } else {
+        fetch('/agriculture/foraging/' + outingId + '/results/add', {method: 'POST', body: data, credentials: 'include'})
+            .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    }
+});
+
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+function editResult(r) {
+    editingId = r.id;
+    document.getElementById('editId').value = r.id;
+    document.getElementById('result_date').value = r.result_date;
+    document.getElementById('participant').value = r.participant || '';
+    document.getElementById('item').value = r.item;
+    document.getElementById('formTitle').textContent = 'Edit Result';
+    document.getElementById('submitText').textContent = 'Update';
+    document.getElementById('submitBtn').className = 'btn btn-warning btn-sm';
+    document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('resultForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetForm() {
+    document.getElementById('resultForm').reset();
+    editingId = null;
+    document.getElementById('editId').value = '';
+    document.getElementById('formTitle').textContent = 'Add Result';
+    document.getElementById('submitText').textContent = 'Add';
+    document.getElementById('submitBtn').className = 'btn btn-success btn-sm';
+    document.getElementById('cancelBtn').style.display = 'none';
+}
+
+function deleteResult(id) {
+    if (!confirm('Delete this result?')) return;
+    fetch('/agriculture/foraging/' + outingId + '/results/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+</script>
+{% endblock %}

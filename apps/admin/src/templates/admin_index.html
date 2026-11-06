@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Admin — syarc console{% endblock %}
+{% block content %}
+<h2>Administration</h2>
+<div class="list-group w-50">
+  <a class="list-group-item list-group-item-action" href="/admin/users">Users</a>
+  <a class="list-group-item list-group-item-action" href="/admin/categories">Categories</a>
+  <a class="list-group-item list-group-item-action" href="/admin/settings">Settings</a>
+  <a class="list-group-item list-group-item-action" href="/admin/system">System</a>
+</div>
+
+{% endblock %}

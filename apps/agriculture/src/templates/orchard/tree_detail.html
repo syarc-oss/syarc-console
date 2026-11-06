@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tree.tree_type }} {{ tree.variety }} - {{ orchard_name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/">Orchards</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/{{ orchard_id }}">{{ orchard_name }}</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/{{ orchard_id }}/trees">Trees</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ tree.tree_type }} - {{ tree.variety }}</li>
+    </ol>
+</nav>
+
+<!-- Tree Info Card -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2><i class="bi bi-tree me-2"></i>{{ tree.tree_type }} &mdash; {{ tree.variety }}</h2>
+                <p class="text-muted">
+                    {% if tree.planting_date %}
+                        <strong>Planted:</strong> {{ tree.planting_date }}
+                    {% else %}
+                        <strong>Planted:</strong> Not recorded
+                    {% endif %}
+                    {% if tree.location_notes %}
+                        &middot; <i class="bi bi-geo-alt"></i> {{ tree.location_notes }}
+                    {% endif %}
+                    &middot;
+                    <span class="badge {{ 'bg-success' if tree.is_active else 'bg-secondary' }}">
+                        {{ 'Active' if tree.is_active else 'Inactive' }}
+                    </span>
+                </p>
+            </div>
+            <a href="/orchard/{{ orchard_id }}/maintenance" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-list-check"></i> Orchard Maintenance
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if tree.notes %}
+<div class="alert alert-light mb-3">
+    <strong>Notes:</strong> {{ tree.notes }}
+</div>
+{% endif %}
+
+<!-- Planting Date Banner -->
+<div class="card mb-4">
+    <div class="card-body bg-light">
+        <div class="row text-center">
+            <div class="col-md-4">
+                <h5>Planting Date</h5>
+                <p class="fs-5 mb-0">
+                    {% if tree.planting_date %}
+                        {{ tree.planting_date[5:7] ~ '/' ~ tree.planting_date[8:10] ~ '/' ~ tree.planting_date[0:4] }}
+                    {% else %}
+                        <span class="text-muted">Not recorded</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-4">
+                <h5>Tree Type / Variety</h5>
+                <p class="fs-5 mb-0">{{ tree.tree_type }} / {{ tree.variety }}</p>
+            </div>
+            <div class="col-md-4">
+                <h5>Maintenance Records</h5>
+                <p class="fs-5 mb-0" id="totalMaintenance">{{ maintenance_records|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Maintenance Record Form -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-wrench me-2"></i>Add Maintenance Record</h5>
+            </div>
+            <div class="card-body">
+                <form id="maintenanceForm" class="row g-3">
+                    <input type="hidden" id="recordId">
+                    <div class="col-md-3">
+                        <label for="maintenanceType" class="form-label">Type *</label>
+                        <select class="form-select" id="maintenanceType" name="maintenance_type" required>
+                            <option value="">Select type...</option>
+                            <option value="fertilizing">Fertilizing</option>
+                            <option value="pruning">Pruning</option>
+                            <option value="harvesting">Harvesting</option>
+                            <option value="pest_management">Pest Management</option>
+                            <option value="watering">Watering</option>
+                            <option value="spraying">Spraying</option>
+                            <option value="mulching">Mulching</option>
+                            <option value="thinning">Thinning</option>
+                            <option value="disease_treatment">Disease Treatment</option>
+                            <option value="soil_amendment">Soil Amendment</option>
+                            <option value="weed_control">Weed Control</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="maintenanceDate" class="form-label">Date *</label>
+                        <input type="date" class="form-control" id="maintenanceDate" name="maintenance_date" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="description" name="description"
+                               placeholder="Brief description">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="productsUsed" class="form-label">Products Used</label>
+                        <input type="text" class="form-control" id="productsUsed" name="products_used"
+                               placeholder="e.g., 10-10-10 fertilizer">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="cost" class="form-label">Cost ($)</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="cost" name="cost"
+                               placeholder="0.00">
+                    </div>
+                    <div class="col-12">
+                        <label for="maintNotes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="maintNotes" name="notes" rows="1" placeholder="Additional notes"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" id="maintSubmitBtn" class="btn btn-success">Add Record</button>
+                        <button type="button" id="maintCancelBtn" class="btn btn-secondary" style="display:none;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Maintenance History -->
+<div class="row">
+    <div class="col-md-12">
+        <h4><i class="bi bi-clock-history me-2"></i>Maintenance History</h4>
+        <div id="maintenanceList"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const orchardId = "{{ orchard_id }}";
+    const treeId = "{{ tree.id }}";
+    let editingRecordId = null;
+
+    const typeLabels = {
+        'fertilizing': '<i class="bi bi-droplet-fill text-warning"></i> Fertilizing',
+        'pruning': '<i class="bi bi-scissors text-success"></i> Pruning',
+        'harvesting': '<i class="bi bi-basket text-danger"></i> Harvesting',
+        'pest_management': '<i class="bi bi-bug text-danger"></i> Pest Management',
+        'watering': '<i class="bi bi-droplet text-primary"></i> Watering',
+        'spraying': '<i class="bi bi-spray-can text-info"></i> Spraying',
+        'mulching': '<i class="bi bi-layers text-secondary"></i> Mulching',
+        'thinning': '<i class="bi bi-arrows-angle-contract text-success"></i> Thinning',
+        'disease_treatment': '<i class="bi bi-shield-plus text-warning"></i> Disease Treatment',
+        'soil_amendment': '<i class="bi bi-ground text-secondary"></i> Soil Amendment',
+        'weed_control': '<i class="bi bi-x-octagon text-dark"></i> Weed Control',
+        'other': '<i class="bi bi-three-dots text-muted"></i> Other',
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadMaintenance();
+
+        const today = new Date();
+        document.getElementById('maintenanceDate').value =
+            `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+        const form = document.getElementById('maintenanceForm');
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const isUpdate = editingRecordId !== null;
+
+            const url = isUpdate
+                ? `/orchard/${orchardId}/trees/${treeId}/maintenance/${editingRecordId}`
+                : `/orchard/${orchardId}/trees/${treeId}/maintenance/add`;
+            const method = isUpdate ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                body: formData,
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert(isUpdate ? 'Record updated!' : 'Record added!');
+                    resetMaintForm();
+                    loadMaintenance();
+                } else {
+                    response.json().then(errorData => {
+                        alert('Error: ' + (errorData.detail || 'Unknown error'));
+                    });
+                }
+            })
+            .catch(error => alert('Error: ' + error.message));
+        });
+
+        document.getElementById('maintCancelBtn').addEventListener('click', resetMaintForm);
+    });
+
+    function resetMaintForm() {
+        document.getElementById('maintenanceForm').reset();
+        editingRecordId = null;
+        document.getElementById('recordId').value = '';
+        document.getElementById('maintSubmitBtn').textContent = 'Add Record';
+        document.getElementById('maintSubmitBtn').className = 'btn btn-success';
+        document.getElementById('maintCancelBtn').style.display = 'none';
+        const today = new Date();
+        document.getElementById('maintenanceDate').value =
+            `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    }
+
+    function populateMaintForm(record) {
+        editingRecordId = record.id;
+        document.getElementById('maintenanceType').value = record.maintenance_type;
+        document.getElementById('maintenanceDate').value = record.maintenance_date;
+        document.getElementById('description').value = record.description || '';
+        document.getElementById('productsUsed').value = record.products_used || '';
+        document.getElementById('cost').value = record.cost || '';
+        document.getElementById('maintNotes').value = record.notes || '';
+        document.getElementById('maintSubmitBtn').textContent = 'Update Record';
+        document.getElementById('maintSubmitBtn').className = 'btn btn-warning';
+        document.getElementById('maintCancelBtn').style.display = 'inline-block';
+        document.getElementById('maintenanceForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function loadMaintenance() {
+        fetch(`/orchard/${orchardId}/trees/${treeId}/maintenance/list`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('totalMaintenance').textContent = data.length;
+                let html = '';
+                if (data.length > 0) {
+                    html = '<div class="list-group">';
+                    data.forEach(record => {
+                        const dateStr = new Date(record.maintenance_date + 'T00:00:00').toLocaleDateString('en-US', {
+                            year: 'numeric', month: 'long', day: 'numeric'
+                        });
+                        const typeHtml = typeLabels[record.maintenance_type] || record.maintenance_type;
+
+                        html += `
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">${typeHtml}</h6>
+                                    <p class="mb-1 text-muted"><strong>${dateStr}</strong></p>
+                                    ${record.description ? `<p class="mb-1">${record.description}</p>` : ''}
+                                    ${record.products_used ? `<small class="text-muted"><i class="bi bi-box me-1"></i>Products: ${record.products_used}</small><br>` : ''}
+                                    ${record.cost ? `<small class="text-muted"><i class="bi bi-currency-dollar me-1"></i>Cost: $${parseFloat(record.cost).toFixed(2)}</small><br>` : ''}
+                                    ${record.notes ? `<small class="text-muted"><i class="bi bi-sticky me-1"></i>${record.notes}</small>` : ''}
+                                </div>
+                                <div class="d-flex gap-1">
+                                    <button onclick='populateMaintForm(${JSON.stringify(record).replace(/'/g, "&#39;")})'
+                                            class="btn btn-sm btn-outline-primary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button onclick="deleteRecord('${record.id}')"
+                                            class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted">Recorded by ${record.recorded_by}</small>
+                        </div>
+                        `;
+                    });
+                    html += '</div>';
+                } else {
+                    html = '<div class="alert alert-info">No maintenance records yet. Add one above!</div>';
+                }
+                document.getElementById('maintenanceList').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading maintenance:', error);
+                document.getElementById('maintenanceList').innerHTML = '<p class="text-danger">Error loading records.</p>';
+            });
+    }
+
+    function deleteRecord(recordId) {
+        if (!confirm('Delete this maintenance record?')) return;
+        fetch(`/orchard/${orchardId}/trees/${treeId}/maintenance/${recordId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) { loadMaintenance(); }
+            else { response.json().then(error => alert('Error: ' + error.detail)); }
+        });
+    }
+</script>
+{% endblock %}

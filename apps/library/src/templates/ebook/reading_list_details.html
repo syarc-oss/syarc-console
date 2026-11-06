@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}{{ reading_list_name }} - Reading Lists{% endblock %}
+
+{% block content %}
+<style>
+    /* Book card styles */
+    .book-card-item {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+    .book-card-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    .book-card-item a {
+        cursor: pointer;
+    }
+    .book-card-item a:hover {
+        text-decoration: none;
+    }
+
+    /* Other reading list item card styles */
+    .reading-list-item-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: default;
+    }
+    .reading-list-item-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .item-image {
+        aspect-ratio: 1;
+        object-fit: cover;
+        background: #333;
+    }
+    .item-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+    }
+</style>
+
+<div class="container" style="max-width: 1000px;">
+    <nav aria-label="breadcrumb" class="mb-2">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+            <li class="breadcrumb-item"><a href="/library/ebook/reading-lists">Reading Lists</a></li>
+            <li class="breadcrumb-item active">{{ reading_list_name }}</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-book"></i> {{ reading_list_name }}</h2>
+        <div class="d-flex gap-2">
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-filetype"></i> {% if file_type == 'pdf' %}PDF{% elif file_type == 'epub' %}EPUB{% else %}All Files{% endif %}
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <a href="/library/ebook/reading-lists/{{ reading_list_name }}" class="dropdown-item {% if not file_type %}active{% endif %}">
+                            All Files
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a href="/library/ebook/reading-lists/{{ reading_list_name }}?file_type=epub" class="dropdown-item {% if file_type == 'epub' %}active{% endif %}">
+                            <i class="bi bi-book"></i> EPUB Only
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/library/ebook/reading-lists/{{ reading_list_name }}?file_type=pdf" class="dropdown-item {% if file_type == 'pdf' %}active{% endif %}">
+                            <i class="bi bi-file-earmark-pdf"></i> PDF Only
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            <button onclick="analyzeReadingList()" class="btn btn-primary me-2">
+                <i class="bi bi-calculator"></i> Analyze
+            </button>
+            <a href="/library/ebook/reading-lists/{{ reading_list_name }}/export" class="btn btn-info">
+                <i class="bi bi-download"></i> Export
+            </a>
+        </div>
+    </div>
+
+    {% if items|length == 0 %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> This reading list is empty. Add some books!
+    </div>
+    {% else %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3">
+        {% for item in items %}
+        <div class="col">
+            <div class="card {% if item.type == 'book' %}book-card-item{% else %}reading-list-item-card{% endif %} h-100">
+                <div class="card-body p-2">
+                    <div class="d-flex gap-3">
+                        <!-- Image -->
+                        <div class="flex-shrink-0" style="width: 100px;">
+                            {% if item.type == 'book' %}
+                            <!-- Book: Make image clickable to open book details -->
+                            <a href="/library/ebook/book/{{ item.item_id }}">
+                                {% if item.cover %}
+                                <img src="/library/ebook/cover/{{ item.item_id }}" class="rounded item-image w-100" alt="Cover">
+                                {% else %}
+                                <div class="rounded item-image w-100 d-flex align-items-center justify-content-center">
+                                    <i class="bi bi-book" style="font-size: 3rem; color: #666;"></i>
+                                </div>
+                                {% endif %}
+                            </a>
+                            {% else %}
+                            <!-- Author type: not clickable -->
+                            <div class="rounded item-image w-100 d-flex align-items-center justify-content-center">
+                                <i class="bi bi-person-circle" style="font-size: 3rem; color: #666;"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Info -->
+                        <div class="flex-grow-1">
+                            <div class="mb-2">
+                                {% if item.type == 'book' and item.file_type %}
+                                    {% if item.file_type == 'pdf' %}
+                                    <span class="badge bg-warning me-1">PDF</span>
+                                    {% elif item.file_type == 'epub' %}
+                                    <span class="badge bg-info me-1">EPUB</span>
+                                    {% endif %}
+                                {% endif %}
+                                <span class="badge bg-{{ 'primary' if item.type == 'author' else 'secondary' }} item-badge">
+                                    {{ item.type }}
+                                </span>
+                            </div>
+                            <h5 class="card-title mb-1" style="font-size: 1rem;">
+                                {% if item.type == 'book' %}
+                                <a href="/library/ebook/book/{{ item.item_id }}" class="text-decoration-none text-dark">
+                                    {{ item.title }}
+                                </a>
+                                {% else %}
+                                <a href="/library/ebook/author/{{ item.item_id }}" class="text-decoration-none text-dark">
+                                    {{ item.title }}
+                                </a>
+                                {% endif %}
+                            </h5>
+                            <p class="text-muted mb-2" style="font-size: 0.9rem;">
+                                {% if item.type == 'book' %}
+                                <i class="bi bi-person"></i> {{ item.author }}
+                                {% else %}
+                                <i class="bi bi-person"></i> Author
+                                {% endif %}
+                            </p>
+
+                            <!-- Actions -->
+                            <div class="d-flex gap-2">
+                                {% if item.type == 'book' %}
+                                <a href="/library/ebook/book/{{ item.item_id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                {% elif item.type == 'author' %}
+                                <a href="/library/ebook/author/{{ item.item_id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                                {% endif %}
+                                <form action="/library/ebook/reading-lists/{{ reading_list_name }}/item/{{ item.id }}/delete" method="post" style="margin: 0;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove {{ item.title }} from {{ reading_list_name }}?');">
+                                        <i class="bi bi-trash"></i> Remove
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function analyzeReadingList() {
+    const readingListName = '{{ reading_list_name }}';
+
+    try {
+        const response = await fetch(`/library/ebook/reading-lists/${readingListName}/analyze`);
+        const result = await response.json();
+
+        if (response.ok) {
+            const sizeInMB = result.total_size_mb.toFixed(2);
+            const sizeInGB = (result.total_size_mb / 1024).toFixed(2);
+            let sizeDisplay;
+            if (result.total_size_mb >= 1024) {
+                sizeDisplay = `${sizeInGB} GB`;
+            } else {
+                sizeDisplay = `${sizeInMB} MB`;
+            }
+
+            alert(`Reading List Analysis for "${readingListName}":\n\n` +
+                  `Total books: ${result.total_books}\n` +
+                  `Total files (books + directories): ${result.total_files}\n` +
+                  `Total size: ${sizeDisplay}`);
+        } else {
+            alert(result.detail || 'Error analyzing reading list');
+        }
+    } catch (error) {
+        alert('Error analyzing reading list: ' + error.message);
+    }
+}
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

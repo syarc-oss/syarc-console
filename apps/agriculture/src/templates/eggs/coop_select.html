@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Select Coop - Eggs{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Eggs</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>Egg Coops</h2>
+                    <p class="text-muted">Choose a coop to view and manage</p>
+                </div>
+                <a href="/eggs/coop/new" class="btn btn-primary">
+                    + Create New Coop
+                </a>
+            </div>
+
+            {% if coops %}
+            <div class="row g-4">
+                {% for c in coops %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 {{ 'border-primary' if c.is_owner else 'border-info' }}">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                {{ c.coop.name }}
+                                {% if c.is_owner %}
+                                    <span class="badge bg-primary ms-2">Yours</span>
+                                {% else %}
+                                    <span class="badge bg-info ms-2">Shared</span>
+                                {% endif %}
+                            </h5>
+                            {% if c.coop.description %}
+                            <p class="card-text">{{ c.coop.description }}</p>
+                            {% endif %}
+                            <p class="card-text text-muted">{{ c.hen_count }} hens &middot; {{ c.egg_count }} eggs</p>
+                            {% if not c.is_owner %}
+                                <p class="card-text"><small class="text-muted">Shared on {{ c.shared_at[0:16] }}</small></p>
+                            {% endif %}
+                            <a href="/eggs/coops/{{ c.coop.id }}" class="btn {{ 'btn-primary' if c.is_owner else 'btn-info' }}">
+                                Open Coop
+                            </a>
+                            {% if c.is_owner %}
+                            <div class="mt-2">
+                                <a href="/eggs/coop/{{ c.coop.id }}/edit" class="btn btn-sm btn-outline-primary me-2">Edit</a>
+                                <form action="/eggs/coop/{{ c.coop.id }}/delete" method="post"
+                                      style="display:inline;" onsubmit="return confirm('Delete coop &quot;{{ c.coop.name }}&quot; and all its hens and egg records?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <h4>No Egg Coops Found</h4>
+                <p>You don't have any coops yet. Create one to get started!</p>
+                <a href="/eggs/coop/new" class="btn btn-primary">+ Create Your First Coop</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

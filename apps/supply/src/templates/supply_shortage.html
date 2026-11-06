@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Shortage - {{ category.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if store %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store.id }}">{{ store.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ category.id }}">{{ category.name }}</a></li>
+        <li class="breadcrumb-item active">Shortage</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-exclamation-triangle"></i> Shortage Report</h2>
+    <a href="/supply/categories/{{ category.id }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back to {{ category.name }}
+    </a>
+</div>
+
+<p class="text-muted">Items below minimum stock level in {{ category.name }}{% if store %} ({{ store.name }}){% endif %}, including sub-categories.</p>
+
+{% if shortage_items %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Item</th>
+                <th>Description</th>
+                <th>On Hand</th>
+                <th>Minimum</th>
+                <th>Shortage</th>
+                <th>Location</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in shortage_items %}
+            {% set item = entry.item %}
+            <tr>
+                <td>
+                    <a href="/supply/categories/{{ item.category_id }}/item-detail?key={{ item.key | urlencode }}" class="text-decoration-none fw-bold">
+                        {{ item.key }}
+                    </a>
+                </td>
+                <td>{{ item.description or '' }}</td>
+                <td><span class="badge bg-warning text-dark">{{ item.quantity }}</span></td>
+                <td>{{ item.minimum }}</td>
+                <td><strong class="text-danger">+{{ entry.shortage }}</strong></td>
+                <td>{{ item.location or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="mt-3">
+    <strong>{{ shortage_items | length }}</strong> item{{ 's' if shortage_items | length != 1 }} below minimum stock.
+    Total shortage: <strong class="text-danger">{{ total_shortage }}</strong> units.
+</div>
+{% else %}
+<div class="alert alert-success">
+    <i class="bi bi-check-circle"></i> All items are at or above minimum stock levels.
+</div>
+{% endif %}
+{% endblock %}

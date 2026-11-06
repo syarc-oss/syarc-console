@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Word Game — syarc console{% endblock %}
+{% block content %}
+<div class="row mt-3">
+  <div class="col-12 d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="bi bi-grid-3x3-gap"></i> Word Game</h3>
+    <a href="/wordgame/" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> My games
+    </a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span id="turn-status" class="small">Loading…</span>
+        <span class="small text-muted" id="bag-info"></span>
+      </div>
+      <div class="card-body">
+        <div id="board" class="wg-board mx-auto"></div>
+      </div>
+      <div class="card-footer">
+        <div id="rack" class="d-flex justify-content-center gap-1 mb-2"></div>
+        <div class="d-flex justify-content-center gap-2">
+          <button class="btn btn-sm btn-success" id="submit-btn" disabled>Submit word</button>
+          <button class="btn btn-sm btn-outline-secondary" id="clear-btn" disabled>Clear</button>
+          <button class="btn btn-sm btn-outline-warning" id="pass-btn" disabled>Pass</button>
+        </div>
+        <div class="small text-center mt-2" id="move-msg"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header">Players</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tbody id="players-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card shadow-sm mt-3">
+      <div class="card-header">Moves</div>
+      <div class="card-body p-0" style="max-height:300px;overflow-y:auto">
+        <table class="table table-sm mb-0">
+          <tbody id="moves-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+  var gameId = window.location.pathname.split('/').pop();
+  var state = null;
+  var selectedTile = -1;       // index into my rack
+  var pending = {};            // "r,c" -> letter (placed this turn)
+  var pendingFromRack = {};    // "r,c" -> rack index
+  var refreshHandle = null;
+
+  var BONUS = {};
+  (function() {
+    var tw = [[0,0],[0,7],[0,14],[7,0],[7,14],[14,0],[14,7],[14,14]];
+    var tl = [[1,5],[1,9],[5,1],[5,5],[5,9],[5,13],[9,1],[9,5],[9,9],[9,13],[13,5],[13,9]];
+    var dl = [[0,3],[0,11],[2,6],[2,8],[3,0],[3,7],[3,14],[6,2],[6,6],[6,8],[6,12],[7,3],[7,11],[8,2],[8,6],[8,8],[8,12],[11,0],[11,7],[11,14],[12,6],[12,8],[14,3],[14,11]];
+    var dw = [[1,1],[2,2],[3,3],[4,4],[10,10],[11,11],[12,12],[13,13],[1,13],[2,12],[3,11],[4,10],[10,4],[11,3],[12,2],[13,1],[7,7]];
+    tw.forEach(function(c){BONUS[c[0]+','+c[1]]='3W';});
+    tl.forEach(function(c){BONUS[c[0]+','+c[1]]='3L';});
+    dw.forEach(function(c){BONUS[c[0]+','+c[1]]='2W';});
+    dl.forEach(function(c){BONUS[c[0]+','+c[1]]='2L';});
+  })();
+
+  var PTS = {A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10};
+  function pts(l) { return PTS[l] || ''; }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function renderBoard() {
+    var el = document.getElementById('board');
+    var html = '';
+    for (var r = 0; r < 15; r++) {
+      for (var c = 0; c < 15; c++) {
+        var key = r + ',' + c;
+        var cls = 'wg-cell';
+        var label = '';
+        if (BONUS[key]) { cls += ' wg-' + BONUS[key].replace(/([32])([WL])/, 'wg-$2$1'); }
+        if (r === 7 && c === 7 && !BONUS[key]) { cls += ' wg-center'; }
+        var letter = '';
+        if (pending[key]) {
+          letter = pending[key];
+          cls += ' wg-placed';
+        } else if (state.board[r][c]) {
+          letter = state.board[r][c];
+          cls += ' wg-fixed';
+        } else if (BONUS[key]) {
+          label = BONUS[key];
+          if (r === 7 && c === 7) label = '★2W';
+        }
+        html += '<div class="' + cls + '" data-r="' + r + '" data-c="' + c + '">' +
+                (letter ? '<span>' + letter + '<i class="wg-pts">' + pts(letter) + '</i></span>' : '<small>' + label + '</small>') + '</div>';
+      }
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.wg-cell').forEach(function(cell) {
+      cell.addEventListener('click', function() { cellClick(+cell.dataset.r, +cell.dataset.c); });
+    });
+  }
+
+  function renderRack() {
+    var used = Object.values(pendingFromRack);
+    var html = state.my_tiles.map(function(t, i) {
+      var cls = 'wg-tile' + (used.indexOf(i) >= 0 ? ' wg-used' : '') +
+                (i === selectedTile ? ' wg-selected' : '');
+      return '<div class="' + cls + '" data-i="' + i + '">' +
+             '<span>' + t + '<i class="wg-pts">' + pts(t) + '</i></span></div>';
+    }).join('');
+    document.getElementById('rack').innerHTML = html;
+    document.getElementById('rack').querySelectorAll('.wg-tile').forEach(function(t) {
+      t.addEventListener('click', function() {
+        var i = +t.dataset.i;
+        if (used.indexOf(i) >= 0) return;
+        selectedTile = (selectedTile === i) ? -1 : i;
+        renderRack();
+      });
+    });
+  }
+
+  function cellClick(r, c) {
+    var key = r + ',' + c;
+    if (!state || state.status !== 'active' || !state.is_my_turn) return;
+    if (state.board[r][c]) return;             // occupied by a fixed tile
+    if (pending[key]) {                         // take it back
+      delete pendingFromRack[key];
+      delete pending[key];
+    } else {
+      if (selectedTile < 0) return;
+      pending[key] = state.my_tiles[selectedTile];
+      pendingFromRack[key] = selectedTile;
+      selectedTile = -1;
+    }
+    renderBoard();
+    renderRack();
+    updateControls();
+  }
+
+  function updateControls() {
+    var n = Object.keys(pending).length;
+    var canPlay = state && state.is_my_turn && state.status === 'active';
+    document.getElementById('submit-btn').disabled = !(canPlay && n > 0);
+    document.getElementById('clear-btn').disabled = !(canPlay && n > 0);
+    document.getElementById('pass-btn').disabled = !canPlay;
+  }
+
+  function renderInfo() {
+    var ts = document.getElementById('turn-status');
+    if (state.status === 'waiting') ts.textContent = 'Waiting for opponent to join. Share this game with them.';
+    else if (state.status === 'completed') {
+      var w = state.winner_username;
+      ts.innerHTML = w ? ('Game over — ' + esc(w) + ' won') : 'Game over — tie';
+    } else if (state.is_my_turn) ts.innerHTML = '<span class="badge bg-success">Your turn</span>';
+    else ts.innerHTML = '<span class="badge bg-warning text-dark">Waiting for ' + esc(state.current_turn_username) + '</span>';
+    document.getElementById('bag-info').textContent = state.tile_bag_remaining + ' tiles in bag';
+
+    document.getElementById('players-body').innerHTML =
+      '<tr><th class="ps-3" style="width:50%">' + esc(state.player1.username) +
+      (state.i_am_player1 ? ' <span class="badge bg-primary">you</span>' : '') + '</th>' +
+      '<td class="font-monospace">' + state.player1.score + '</td></tr>' +
+      (state.player2.username
+        ? '<tr><th class="ps-3">' + esc(state.player2.username) +
+          (!state.i_am_player1 ? ' <span class="badge bg-primary">you</span>' : '') + '</th>' +
+          '<td class="font-monospace">' + state.player2.score + '</td></tr>'
+        : '');
+
+    var mb = document.getElementById('moves-body');
+    mb.innerHTML = (state.moves || []).slice().reverse().map(function(m) {
+      return '<tr><td class="ps-3"><strong>' + esc(m.word) + '</strong>' +
+        (m.is_bonus ? ' <span class="badge bg-danger">BINGO</span>' : '') +
+        '<br><small class="text-muted">' + esc(m.player_username) + '</small></td>' +
+        '<td class="font-monospace pe-3 text-end">+' + m.score + '</td></tr>';
+    }).join('') || '<tr><td class="text-muted text-center py-3">No moves yet.</td></tr>';
+  }
+
+  function refresh() {
+    fetch('/wordgame/api/games/' + gameId, {credentials: 'include'})
+      .then(function(r) {
+        if (r.status === 404 || r.status === 403) throw new Error('gone');
+        return r.json();
+      })
+      .then(function(data) {
+        state = data;
+        if (state.status === 'waiting' && !state.i_am_player1) {
+          // auto-join if we are the invitee
+          fetch('/wordgame/api/games/' + gameId + '/join', {
+            method: 'POST', credentials: 'include'
+          }).then(function() { refresh(); });
+          return;
+        }
+        pending = {}; pendingFromRack = {}; selectedTile = -1;
+        renderBoard(); renderRack(); renderInfo(); updateControls();
+      })
+      .catch(function() {
+        document.getElementById('turn-status').textContent = 'Game not available.';
+      });
+  }
+
+  document.getElementById('clear-btn').addEventListener('click', function() {
+    pending = {}; pendingFromRack = {}; selectedTile = -1;
+    renderBoard(); renderRack(); updateControls();
+    document.getElementById('move-msg').textContent = '';
+  });
+
+  document.getElementById('pass-btn').addEventListener('click', function() {
+    if (!confirm('Pass your turn?')) return;
+    fetch('/wordgame/api/games/' + gameId + '/pass', {
+      method: 'POST', credentials: 'include'
+    }).then(function(r) { return r.json(); })
+      .then(function(j) {
+        document.getElementById('move-msg').textContent = j.message || '';
+        refresh();
+      });
+  });
+
+  document.getElementById('submit-btn').addEventListener('click', function() {
+    var tiles = Object.keys(pending).map(function(k) {
+      var p = k.split(',');
+      return {letter: pending[k], row: +p[0], col: +p[1]};
+    });
+    var msg = document.getElementById('move-msg');
+    msg.textContent = 'Checking…';
+    fetch('/wordgame/api/games/' + gameId + '/move', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'include',
+      body: JSON.stringify({tiles: tiles})
+    }).then(function(r) { return r.json().then(function(j) { return {ok: r.ok, j: j}; }); })
+      .then(function(res) {
+        if (!res.ok) {
+          msg.innerHTML = '<span class="text-danger">' + esc(res.j.error) + '</span>';
+          return;
+        }
+        msg.innerHTML = '<span class="text-success">' + esc(res.j.word) + ' +' + res.j.score +
+          (res.j.bonus ? ' (BINGO!)' : '') + '</span>';
+        refresh();
+      });
+  });
+
+  refresh();
+  refreshHandle = setInterval(function() {
+    if (state && state.status === 'active' && !state.is_my_turn) refresh();
+    if (state && state.status === 'waiting') refresh();
+  }, 5000);
+})();
+</script>
+<style>
+.wg-board { display: grid; grid-template-columns: repeat(15, 1fr); gap: 2px;
+  max-width: 560px; aspect-ratio: 1; }
+.wg-cell { display: flex; align-items: center; justify-content: center;
+  background: #e9e7e2; border-radius: 3px; font-size: 0.6rem; color: #999;
+  cursor: pointer; user-select: none; position: relative; }
+.wg-cell span { font-size: 1rem; font-weight: bold; color: #333; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  background: #f5d889; border-radius: 3px; }
+.wg-pts { position: absolute; right: 1px; bottom: 0; font-size: 0.55rem; font-style: normal;
+  font-weight: normal; color: #555; line-height: 1; }
+.wg-cell span { position: relative; }
+.wg-cell.wg-placed span { background: #b5e3a8; }
+.wg-W3 { background: #d98073; } .wg-W2 { background: #e8b6ad; }
+.wg-L3 { background: #7aa8d9; } .wg-L2 { background: #aecde8; }
+.wg-tile { position: relative; width: 42px; height: 42px; background: #f5d889; border: 1px solid #c9a84c;
+  border-radius: 5px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; font-weight: bold; cursor: pointer; }
+.wg-tile .wg-pts { font-size: 0.6rem; }
+.wg-tile.wg-selected { outline: 3px solid #0d6efd; }
+.wg-tile.wg-used { opacity: 0.25; pointer-events: none; }
+</style>
+{% endblock %}

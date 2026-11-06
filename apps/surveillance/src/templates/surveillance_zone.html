@@ -1,0 +1,1259 @@
+{% extends "base.html" %}
+
+{% block title %}{{ zone.name }} - Surveillance{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/surveillance/">Surveillance</a></li>
+        <li class="breadcrumb-item active">{{ zone.name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-camera-video"></i> {{ zone.name }}</h2>
+    <div class="d-flex gap-2">
+        {% if is_owner %}
+        <a href="/surveillance/zone/{{ zone.id }}/camera/new" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> Add Camera
+        </a>
+        <a href="/surveillance/zone/{{ zone.id }}/edit" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil"></i> Edit Zone
+        </a>
+        {% endif %}
+        <button class="btn btn-outline-primary btn-sm" id="fullscreen-btn">
+            <i class="bi bi-arrows-fullscreen"></i> Fullscreen
+        </button>
+    </div>
+</div>
+
+{% if zone.description %}
+<p class="text-muted">{{ zone.description }}</p>
+{% endif %}
+
+<!-- Alarm Banner -->
+{% if cameras %}
+<div id="alarm-banner" class="alert alert-danger align-items-center gap-3" role="alert" style="display:none; animation: pulse 1s infinite">
+    <i class="bi bi-exclamation-triangle-fill fs-3"></i>
+    <div>
+        <strong id="alarm-text">ALARM</strong>
+        <button class="btn btn-sm btn-outline-danger ms-3" onclick="dismissAlarm()">Dismiss</button>
+    </div>
+</div>
+<style>
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+.camera-clickable .camera-feed video, .camera-clickable .camera-feed img { display:block; width:100%; height:auto; object-fit:contain; background:#000; }
+</style>
+{% endif %}
+
+<!-- Camera Grid -->
+{% if cameras %}
+<div id="camera-grid" class="row g-2 mb-4">
+    {% for cam in cameras %}
+    <div class="camera-cell" data-camera-id="{{ cam.id }}" data-stream-type="{{ cam.stream_type }}" data-stream-url="{{ cam.stream_url }}" data-go2rtc-url="{{ go2rtc_urls[cam.id|string] if cam.id|string in go2rtc_urls else '' }}" data-webrtc-url="{{ go2rtc_webrtc_urls[cam.id|string] if cam.id|string in go2rtc_webrtc_urls else '' }}" data-rotation="{{ cam.rotation }}">
+        <div class="card bg-dark text-white h-100">
+            <div class="card-header d-flex justify-content-between align-items-center py-1 px-2">
+                <small><a href="/surveillance/zone/{{ zone.id }}/camera/{{ cam.id }}/view" class="text-white text-decoration-none"><i class="bi bi-camera"></i> {{ cam.name }}</a></small>
+                <div class="d-flex gap-1">
+                    {% if cam.location %}
+                    <small class="text-muted d-none d-md-inline">{{ cam.location }}</small>
+                    {% endif %}
+                    {% if camera_web_urls and cam.id|string in camera_web_urls %}
+                    <a href="{{ camera_web_urls[cam.id|string] }}" target="_blank" class="text-white ms-2" title="Open camera web interface">
+                        <i class="bi bi-globe"></i>
+                    </a>
+                    {% endif %}
+                    {% if can_edit %}
+                    <a href="/surveillance/zone/{{ zone.id }}/camera/{{ cam.id }}/edit" class="text-white ms-2" title="Edit camera">
+                        <i class="bi bi-gear"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body p-0 position-relative camera-clickable" style="min-height: 100px; cursor: pointer" onclick="window.location.href='/surveillance/zone/{{ zone.id }}/camera/{{ cam.id }}/view'" data-camera-id="{{ cam.id }}">
+                <div class="camera-feed" id="feed-{{ cam.id }}" data-stream-type="{{ cam.stream_type }}">
+                    <div class="d-flex justify-content-center align-items-center h-100 text-muted">
+                        <div class="text-center">
+                            <div class="spinner-border spinner-border-sm mb-1"></div>
+                            <div><small>Connecting...</small></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="camera-overlay position-absolute bottom-0 end-0 p-1">
+                    <span class="badge bg-dark bg-opacity-50 live-badge" style="display:none">
+                        <span class="text-danger">&bull;</span> LIVE
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif all_cameras %}
+<div class="alert alert-warning">
+    All cameras in this zone are disabled.
+    {% if is_owner %}
+    <a href="/surveillance/zone/{{ zone.id }}/camera/{{ all_cameras[0].id }}/edit">Enable them</a>.
+    {% endif %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    No cameras added yet.
+    {% if is_owner %}
+    <a href="/surveillance/zone/{{ zone.id }}/camera/new">Add one</a>.
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Alarm Event Log -->
+{% if cameras %}
+<div class="card mb-3" id="alarm-log-panel" style="display:none">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history"></i> Alarm History</span>
+        <div>
+            <select class="form-select form-select-sm d-inline-block" style="width:auto" id="alarm-log-hours" onchange="loadAlarmEvents()">
+                <option value="1">Last hour</option>
+                <option value="6">Last 6 hours</option>
+                <option value="24" selected>Last 24 hours</option>
+                <option value="168">Last 7 days</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadAlarmEvents()" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#alarm-log-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="alarm-log-body">
+        <div class="card-body p-0">
+            <div id="alarm-log-list" class="list-group list-group-flush" style="max-height:300px;overflow-y:auto">
+                <div class="text-muted text-center py-2"><small>No alarm events</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recording Browser -->
+{% if cameras %}
+<div class="card mb-3" id="recordings-panel" style="display:none">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-record-circle"></i> <span id="recording-title">Recordings</span></span>
+        <div>
+            <span id="recording-status" class="badge bg-secondary me-2">Checking...</span>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#recordings-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="recordings-body">
+        <div class="card-body p-2">
+            <div class="row mb-2">
+                <div class="col">
+                    <select class="form-select form-select-sm" id="recording-camera-select">
+                        {% for cam in cameras %}
+                        <option value="{{ cam.id }}" data-recording="{{ 'true' if cam.recording_enabled else 'false' }}">{{ cam.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div id="recording-player" class="mb-2" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small class="text-muted" id="recording-filename"></small>
+                    <div class="d-flex gap-1 align-items-center flex-wrap">
+                        <span class="text-muted me-1"><small>Speed:</small></span>
+                        <button class="btn btn-sm btn-outline-secondary active speed-btn" data-rate="1">1x</button>
+                        <button class="btn btn-sm btn-outline-secondary speed-btn" data-rate="2">2x</button>
+                        <button class="btn btn-sm btn-outline-secondary speed-btn" data-rate="3">3x</button>
+                        <button class="btn btn-sm btn-outline-secondary speed-btn" data-rate="4">4x</button>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" type="button" onclick="snapshotRecording()" title="Snapshot current frame to server">
+                            <i class="bi bi-camera"></i> Save Frame
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="closeRecordingPlayer()">
+                            <i class="bi bi-x-lg"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <video id="recording-video" controls style="width:100%;max-height:400px;background:#000" playsinline></video>
+            </div>
+            <div id="recording-segments" class="list-group list-group-flush" style="max-height:300px;overflow-y:auto">
+                <div class="text-muted text-center py-2"><small>Select a camera to browse recordings</small></div>
+            </div>
+        </div>
+    </div>
+
+<!-- Ignore Windows -->
+{% if can_edit and cameras %}
+<div class="card mb-3" id="ignore-panel">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock"></i> Ignore Windows <small class="text-muted">(suppress recordings/alarms)</small></span>
+        <div>
+            <select class="form-select form-select-sm d-inline-block" style="width:auto" id="ignore-camera-select" onchange="loadIgnoreWindows()">
+                {% for cam in cameras %}
+                <option value="{{ cam.id }}">{{ cam.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-outline-primary" type="button" onclick="addIgnoreWindow()">
+                <i class="bi bi-plus"></i> Add
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#ignore-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse" id="ignore-body">
+        <div class="card-body p-2">
+            <div id="ignore-windows-list" class="list-group list-group-flush">
+                <div class="text-muted text-center py-2"><small>Select a camera</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Saved Files -->
+<div class="card mb-3" id="saved-panel" style="display:none">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bookmark-star"></i> Saved Files - <span id="saved-camera-name"></span></span>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadSavedFiles()" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#saved-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="saved-body">
+        <div class="card-body p-2">
+            <ul class="nav nav-tabs nav-fill mb-2" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active py-1" data-bs-toggle="tab" data-bs-target="#saved-videos-tab">Saved Videos</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#saved-snaps-tab">Snapshots</button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="saved-videos-tab">
+                    <div id="saved-videos-list" class="list-group list-group-flush" style="max-height:250px;overflow-y:auto">
+                        <div class="text-muted text-center py-2"><small>No saved videos</small></div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="saved-snaps-tab">
+                    <div id="saved-snaps-list" class="list-group list-group-flush" style="max-height:250px;overflow-y:auto">
+                        <div class="text-muted text-center py-2"><small>No saved snapshots</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Camera List / Management -->
+{% if can_edit and all_cameras %}
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="bi bi-list-ul"></i> All Cameras ({{ all_cameras|length }})
+    </div>
+    <div class="list-group list-group-flush">
+        {% for cam in all_cameras %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-camera{{ '-video-fill text-success' if cam.is_enabled else ' text-muted' }}"></i>
+                <strong>{{ cam.name }}</strong>
+                {% if cam.location %}<span class="text-muted ms-2">{{ cam.location }}</span>{% endif %}
+                <br><small class="text-muted">{{ cam.stream_type|upper }}: {{ cam.stream_url|truncate(63) }}</small>
+            </div>
+            <div class="d-flex gap-1">
+                {% if not cam.is_enabled %}
+                <span class="badge bg-secondary">Disabled</span>
+                {% endif %}
+                <a href="/surveillance/zone/{{ zone.id }}/camera/{{ cam.id }}/edit" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="/surveillance/zone/{{ zone.id }}/camera/{{ cam.id }}/delete"
+                      onsubmit="return confirm('Remove {{ cam.name }}?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Sharing -->
+{% if is_owner %}
+<div class="card mb-3">
+    <div class="card-header">
+        <i class="bi bi-people"></i> Shared With
+    </div>
+    <div class="card-body">
+        {% if shares %}
+        <div class="list-group list-group-flush mb-3">
+            {% for share in shares %}
+            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                <div>
+                    <i class="bi bi-person"></i> {{ share.shared_with_user.username }}
+                    {% if share.can_edit %}<span class="badge bg-info ms-1">Can Edit</span>{% endif %}
+                </div>
+                <form method="post" action="/surveillance/zone/{{ zone.id }}/share/{{ share.id }}/delete">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove access">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" action="/surveillance/zone/{{ zone.id }}/share" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-0"><small>Share with user</small></label>
+                <input type="text" class="form-control form-control-sm" name="username" placeholder="Username" required>
+            </div>
+            <div class="col-auto">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="can_edit" name="can_edit">
+                    <label class="form-check-label" for="can_edit"><small>Can Edit</small></label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-share"></i> Share
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Zone Delete -->
+{% if is_owner %}
+<div class="text-end">
+    <form method="post" action="/surveillance/zone/{{ zone.id }}/delete"
+          onsubmit="return confirm('Delete this zone and all its cameras?')">
+        <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-trash"></i> Delete Zone
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    var cells = document.querySelectorAll('.camera-cell');
+
+    function resizeGrid() {
+        var count = cells.length;
+        var cols;
+        if (count === 1) cols = 12;
+        else if (count === 2) cols = 6;
+        else if (count <= 4) cols = 6;
+        else if (count <= 9) cols = 4;
+        else cols = 3;
+
+        cells.forEach(function(cell) {
+            cell.className = 'camera-cell col-' + cols;
+            if (cols === 12) {
+                cell.querySelector('.card-body').style.minHeight = '450px';
+            } else if (cols >= 6) {
+                cell.querySelector('.card-body').style.minHeight = '280px';
+            }
+        });
+    }
+
+    resizeGrid();
+
+    var pageUnloading = false;
+    window.addEventListener('pagehide', function() { pageUnloading = true; });
+
+    cells.forEach(function(cell, cellIndex) {
+        var feed = cell.querySelector('.camera-feed');
+        var overlay = cell.querySelector('.live-badge');
+        var streamType = cell.getAttribute('data-stream-type');
+        var streamUrl = cell.getAttribute('data-stream-url');
+        var go2rtcUrl = cell.getAttribute('data-go2rtc-url');
+        var webrtcUrl = cell.getAttribute('data-webrtc-url');
+        var rotation = parseInt(cell.getAttribute('data-rotation')) || 0;
+
+        function showWebRtcVideo(url, attempt) {
+            attempt = attempt || 0;
+            if (!window.RTCPeerConnection) {
+                if (go2rtcUrl) { showMseVideo(go2rtcUrl, feed, overlay); return; }
+                feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> WebRTC not supported</small></div>';
+                return;
+            }
+            var video = document.createElement('video');
+            video.autoplay = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.style.cssText = 'display:block;width:100%;height:auto;object-fit:contain;background:#000';
+
+            var pc = new RTCPeerConnection();
+            var stopped = false;
+            var reconnectTimer = null;
+
+            pc.addTransceiver('video', {direction: 'recvonly'});
+            pc.addTransceiver('audio', {direction: 'recvonly'});
+            pc.ontrack = function(e) { video.srcObject = e.streams[0]; };
+            pc.onconnectionstatechange = function() {
+                if (stopped || pageUnloading) return;
+                if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                    stopped = true;
+                    try { pc.close(); } catch(e) {}
+                    if (video.parentElement) video.remove();
+                    var delay = Math.min(3000 * Math.pow(2, attempt), 30000);
+                    if (!pageUnloading) reconnectTimer = setTimeout(function() {
+                        feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="text-center"><div class="spinner-border spinner-border-sm mb-1"></div><div><small>Reconnecting (' + Math.round(delay/1000) + 's)...</small></div></div></div>';
+                        showWebRtcVideo(url, attempt + 1);
+                    }, delay);
+                }
+            };
+
+            pc.createOffer().then(function(offer) {
+                return pc.setLocalDescription(offer);
+            }).then(function() {
+                return new Promise(function(resolve) {
+                    if (pc.iceGatheringState === 'complete') return resolve();
+                    var t = setTimeout(resolve, 2000);
+                    pc.onicegatheringstatechange = function() {
+                        if (pc.iceGatheringState === 'complete') { clearTimeout(t); resolve(); }
+                    };
+                });
+            }).then(function() {
+                return fetch(url, {
+                    method: 'POST',
+                    body: pc.localDescription.sdp,
+                    headers: {'Content-Type': 'application/sdp'},
+                });
+            }).then(function(r) {
+                if (!r.ok) throw new Error('bad status');
+                return r.text();
+            }).then(function(sdp) {
+                return pc.setRemoteDescription({type: 'answer', sdp: sdp});
+            }).catch(function() {
+                if (!stopped) {
+                    stopped = true;
+                    try { pc.close(); } catch(e) {}
+                    if (go2rtcUrl) { showMseVideo(go2rtcUrl, feed, overlay); }
+                    else { feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-danger"><small><i class="bi bi-exclamation-triangle"></i> Stream unavailable</small></div>'; }
+                }
+            });
+
+            feed.innerHTML = '';
+            feed.appendChild(video);
+            if (overlay) overlay.style.display = '';
+        }
+
+        function showMjpeg(url) {
+            var img = document.createElement('img');
+            img.src = url;
+            img.style.cssText = 'display:block;width:100%;height:auto;object-fit:contain;background:#000';
+            img.alt = 'Camera feed';
+            img.onerror = function() {
+                feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-danger"><small><i class="bi bi-exclamation-triangle"></i> Connection failed</small></div>';
+            };
+            img.onload = function() {
+                if (overlay) overlay.style.display = '';
+            };
+            feed.innerHTML = '';
+            feed.appendChild(img);
+        }
+
+        function showHlsVideo(url) {
+            var video = document.createElement('video');
+            video.autoplay = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.style.cssText = 'display:block;width:100%;height:auto;object-fit:contain;background:#000';
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                video.play().catch(function() {});
+                if (overlay) overlay.style.display = '';
+            } else if (typeof Hls !== 'undefined') {
+                var hls = new Hls();
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    video.play().catch(function() {});
+                    if (overlay) overlay.style.display = '';
+                });
+            } else {
+                feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> HLS not supported</small></div>';
+                return;
+            }
+            feed.innerHTML = '';
+            feed.appendChild(video);
+        }
+
+        function showMseVideo(url, feed, overlay, attempt) {
+            attempt = attempt || 0;
+            if (attempt > 10) attempt = 0;
+            var video = document.createElement('video');
+            video.autoplay = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.style.cssText = 'display:block;width:100%;height:auto;object-fit:contain;background:#000';
+
+            if (!window.MediaSource) {
+                feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> MSE not supported</small></div>';
+                return;
+            }
+
+            var mediaSource = new MediaSource();
+            video.src = URL.createObjectURL(mediaSource);
+            var stopped = false;
+            var abortCtrl = new AbortController();
+            var reconnectDelay = 3000;
+
+            function reconnect() {
+                if (stopped) return;
+                stopped = true;
+                try { abortCtrl.abort(); } catch(e) {}
+                try { mediaSource.endOfStream(); } catch(e) {}
+                if (video.parentElement) video.remove();
+                if (!pageUnloading) setTimeout(function() {
+                    showMseVideo(url, feed, overlay, attempt + 1);
+                }, reconnectDelay);
+            }
+
+            mediaSource.addEventListener('sourceopen', function() {
+                fetch(url, { signal: abortCtrl.signal }).then(function(response) {
+                    if (!response.ok) throw new Error('bad status');
+
+                    var contentType = response.headers.get('content-type') || 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
+                    var codecMatch = contentType.match(/codecs="([^"]+)"/);
+                    var codecs = codecMatch ? codecMatch[1] : 'avc1.42E01E,mp4a.40.2';
+                    var mimeType = 'video/mp4; codecs="' + codecs + '"';
+
+                    var sourceBuffer = null;
+                    try {
+                        sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+                    } catch(e) {
+                        reconnect();
+                        return;
+                    }
+
+                    sourceBuffer.addEventListener('error', function() { reconnect(); });
+
+                    var reader = response.body.getReader();
+                    var queue = [];
+                    var lastData = Date.now();
+
+                    function feedNext() {
+                        if (stopped) return;
+                        if (sourceBuffer.updating) return;
+                        if (queue.length === 0) return;
+                        try {
+                            sourceBuffer.appendBuffer(queue.shift());
+                        } catch(e) {
+                            reconnect();
+                        }
+                    }
+
+                    sourceBuffer.addEventListener('updateend', feedNext);
+
+                    var trimTimer = setInterval(function() {
+                        if (stopped) { clearInterval(trimTimer); return; }
+                        if (sourceBuffer.updating) return;
+                        try {
+                            var buffered = sourceBuffer.buffered;
+                            if (buffered.length > 0) {
+                                var end = buffered.end(buffered.length - 1);
+                                var start = buffered.start(0);
+                                // Trim behind the PLAYHEAD, not a fixed window:
+                                // a fixed window evicts the region being played
+                                // once decoding falls behind, which stalls and
+                                // resets an otherwise healthy tile.
+                                var keepFrom = video.currentTime - 2;
+                                if (keepFrom > start && end - start > 12) {
+                                    sourceBuffer.remove(start, keepFrom);
+                                }
+                            }
+                        } catch(e) {}
+                    }, 2000);
+
+                    var lastVideoTime = 0;
+                    var stuckCount = 0;
+
+                    var stallTimer = setInterval(function() {
+                        if (stopped) { clearInterval(stallTimer); return; }
+                        if (Date.now() - lastData > 15000) {
+                            reconnect();
+                            return;
+                        }
+                        var now = video.currentTime;
+                        if (now === lastVideoTime) {
+                            stuckCount++;
+                            // Only tear the connection down when the stream
+                            // itself is exhausted — with several tiles the
+                            // decoder regularly stalls while data is still
+                            // buffered, and reconnecting resets a healthy tile.
+                            if (stuckCount >= 8) {
+                                try {
+                                    var b2 = sourceBuffer.buffered;
+                                    var hasAhead = b2.length > 0 && b2.end(b2.length - 1) > video.currentTime + 0.3;
+                                    if (!hasAhead) { reconnect(); return; }
+                                } catch(e) { reconnect(); return; }
+                                stuckCount = 4;
+                            }
+                            if (stuckCount >= 2) {
+                                try {
+                                    var b = sourceBuffer.buffered;
+                                    if (b.length > 0) video.currentTime = b.end(b.length - 1) - 0.5;
+                                } catch(e) {}
+                                video.play().catch(function() {});
+                            }
+                        } else {
+                            lastVideoTime = now;
+                            stuckCount = 0;
+                        }
+                    }, 3000);
+
+                    function readLoop() {
+                        if (stopped) return;
+                        reader.read().then(function(result) {
+                            if (result.done) {
+                                reconnect();
+                                return;
+                            }
+                            lastData = Date.now();
+                            queue.push(result.value);
+                            feedNext();
+                            readLoop();
+                        }).catch(function() {
+                            if (!stopped) reconnect();
+                        });
+                    }
+
+                    readLoop();
+
+                    var lastHardSeek = 0;
+                    var liveTimer = setInterval(function() {
+                        if (stopped) { clearInterval(liveTimer); return; }
+                        if (video.paused && video.readyState >= 2) video.play().catch(function() {});
+                        try {
+                            var buffered = sourceBuffer.buffered;
+                            if (buffered.length > 0) {
+                                var end = buffered.end(buffered.length - 1);
+                                var lag = end - video.currentTime;
+                                if (lag > 12 && Date.now() - lastHardSeek > 15000) {
+                                    // Far behind: one hard seek back to the edge,
+                                    // at most every 15s — seeking every tick
+                                    // re-buffers endlessly and looks like the
+                                    // tile resetting.
+                                    lastHardSeek = Date.now();
+                                    if (video.playbackRate !== 1) video.playbackRate = 1;
+                                    video.currentTime = end - 0.5;
+                                } else if (lag > 1.5) {
+                                    // Slightly behind: catch up gradually instead of
+                                    // seeking (seeks at the live edge cause decode
+                                    // underflow, which shows as a blank tile)
+                                    video.playbackRate = lag > 4 ? 1.25 : 1.1;
+                                } else if (video.playbackRate !== 1) {
+                                    video.playbackRate = 1;
+                                }
+                            }
+                        } catch(e) {}
+                    }, 1000);
+
+                }).catch(function() {
+                    if (!stopped) reconnect();
+                });
+            });
+
+            feed.innerHTML = '';
+            feed.appendChild(video);
+            if (overlay) overlay.style.display = '';
+        }
+
+        function startStream() {
+            if (streamType === 'mjpeg') {
+                showMjpeg(streamUrl);
+            } else if (streamType === 'rtsp') {
+                // WebRTC first (like the FastAPI app): hardware decode and no
+                // client buffer to manage, so many tiles stay smooth. MSE is
+                // the fallback (go2rtc ad-hoc src= WebRTC does work — verified
+                // against api/webrtc directly).
+                if (webrtcUrl) {
+                    showWebRtcVideo(webrtcUrl);
+                } else if (go2rtcUrl) {
+                    showMseVideo(go2rtcUrl, feed, overlay);
+                } else {
+                    feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> RTSP requires go2rtc proxy</small></div>';
+                }
+            } else if (streamType === 'hls') {
+                showHlsVideo(streamUrl);
+            } else {
+                feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><small>' + streamType.toUpperCase() + ' not supported</small></div>';
+            }
+
+            if (rotation) {
+                feed.style.transform = 'rotate(' + rotation + 'deg)';
+                var cardBody = cell.querySelector('.card-body');
+                cardBody.style.overflow = 'hidden';
+                if (rotation === 90 || rotation === 270) {
+                    feed.style.transformOrigin = 'center center';
+                }
+            }
+        }
+
+        // Stagger tile startup: launching every decoder at the same instant
+        // starves decoding on the zone overview and makes tiles reset.
+        setTimeout(startStream, cellIndex * 1200);
+    });
+
+    document.getElementById('fullscreen-btn').addEventListener('click', function() {
+        var grid = document.getElementById('camera-grid');
+        if (grid.requestFullscreen) grid.requestFullscreen();
+        else if (grid.webkitRequestFullscreen) grid.webkitRequestFullscreen();
+    });
+
+    var recordingsPanel = document.getElementById('recordings-panel');
+    var recordingSelect = document.getElementById('recording-camera-select');
+    var recordingStatus = document.getElementById('recording-status');
+    var recordingTitle = document.getElementById('recording-title');
+    var recordingPlayer = document.getElementById('recording-player');
+    var recordingVideo = document.getElementById('recording-video');
+    var recordingSegments = document.getElementById('recording-segments');
+
+    function loadRecordings(cameraId) {
+        if (!cameraId) {
+            recordingSegments.innerHTML = '<div class="text-muted text-center py-2"><small>Select a camera</small></div>';
+            recordingStatus.className = 'badge bg-secondary me-2';
+            recordingStatus.textContent = 'Idle';
+            return;
+        }
+        fetch('/surveillance/api/camera/' + cameraId + '/recordings')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                recordingStatus.textContent = data.recording ? 'Recording' : 'Idle';
+                recordingStatus.className = 'badge ' + (data.recording ? 'bg-danger' : 'bg-secondary') + ' me-2';
+                recordingTitle.textContent = 'Recordings - ' + data.camera_name;
+                recordingsPanel.style.display = '';
+
+                if (!data.segments || data.segments.length === 0) {
+                    recordingSegments.innerHTML = '<div class="text-muted text-center py-2"><small>No recordings yet</small></div>';
+                    return;
+                }
+
+                var html = '<div class="d-flex justify-content-between align-items-center mb-1 px-1">' +
+                    '<small class="text-muted">' + data.segments.length + ' segments</small>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSelected(\'' + cameraId + '\')" style="display:none" id="delete-selected-btn">' +
+                    '<i class="bi bi-trash"></i> Delete Selected</button></div>';
+                data.segments.forEach(function(seg) {
+                    var d = new Date(seg.modified);
+                    var timeStr = d.toLocaleString();
+                    var sizeMB = (seg.size / 1048576).toFixed(1);
+                    html += '<div class="list-group-item d-flex align-items-center py-1 px-2 gap-2">' +
+                        '<input type="checkbox" class="form-check-input recording-check" data-path="' + seg.path + '" style="margin:0;flex-shrink:0">' +
+                        '<button type="button" class="btn btn-link btn-sm text-start p-0 flex-grow-1 text-decoration-none" onclick="playRecording(\'' + cameraId + '\', \'' + seg.path + '\', \'' + seg.filename + '\')">' +
+                        '<i class="bi bi-play-circle me-1"></i>' + seg.filename + '</button>' +
+                        '<small class="text-muted text-nowrap">' + sizeMB + ' MB &middot; ' + timeStr + '</small>' +
+                        '<button class="btn btn-sm btn-outline-success py-0 px-1" onclick="saveRecording(\'' + cameraId + '\', \'' + seg.path + '\', \'' + seg.filename + '\')" title="Save copy"><i class="bi bi-bookmark"></i></button>' +
+                        '</div>';
+                });
+                recordingSegments.innerHTML = html;
+                document.getElementById('delete-selected-btn').style.display = 'none';
+
+                // Shift-click range selection
+                var boxes = recordingSegments.querySelectorAll('.recording-check');
+                boxes.forEach(function(box, i) {
+                    box.addEventListener('click', function(e) {
+                        if (e.shiftKey && window._lastRecIdx !== undefined && window._lastRecIdx !== i) {
+                            var lo = Math.min(window._lastRecIdx, i);
+                            var hi = Math.max(window._lastRecIdx, i);
+                            var target = box.checked;
+                            for (var j = lo; j <= hi; j++) {
+                                boxes[j].checked = target;
+                            }
+                        }
+                        window._lastRecIdx = i;
+                        updateDeleteButton();
+                    });
+                });
+            })
+            .catch(function() {
+                recordingStatus.textContent = 'Error';
+                recordingStatus.className = 'badge bg-warning me-2';
+            });
+    }
+
+    window.closeRecordingPlayer = function() {
+        recordingPlayer.style.display = 'none';
+        recordingVideo.src = '';
+        document.getElementById('recording-filename').textContent = '';
+        var camId = recordingSelect.value;
+        if (camId) {
+            var cell = document.querySelector('.camera-cell[data-camera-id=\"' + camId + '\"]');
+            if (cell) {
+                var feed = cell.querySelector('.camera-feed');
+                feed.innerHTML = '<div class=\"d-flex justify-content-center align-items-center h-100 text-muted\"><div class=\"text-center\"><div class=\"spinner-border spinner-border-sm mb-1\"></div><div><small>Reconnecting...</small></div></div></div>';
+                // Reload the zone page section to reset all streams
+                setTimeout(function() { location.reload(); }, 500);
+            }
+        }
+    };
+
+    window.updateDeleteButton = function() {
+        var checked = document.querySelectorAll('.recording-check:checked').length;
+        var btn = document.getElementById('delete-selected-btn');
+        if (btn) btn.style.display = checked > 0 ? '' : 'none';
+    };
+
+    window.snapshotRecording = function() {
+        if (!recordingVideo.src || !recordingVideo.videoWidth) return;
+        recordingVideo.pause();
+        var canvas = document.createElement('canvas');
+        canvas.width = recordingVideo.videoWidth;
+        canvas.height = recordingVideo.videoHeight;
+        canvas.getContext('2d').drawImage(recordingVideo, 0, 0);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        var camId = recordingSelect.value;
+        if (!camId) return;
+        var defaultName = (document.getElementById('recording-filename').textContent || 'snapshot').replace(/\.[^.]+$/, '');
+        var name = prompt('Save snapshot as:', defaultName);
+        if (!name) return;
+        fetch('/surveillance/api/camera/' + camId + '/snapshot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, data: dataUrl}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.saved) { alert('Snapshot saved: ' + data.name); loadSavedFiles(); }
+            else if (data.detail) { alert('Error: ' + data.detail); }
+        }).catch(function() { alert('Failed to save snapshot'); });
+    };
+
+    window.saveRecording = function(cameraId, path, filename) {
+        var defaultName = filename ? filename.replace(/\.[^.]+$/, '') + '_saved' : 'saved';
+        var name = prompt('Save recording as:', defaultName);
+        if (!name) return;
+        fetch('/surveillance/api/camera/' + cameraId + '/recordings/' + path + '/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.saved) { alert('Saved: ' + data.name); loadSavedFiles(); }
+            else if (data.detail) { alert('Error: ' + data.detail); }
+        }).catch(function() { alert('Failed to save recording'); });
+    };
+
+    window.loadSavedFiles = function() {
+        var camId = recordingSelect ? recordingSelect.value : null;
+        if (!camId) return;
+        fetch('/surveillance/api/camera/' + camId + '/saved')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var panel = document.getElementById('saved-panel');
+                var camName = document.getElementById('saved-camera-name');
+                var curName = recordingSelect.options[recordingSelect.selectedIndex] ? recordingSelect.options[recordingSelect.selectedIndex].text : '';
+                if (camName) camName.textContent = curName;
+                if (panel) panel.style.display = '';
+
+                var vids = data.videos || [];
+                var vlist = document.getElementById('saved-videos-list');
+                if (vlist) {
+                    if (vids.length === 0) {
+                        vlist.innerHTML = '<div class="text-muted text-center py-2"><small>No saved videos</small></div>';
+                    } else {
+                        var html = '';
+                        vids.forEach(function(v) {
+                            var d = new Date(v.modified);
+                            var sizeMB = (v.size / 1048576).toFixed(1);
+                            html += '<div class="list-group-item d-flex align-items-center py-1 px-2 gap-2">' +
+                                '<button type="button" class="btn btn-link btn-sm text-start p-0 flex-grow-1 text-decoration-none" onclick="playSavedVideo(\'' + camId + '\', \'' + v.name + '\')">' +
+                                '<i class="bi bi-play-circle me-1"></i>' + v.name + '</button>' +
+                                '<small class="text-muted text-nowrap">' + sizeMB + ' MB</small>' +
+                                '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteSaved(\'' + camId + '\', \'video\', \'' + v.name + '\')" title="Delete"><i class="bi bi-trash"></i></button>' +
+                                '</div>';
+                        });
+                        vlist.innerHTML = html;
+                    }
+                }
+
+                var snaps = data.snapshots || [];
+                var slist = document.getElementById('saved-snaps-list');
+                if (slist) {
+                    if (snaps.length === 0) {
+                        slist.innerHTML = '<div class="text-muted text-center py-2"><small>No saved snapshots</small></div>';
+                    } else {
+                        var shtml = '';
+                        snaps.forEach(function(s) {
+                            var d = new Date(s.modified);
+                            var sizeKB = (s.size / 1024).toFixed(0);
+                            shtml += '<div class="list-group-item d-flex align-items-center py-1 px-2 gap-2">' +
+                                '<a href="/surveillance/api/camera/' + camId + '/recordings/' + s.name + '" target="_blank" class="text-decoration-none flex-grow-1">' +
+                                '<i class="bi bi-image me-1"></i>' + s.name + '</a>' +
+                                '<small class="text-muted text-nowrap">' + sizeKB + ' KB</small>' +
+                                '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteSaved(\'' + camId + '\', \'snapshot\', \'' + s.name + '\')" title="Delete"><i class="bi bi-trash"></i></button>' +
+                                '</div>';
+                        });
+                        slist.innerHTML = shtml;
+                    }
+                }
+            }).catch(function() {});
+    };
+
+    window.playSavedVideo = function(camId, name) {
+        var url = '/surveillance/api/camera/' + camId + '/saved/video/' + name;
+        recordingPlayer.style.display = '';
+        document.getElementById('recording-filename').textContent = name;
+        recordingVideo.src = url;
+        applySavedRate();
+        recordingVideo.play().catch(function() {});
+    };
+
+    window.deleteSaved = function(camId, kind, name) {
+        if (!confirm('Delete ' + kind + ' "' + name + '"?')) return;
+        fetch('/surveillance/api/camera/' + camId + '/saved/' + kind + '/' + name + '/delete', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) { if (data.deleted) loadSavedFiles(); });
+    };
+
+    window.deleteSelected = function(cameraId) {
+        var checks = document.querySelectorAll('.recording-check:checked');
+        if (checks.length === 0) return;
+        if (!confirm('Delete ' + checks.length + ' selected recordings?')) return;
+        var paths = [];
+        checks.forEach(function(c) { paths.push(c.dataset.path); });
+        function delNext() {
+            if (paths.length === 0) { loadRecordings(cameraId); return; }
+            var p = paths.shift();
+            fetch('/surveillance/api/camera/' + cameraId + '/recordings/' + p, { method: 'POST' })
+                .then(function() { delNext(); })
+                .catch(function() { delNext(); });
+        }
+        delNext();
+    };
+
+    window.playRecording = function(cameraId, path, filename) {
+        var url = '/surveillance/api/camera/' + cameraId + '/recordings/' + path;
+        recordingPlayer.style.display = '';
+        document.getElementById('recording-filename').textContent = filename || '';
+
+        if (window.MediaSource) {
+            var mediaSource = new MediaSource();
+            recordingVideo.src = URL.createObjectURL(mediaSource);
+
+            mediaSource.addEventListener('sourceopen', function() {
+                fetch(url).then(function(response) {
+                    return response.arrayBuffer();
+                }).then(function(buffer) {
+                    var data = new Uint8Array(buffer);
+                    // Extract codec from avcC box in the file
+                    var codecs = 'avc1.42E01E';
+                    var avcCIdx = -1;
+                    for (var i = 0; i < data.length - 8; i++) {
+                        if (data[i]==0x61 && data[i+1]==0x76 && data[i+2]==0x63 && data[i+3]==0x43) {
+                            avcCIdx = i + 4;
+                            break;
+                        }
+                    }
+                    if (avcCIdx > 0 && avcCIdx + 3 < data.length) {
+                        var profile = data[avcCIdx + 1];
+                        var compat = data[avcCIdx + 2];
+                        var level = data[avcCIdx + 3];
+                        codecs = 'avc1.' + profile.toString(16).padStart(2,'0').toUpperCase() + compat.toString(16).padStart(2,'0').toUpperCase() + level.toString(16).padStart(2,'0').toUpperCase();
+                    }
+                    var mime = 'video/mp4; codecs=\"' + codecs + '\"';
+                    try {
+                        var sb = mediaSource.addSourceBuffer(mime);
+                        sb.addEventListener('updateend', function() {
+                            if (!sb.updating) try { mediaSource.endOfStream(); } catch(e) {}
+                        });
+                        sb.appendBuffer(buffer);
+                    } catch(e) {
+                        recordingVideo.src = url;
+                    }
+                });
+            });
+        } else {
+            recordingVideo.src = url;
+        }
+
+        applySavedRate();
+        recordingVideo.play().catch(function() {});
+    };
+
+    document.querySelectorAll('.speed-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var rate = parseFloat(this.dataset.rate);
+            recordingVideo.playbackRate = rate;
+            localStorage.setItem('surv_playback_rate', rate);
+            document.querySelectorAll('.speed-btn').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+        });
+    });
+
+    function applySavedRate() {
+        var savedRate = parseFloat(localStorage.getItem('surv_playback_rate')) || 1;
+        recordingVideo.playbackRate = savedRate;
+        document.querySelectorAll('.speed-btn').forEach(function(b) {
+            b.classList.toggle('active', parseFloat(b.dataset.rate) === savedRate);
+        });
+    }
+
+    if (recordingSelect) {
+        recordingSelect.addEventListener('change', function() {
+            recordingPlayer.style.display = 'none';
+            recordingVideo.src = '';
+            loadRecordings(this.value);
+            loadSavedFiles();
+        });
+        loadRecordings(recordingSelect.value);
+        loadSavedFiles();
+    }
+})();
+
+// --- Alarm Polling (replaces SSE to avoid connection limit) ---
+(function() {
+    var zoneId = '{{ zone.id }}';
+    var alarmBanner = document.getElementById('alarm-banner');
+    var alarmText = document.getElementById('alarm-text');
+    var alarmAudioCtx = null;
+    var alarmSuppressed = false;
+    var lastAlarmTime = 0;
+
+    function playBeep() {
+        if (!alarmAudioCtx) {
+            alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (alarmAudioCtx.state === 'suspended') {
+            alarmAudioCtx.resume();
+        }
+        var ctx = alarmAudioCtx;
+        for (var i = 0; i < 3; i++) {
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            var t = ctx.currentTime + i * 0.3;
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.3, t + 0.05);
+            gain.gain.linearRampToValueAtTime(0, t + 0.2);
+            osc.start(t);
+            osc.stop(t + 0.2);
+        }
+    }
+
+    // Unlock audio on first user interaction (browser policy)
+    document.addEventListener('click', function() {
+        if (!alarmAudioCtx) {
+            alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (alarmAudioCtx.state === 'suspended') {
+            alarmAudioCtx.resume();
+        }
+    }, {once: true});
+
+    window.dismissAlarm = function() {
+        alarmSuppressed = true;
+        if (alarmBanner) alarmBanner.style.display = 'none';
+        setTimeout(function() { alarmSuppressed = false; }, 30000);
+    };
+
+    // --- Alarm Event Log ---
+    var alarmLogPanel = document.getElementById('alarm-log-panel');
+    var alarmLogList = document.getElementById('alarm-log-list');
+    var alarmLogHours = document.getElementById('alarm-log-hours');
+
+    var triggerIcons = {
+        'person': 'person-fill', 'people': 'person-fill',
+        'vehicle': 'car-front-fill', 'car': 'car-front-fill',
+        'animal': 'heart-fill', 'dog_cat': 'heart-fill',
+        'motion': 'globe',
+    };
+    var triggerColors = {
+        'person': 'danger', 'people': 'danger',
+        'vehicle': 'warning', 'car': 'warning',
+        'animal': 'info', 'dog_cat': 'info',
+        'motion': 'secondary',
+    };
+
+    window.loadAlarmEvents = function() {
+        var hours = alarmLogHours ? alarmLogHours.value : 24;
+        fetch('/surveillance/api/zone/' + zoneId + '/alarm-events?hours=' + hours)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (alarmLogPanel) alarmLogPanel.style.display = '';
+                var events = data.events || [];
+                if (events.length === 0) {
+                    if (alarmLogList) alarmLogList.innerHTML = '<div class="text-muted text-center py-2"><small>No alarm events in last ' + hours + 'h</small></div>';
+                    return;
+                }
+                var html = '';
+                events.forEach(function(ev) {
+                    var d = new Date(ev.timestamp);
+                    var timeStr = d.toLocaleString();
+                    var icon = 'bi-bell';
+                    var color = 'secondary';
+                    ev.trigger_type.split(',').forEach(function(t) {
+                        var key = t.trim().toLowerCase();
+                        if (triggerIcons[key]) icon = 'bi-' + triggerIcons[key];
+                        if (triggerColors[key]) color = triggerColors[key];
+                    });
+                    html += '<div class="list-group-item d-flex align-items-center py-2 px-3">' +
+                        '<input type="checkbox" class="form-check-input alarm-check me-2" data-id="' + ev.id + '" style="margin:0;flex-shrink:0">' +
+                        '<i class="bi ' + icon + ' text-' + color + ' me-2 fs-5"></i>' +
+                        '<div class="flex-grow-1">' +
+                        '<strong>' + ev.camera_name + '</strong>' +
+                        ' <span class="badge bg-' + color + '">' + ev.trigger_type + '</span>' +
+                        '</div>' +
+                        '<small class="text-muted">' + timeStr + '</small>' +
+                        '</div>';
+                });
+                html = '<div class="d-flex justify-content-between align-items-center px-3 py-1">' +
+                    '<small class="text-muted">' + events.length + ' events</small>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger" id="alarm-delete-btn" style="display:none" onclick="deleteAlarmEvents()"><i class="bi bi-trash"></i> Delete Selected</button>' +
+                    '</div>' + html;
+                if (alarmLogList) {
+                    // Preserve checkbox state across refresh
+                    var prevChecked = {};
+                    alarmLogList.querySelectorAll('.alarm-check:checked').forEach(function(c) {
+                        prevChecked[c.dataset.id] = true;
+                    });
+                    alarmLogList.innerHTML = html;
+                    var recheckCount = 0;
+                    alarmLogList.querySelectorAll('.alarm-check').forEach(function(c) {
+                        if (prevChecked[c.dataset.id]) { c.checked = true; recheckCount++; }
+                    });
+                    if (recheckCount > 0) {
+                        var btn = document.getElementById('alarm-delete-btn');
+                        if (btn) btn.style.display = '';
+                    }
+                }
+
+                // Check for new alarm since last poll
+                var newest = events[0];
+                var newestTs = new Date(newest.timestamp).getTime();
+                if (newestTs > lastAlarmTime) {
+                    if (lastAlarmTime > 0) {
+                        // New alarm — beep and show banner
+                        if (!alarmSuppressed && alarmBanner && alarmText) {
+                            alarmText.textContent = newest.camera_name + ': ' + newest.trigger_type.toUpperCase() + ' DETECTED';
+                            alarmBanner.style.display = 'flex';
+                            playBeep();
+                        }
+                    }
+                    lastAlarmTime = newestTs;
+                }
+            })
+            .catch(function() {});
+    };
+
+    window.deleteAlarmEvents = function() {
+        var checks = document.querySelectorAll('.alarm-check:checked');
+        if (checks.length === 0) return;
+        if (!confirm('Delete ' + checks.length + ' selected alarm events?')) return;
+        var ids = [];
+        checks.forEach(function(c) { ids.push(c.dataset.id); });
+        fetch('/surveillance/api/zone/' + zoneId + '/alarm-events/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: ids}),
+        }).then(function() { loadAlarmEvents(); });
+    };
+
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('alarm-check')) {
+            var checked = document.querySelectorAll('.alarm-check:checked').length;
+            var btn = document.getElementById('alarm-delete-btn');
+            if (btn) btn.style.display = checked > 0 ? '' : 'none';
+        }
+    });
+
+    loadAlarmEvents();
+    setInterval(loadAlarmEvents, 5000);
+})();
+
+// --- Ignore Windows ---
+(function() {
+    var ignoreSelect = document.getElementById('ignore-camera-select');
+    var ignoreList = document.getElementById('ignore-windows-list');
+    var dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    function dayLabel(dowStr) {
+        var days = dowStr.split(',');
+        if (days.length === 7) return 'Every day';
+        return days.map(function(d) { return dayNames[parseInt(d)] || d; }).join(', ');
+    }
+
+    window.loadIgnoreWindows = function() {
+        if (!ignoreSelect || !ignoreList) return;
+        var camId = ignoreSelect.value;
+        fetch('/surveillance/api/camera/' + camId + '/ignore-windows')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var windows = data.windows || [];
+                if (windows.length === 0) {
+                    ignoreList.innerHTML = '<div class="text-muted text-center py-2"><small>No ignore windows — all motion will be recorded</small></div>';
+                    return;
+                }
+                var html = '';
+                windows.forEach(function(w) {
+                    var muted = w.is_enabled ? '' : 'text-muted';
+                    var badge = w.is_enabled
+                        ? '<span class="badge bg-success">Active</span>'
+                        : '<span class="badge bg-secondary">Disabled</span>';
+                    html += '<div class="list-group-item d-flex align-items-center py-2 px-3 ' + muted + '">' +
+                        '<i class="bi bi-clock me-2"></i>' +
+                        '<div class="flex-grow-1">' +
+                        (w.name ? '<strong>' + w.name + '</strong><br>' : '') +
+                        '<small>' + w.start_time + ' - ' + w.end_time + ' &middot; ' + dayLabel(w.days_of_week) + '</small> ' +
+                        badge +
+                        '</div>' +
+                        '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteIgnoreWindow(\'' + camId + '\', \'' + w.id + '\')"><i class="bi bi-trash"></i></button>' +
+                        '</div>';
+                });
+                ignoreList.innerHTML = html;
+            });
+    };
+
+    window.addIgnoreWindow = function() {
+        if (!ignoreSelect) return;
+        var camId = ignoreSelect.value;
+        var name = prompt('Name (optional):', '');
+        if (name === null) return;
+        var start = prompt('Start time (HH:MM, 24h):', '07:00');
+        if (!start) return;
+        var end = prompt('End time (HH:MM, 24h):', '08:00');
+        if (!end) return;
+        var days = prompt('Days (0=Mon..6=Sun, comma-separated, or leave blank for all):', '');
+        if (days === null) return;
+        if (!days.trim()) days = '0,1,2,3,4,5,6';
+
+        fetch('/surveillance/api/camera/' + camId + '/ignore-windows', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, start_time: start, end_time: end, days_of_week: days}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.created) loadIgnoreWindows();
+            else if (data.detail) alert('Error: ' + data.detail);
+        });
+    };
+
+    window.deleteIgnoreWindow = function(camId, id) {
+        if (!confirm('Delete this ignore window?')) return;
+        fetch('/surveillance/api/camera/' + camId + '/ignore-windows/' + id + '/delete', {method: 'POST'})
+            .then(function() { loadIgnoreWindows(); });
+    };
+
+    if (ignoreSelect) loadIgnoreWindows();
+})();
+</script>
+{% endblock %}

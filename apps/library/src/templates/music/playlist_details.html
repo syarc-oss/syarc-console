@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}{{ playlist_name }} - Playlists{% endblock %}
+
+{% block content %}
+<style>
+    /* Album card styles - like browse_albums */
+    .album-card-item {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+    .album-card-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    .album-card-item a {
+        cursor: pointer;
+    }
+    .album-card-item a:hover {
+        text-decoration: none;
+    }
+
+    /* Other playlist item card styles */
+    .playlist-item-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: default;
+    }
+    .playlist-item-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .item-image {
+        aspect-ratio: 1;
+        object-fit: cover;
+        background: #333;
+    }
+    .item-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+    }
+
+    /* Loading spinner animation */
+    .spinner-border {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        vertical-align: middle;
+        border: 0.125em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+    }
+
+    @keyframes spinner-border {
+        0% { border-color: currentColor; }
+        100% { border-color: transparent; }
+    }
+
+    .spin {
+        animation: spinner-border 1.5s linear infinite;
+    }
+
+    .text-success {
+        color: #198754;
+    }
+
+    .text-danger {
+        color: #dc3545;
+    }
+</style>
+
+<div class="container" style="max-width: 1000px;">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+            <li class="breadcrumb-item"><a href="/library/music/">Music</a></li>
+            <li class="breadcrumb-item"><a href="/library/music/playlists">Playlists</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ playlist_name }}</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-music-note-list"></i> {{ playlist_name }}</h2>
+        <div>
+            <button onclick="analyzePlaylist()" class="btn btn-primary me-2">
+                <i class="bi bi-calculator"></i> Analyze
+            </button>
+            <a href="/library/music/playlists/{{ playlist_name }}/export" class="btn btn-info me-2" id="exportBtn">
+                <i class="bi bi-download" id="exportIcon"></i> <span id="exportText">Export</span>
+            </a>
+            <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#randomAddModal">
+                <i class="bi bi-shuffle"></i> Random Add
+            </button>
+            <a href="/library/music/player?source=playlist:{{ playlist_name }}" target="_blank" class="btn btn-success">
+                <i class="bi bi-play-circle"></i> Play All
+            </a>
+        </div>
+    </div>
+
+    {% if items|length == 0 %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> This playlist is empty. Add some songs or albums!
+    </div>
+    {% else %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-3">
+        {% for item in items %}
+        <div class="col">
+            <div class="card {% if item.type == 'album' %}album-card-item{% else %}playlist-item-card{% endif %} h-100">
+                <div class="card-body p-2">
+                    <div class="d-flex gap-3">
+                        <!-- Image -->
+                        <div class="flex-shrink-0" style="width: 100px;">
+                            {% if item.type == 'album' %}
+                            <!-- Album: Make image clickable to open album details -->
+                            <a href="/library/music/album/{{ item.item_id }}">
+                                {% if item.image %}
+                                <img src="/library/music/art/{{ item.art_id }}" class="rounded item-image w-100" alt="Cover">
+                                {% else %}
+                                <div class="rounded item-image w-100 d-flex align-items-center justify-content-center">
+                                    <i class="bi bi-disc" style="font-size: 3rem; color: #666;"></i>
+                                </div>
+                                {% endif %}
+                            </a>
+                            {% else %}
+                            <!-- Other types (artist, song): not clickable -->
+                            {% if item.image %}
+                            <img src="/library/music/art/{{ item.art_id }}" class="rounded item-image w-100" alt="Cover">
+                            {% else %}
+                            {% if item.type == 'artist' %}
+                            <div class="rounded item-image w-100 d-flex align-items-center justify-content-center">
+                                <i class="bi bi-person-circle" style="font-size: 3rem; color: #666;"></i>
+                            </div>
+                            {% else %}
+                            <div class="rounded item-image w-100 d-flex align-items-center justify-content-center">
+                                <i class="bi bi-music-note" style="font-size: 3rem; color: #666;"></i>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            {% endif %}
+                        </div>
+
+                        <!-- Info -->
+                        <div class="flex-grow-1">
+                            <span class="badge bg-{{ 'primary' if item.type == 'artist' else 'success' if item.type == 'album' else 'warning' }} item-badge mb-2">
+                                {{ item.type }}
+                            </span>
+                            <h5 class="card-title mb-1" style="font-size: 1rem;">
+                                {% if item.type == 'album' %}
+                                <a href="/library/music/album/{{ item.item_id }}" class="text-decoration-none text-dark">
+                                    {{ item.title }}
+                                </a>
+                                {% else %}
+                                {{ item.title }}
+                                {% endif %}
+                            </h5>
+                            <p class="text-muted mb-2" style="font-size: 0.9rem;">
+                                {% if item.type == 'song' %}
+                                <i class="bi bi-disc"></i> {{ item.album }}<br>
+                                {% endif %}
+                                <i class="bi bi-person"></i> {{ item.artist }}
+                            </p>
+
+                            <!-- Actions -->
+                            <div class="d-flex gap-2">
+                                {% if item.type == 'song' %}
+                                <a href="#" onclick="openPlayerForSong({{ item.item_id }})" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-play-circle"></i> Play
+                                </a>
+                                {% elif item.type == 'album' %}
+                                <a href="/library/music/album/{{ item.item_id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-play-circle"></i> Play
+                                </a>
+                                {% elif item.type == 'artist' %}
+                                <a href="/library/music/author/{{ item.item_id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-play-circle"></i> View
+                                </a>
+                                {% endif %}
+                                <form action="/library/music/playlists/{{ playlist_name }}/item/{{ item.id }}/delete" method="post" style="margin: 0;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove {{ item.title }} from {{ playlist_name }}?');">
+                                        <i class="bi bi-trash"></i> Remove
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Random Add Modal -->
+<div class="modal fade" id="randomAddModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Random Add to {{ playlist_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="randomAddForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="addType" class="form-label">Add Type</label>
+                        <select class="form-select" id="addType" name="add_type">
+                            <option value="tracks">Tracks</option>
+                            <option value="albums">Albums</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="count" class="form-label">Number to Add</label>
+                        <input type="number" class="form-control" id="count" name="count" value="10"
+                               min="1" required>
+                    </div>
+                    <input type="hidden" name="playlist_name" value="{{ playlist_name }}">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-shuffle"></i> Add Random Items
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openPlayerForSong(trackId) {
+    // Open universal player window for single track
+    const width = 500;
+    const height = 800;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    const playerWindow = window.open(
+        `/library/music/player?source=song:${trackId}`,
+        'musicPlayer',
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+    );
+}
+
+// Handle random add form submission
+document.getElementById('randomAddForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitButton = this.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+
+    const formData = new FormData(this);
+
+    try {
+        const response = await fetch('/library/music/playlists/random/add', {
+            method: 'POST',
+            body: new URLSearchParams(formData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+            // Refresh the page to show the new items
+            window.location.reload();
+        } else {
+            alert(result.message);
+        }
+
+        // Close the modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('randomAddModal'));
+        modal.hide();
+
+    } catch (error) {
+        alert('Error adding random items: ' + error.message);
+    } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="bi bi-shuffle"></i> Add Random Items';
+    }
+});
+
+async function analyzePlaylist() {
+    const playlistName = '{{ playlist_name }}';
+
+    try {
+        const response = await fetch(`/library/music/playlists/${playlistName}/analyze`);
+        const result = await response.json();
+
+        if (response.ok) {
+            const sizeInMB = result.total_size_mb.toFixed(2);
+            const sizeInGB = (result.total_size_mb / 1024).toFixed(2);
+            let sizeDisplay;
+            if (result.total_size_mb >= 1024) {
+                sizeDisplay = `${sizeInGB} GB`;
+            } else {
+                sizeDisplay = `${sizeInMB} MB`;
+            }
+
+            alert(`Playlist Analysis for "${playlistName}":\n\n` +
+                  `Total tracks: ${result.total_tracks}\n` +
+                  `Total files (tracks + directories): ${result.total_files}\n` +
+                  `Total size: ${sizeDisplay}`);
+        } else {
+            alert(result.detail || 'Error analyzing playlist');
+        }
+    } catch (error) {
+        alert('Error analyzing playlist: ' + error.message);
+    }
+}
+
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}
+

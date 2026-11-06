@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Orchard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+                    <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+                    <li class="breadcrumb-item"><a href="/orchard/">Orchards</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{% if mode == 'edit' %}Edit{% else %}New{% endif %} Orchard</li>
+                </ol>
+            </nav>
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="bi bi-tree me-2"></i>{% if mode == 'edit' %}Edit Orchard{% else %}Create New Orchard{% endif %}</h4>
+                </div>
+                <div class="card-body">
+                    <form action="{% if mode == 'edit' %}/orchard/{{ orchard.id }}/edit{% else %}/orchard/new{% endif %}" method="post">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Orchard Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required
+                                   placeholder="e.g., Home Orchard, West Field Orchard"
+                                   value="{% if mode == 'edit' %}{{ orchard.name }}{% endif %}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" name="location"
+                                   placeholder="e.g., Back field, North 40"
+                                   value="{% if mode == 'edit' %}{{ orchard.location or '' }}{% endif %}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                      placeholder="Optional notes about this orchard">{% if mode == 'edit' %}{{ orchard.description or '' }}{% endif %}</textarea>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/orchard/" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-success">{% if mode == 'edit' %}Update Orchard{% else %}Create Orchard{% endif %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

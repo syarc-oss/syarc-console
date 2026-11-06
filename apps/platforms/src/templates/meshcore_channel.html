@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}MeshCore — {{ name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/channels">Channels</a></li>
+    <li class="breadcrumb-item active">{{ name }}</li>
+  </ol>
+</nav>
+<h2 class="mb-3">#{{ idx }} {{ name }}
+  <small class="text-muted font-monospace">{{ node_id }}</small>
+  {% if followed %}
+  <form method="post" action="/platforms/meshcore/channels/{{ idx }}/unfollow" class="d-inline">
+    <button class="btn btn-sm btn-outline-danger">Unfollow</button>
+  </form>
+  {% else %}
+  <form method="post" action="/platforms/meshcore/channels/{{ idx }}/follow" class="d-inline">
+    <button class="btn btn-sm btn-outline-success">Follow</button>
+  </form>
+  {% endif %}
+</h2>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h5 class="mb-0">Room timeline</h5>
+  <button type="button" id="delSelected" class="btn btn-sm btn-outline-danger" style="display:none">
+    <i class="bi bi-trash"></i> Delete Selected (<span id="delCount">0</span>)
+  </button>
+</div>
+<table class="table table-sm table-hover bg-white shadow-sm">
+  <thead><tr><th></th><th>Time</th><th>Dir</th><th>Message</th><th class="text-end">Media</th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr>
+      <td><input type="checkbox" class="row-del" data-kind="{{ 'media' if e.media else 'msg' }}" data-id="{{ e.id }}"></td>
+      <td class="text-nowrap">{{ e.created_at|localtime("%b %d %I:%M %p") }}</td>
+      <td>{% if e.media %}<i class="bi bi-collection text-info"></i>{% elif e.direction == "in" %}<i class="bi bi-arrow-down text-success"></i>{% else %}<i class="bi bi-arrow-up text-primary"></i>{% endif %}</td>
+      {% if e.media %}
+      <td>
+        <i class="bi {% if e.kind == 'photo' %}bi-image{% else %}bi-mic{% endif %} me-1"></i>
+        {%- if e.caption %} <strong>{{ e.caption }}</strong>{% elif e.kind == 'photo' %} <strong>Photo</strong>{% else %} <strong>Voice clip</strong>{% endif %}
+        <span class="text-muted">· {{ ((e.size_bytes or 0) / 1024) | round(1) }} KB{% if e.kind != 'photo' and e.dur > 0 %} · {{ e.dur }}s{% endif %}</span>
+      </td>
+      <td class="text-end text-nowrap">
+        <a class="btn btn-sm btn-outline-success" href="/platforms/meshcore/media/{{ e.id }}/play" target="_blank" rel="noopener">
+          {%- if e.kind == 'photo' -%}View{%- else -%}Play{%- endif -%}
+        </a>
+        <a class="btn btn-sm btn-outline-primary" href="/platforms/meshcore/media/{{ e.id }}/file">Download</a>
+      </td>
+      {% else %}
+      <td>{{ e.text }}</td>
+      <td></td>
+      {% endif %}
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-muted">No traffic on this channel yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<form method="post" action="/platforms/meshcore/channels/{{ idx }}/send" class="row g-2 mb-4">
+  <div class="col">
+    <input class="form-control" type="text" name="text" maxlength="200" placeholder="Message to {{ name }}..." autofocus required>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
+  </div>
+  <div class="col-auto">
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#mediaModal"><i class="bi bi-file-earmark-music"></i> Media Clip</button>
+  </div>
+</form>
+
+<div class="modal fade" id="mediaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-music"></i> Send a Media Clip to {{ name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {% set fixed_chan = name %}
+        {% include "media_send_partial.html" %}
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+  var CHAN_IDX = {{ idx }};
+  // Newest message is the first row; keep the page anchored to it instead of
+  // the browser restoring a stale scroll position from a previous visit.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+  function updateDelBtn() {
+    var n = document.querySelectorAll('input.row-del:checked').length;
+    var b = document.getElementById('delSelected');
+    document.getElementById('delCount').textContent = n;
+    b.style.display = n ? 'inline-block' : 'none';
+  }
+  document.addEventListener('change', function(ev) {
+    if (ev.target && ev.target.classList && ev.target.classList.contains('row-del')) updateDelBtn();
+  });
+  document.getElementById('delSelected').addEventListener('click', function() {
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('input.row-del:checked'));
+    if (!boxes.length) return;
+    if (!confirm('Delete ' + boxes.length + ' selected item(s)?')) return;
+    Promise.all(boxes.map(function(b) {
+      var url = b.dataset.kind === 'media'
+        ? '/platforms/meshcore/media/' + b.dataset.id + '/delete?next=/platforms/meshcore/channels/' + CHAN_IDX
+        : '/platforms/meshcore/channels/' + CHAN_IDX + '/msg/' + b.dataset.id + '/delete';
+      return fetch(url, { method: 'POST' });
+    })).then(function() { window.location.reload(); })
+      .catch(function() { window.location.reload(); });
+  });
+
+  // New traffic (including sage replies) only appears on reload; poll
+  // quietly and refresh when the user isn't typing.
+  var lastCount = document.querySelectorAll('tbody tr').length;
+  setInterval(function() {
+    if (document.hidden) return;
+    var box = document.querySelector('input[name=text]');
+    if (box === document.activeElement && box.value !== '') return;
+    fetch(window.location.href, { headers: { 'X-Requested-With': 'poll' } })
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var n = doc.querySelectorAll('tbody tr').length;
+        if (n !== lastCount) { window.location.reload(); }
+      })
+      .catch(function() {});
+  }, 10000);
+</script>
+{% endblock %}

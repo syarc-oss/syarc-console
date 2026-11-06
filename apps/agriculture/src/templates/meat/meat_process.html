@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Process - {{ animal.name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/meat/">Meat</a></li>
+        <li class="breadcrumb-item"><a href="/meat/groups/{{ group_id }}">{{ group_name }}</a></li>
+        <li class="breadcrumb-item"><a href="/meat/groups/{{ group_id }}/members">Members</a></li>
+        <li class="breadcrumb-item active">{{ animal.name }} - Process</li>
+    </ol>
+</nav>
+<h2><i class="bi bi-scissors"></i> Process: {{ animal.name }}</h2>
+<p class="text-muted">{{ animal.animal_type }} &middot; {{ animal.breed or '' }} &middot; Current Qty: {{ animal.quantity }}</p>
+
+{% if animal.status != 'processed' %}
+<div class="card mb-3">
+    <div class="card-header py-2"><i class="bi bi-plus-circle"></i> Record Processing</div>
+    <div class="card-body">
+        <form id="procForm" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Date *</small></label>
+                <input type="date" class="form-control form-control-sm" name="process_date" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Number Processed *</small></label>
+                <input type="number" class="form-control form-control-sm" name="number_processed" id="number_processed"
+                       min="1" max="{{ animal.quantity }}" value="{{ animal.quantity }}" required>
+                <small class="text-muted">Max: {{ animal.quantity }}</small>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Lbs of Meat</small></label>
+                <input type="number" step="0.1" class="form-control form-control-sm" name="lbs" placeholder="0.0">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Disposition *</small></label>
+                <select class="form-select form-select-sm" name="disposition" required>
+                    {% for d in dispositions %}
+                    <option value="{{ d }}">{{ d|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Storage Location</small></label>
+                <input type="text" class="form-control form-control-sm" name="storage_location" placeholder="Freezer A">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Notes</small></label>
+                <input type="text" class="form-control form-control-sm" name="notes">
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-warning btn-sm"><i class="bi bi-scissors"></i> Process</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary"><i class="bi bi-check-circle"></i> This animal has been fully processed.</div>
+{% endif %}
+
+<h5>Process History</h5>
+{% if process_records %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr><th>Date</th><th>Number</th><th>Lbs</th><th>Disposition</th><th>Storage</th><th>Notes</th><th>By</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for r in process_records %}
+            <tr>
+                <td class="text-nowrap">{{ r.process_date }}</td>
+                <td>{{ r.number_processed }}</td>
+                <td>{{ r.lbs or '' }}</td>
+                <td><span class="badge bg-secondary">{{ r.disposition|title }}</span></td>
+                <td>{{ r.storage_location or '' }}</td>
+                <td>{{ r.notes or '' }}</td>
+                <td><small>{{ r.recorded_by }}</small></td>
+                <td>{% if animal.status != 'processed' %}<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteProc('{{ r.id }}')"><i class="bi bi-x"></i></button>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">No process records yet.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const groupId = '{{ group_id }}';
+const animalId = '{{ animal.id }}';
+var form = document.getElementById('procForm');
+if (form) {
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        fetch('/meat/groups/' + groupId + '/animals/' + animalId + '/process/add', {
+            method: 'POST', body: new FormData(this), credentials: 'include'
+        }).then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    });
+}
+
+function deleteProc(id) {
+    if (!confirm('Delete this record?')) return;
+    fetch('/meat/groups/' + groupId + '/animals/' + animalId + '/process/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+</script>
+{% endblock %}

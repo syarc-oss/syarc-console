@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Husbandry{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Husbandry</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="mb-4"><i class="bi bi-heart"></i> Husbandry</h2>
+            <p class="text-muted mb-4">Animal management and tracking</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% if 'eggs' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-info">
+                <div class="card-body text-center">
+                    <i class="bi bi-egg-fried display-4 text-info"></i>
+                    <h4 class="mt-3">Egg Management</h4>
+                    <p class="text-muted">Track egg production and manage your flock.</p>
+                    <a href="/eggs/" class="btn btn-info">Open Eggs</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'milk' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body text-center">
+                    <i class="bi bi-cup-straw display-4 text-primary"></i>
+                    <h4 class="mt-3">Milk Production</h4>
+                    <p class="text-muted">Track milk production from dairy animals.</p>
+                    <a href="/milk/" class="btn btn-primary">Open Milk</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'meat' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-basket display-4 text-warning"></i>
+                    <h4 class="mt-3">Meat Production</h4>
+                    <p class="text-muted">Track meat animals from development to processing.</p>
+                    <a href="/meat/" class="btn btn-warning">Open Meat</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not allowed_sub_apps %}
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h4>No Husbandry Apps Available</h4>
+                <p>Contact your administrator to request access.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

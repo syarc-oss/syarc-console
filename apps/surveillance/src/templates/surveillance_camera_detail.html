@@ -1,0 +1,1313 @@
+{% extends "base.html" %}
+
+{% block title %}{{ camera.name }} - {{ zone.name }} - Surveillance{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/surveillance/">Surveillance</a></li>
+        <li class="breadcrumb-item"><a href="/surveillance/zone/{{ zone.id }}">{{ zone.name }}</a></li>
+        <li class="breadcrumb-item active">{{ camera.name }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="mb-0"><i class="bi bi-camera-video"></i> {{ camera.name }}</h2>
+    <div class="d-flex gap-2">
+        {% if camera.location %}
+        <span class="badge bg-secondary"><i class="bi bi-geo-alt"></i> {{ camera.location }}</span>
+        {% endif %}
+        {% if camera_web_url %}
+        <a href="{{ camera_web_url }}" target="_blank" class="btn btn-outline-info btn-sm" title="Open camera web interface">
+            <i class="bi bi-globe"></i> Camera Web
+        </a>
+        {% endif %}
+        <a href="/surveillance/zone/{{ zone.id }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-grid"></i> All Cameras
+        </a>
+        {% if can_edit %}
+        <a href="/surveillance/zone/{{ zone.id }}/camera/{{ camera.id }}/edit" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-gear"></i> Settings
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sibling camera quick-nav -->
+{% if siblings|length > 1 %}
+<div class="d-flex gap-1 mb-3 flex-wrap" role="group">
+    {% for sib in siblings %}
+    {% if sib.id == camera.id %}
+    <span class="badge bg-primary fs-6">{{ sib.name }}</span>
+    {% else %}
+    <a href="/surveillance/zone/{{ zone.id }}/camera/{{ sib.id }}/view" class="badge bg-secondary text-decoration-none fs-6">{{ sib.name }}</a>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Live Feed -->
+<div class="card bg-dark text-white mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center py-1 px-2">
+        <small><span class="text-danger">&bull;</span> <span id="live-label">LIVE</span></small>
+        <div class="d-flex gap-2 align-items-center">
+            <small class="text-muted">{{ camera.stream_type|upper }}</small>
+            <button class="btn btn-sm btn-outline-light py-0 px-2" onclick="captureLiveFrame()" title="Capture snapshot from live feed">
+                <i class="bi bi-camera"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-light py-0 px-2" onclick="toggleFullscreen()" title="Fullscreen (Esc to exit)" id="fullscreen-btn">
+                <i class="bi bi-fullscreen"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0 position-relative" style="min-height: 400px; overflow: hidden; user-select: none" id="live-feed-card">
+        <div class="camera-feed" id="feed-{{ camera.id }}" data-stream-type="{{ camera.stream_type }}" style="width:100%;height:100%;position:absolute;top:0;left:0">
+            <div class="d-flex justify-content-center align-items-center h-100 text-muted">
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm mb-1"></div>
+                    <div><small>Connecting...</small></div>
+                </div>
+            </div>
+        </div>
+        <div id="zoom-controls" class="position-absolute top-0 end-0 p-2 d-flex gap-1 align-items-center" style="z-index:10">
+            <span class="badge bg-dark bg-opacity-50 text-white" id="zoom-level">100%</span>
+            <button class="btn btn-sm btn-dark bg-opacity-50 text-white py-0 px-2" onclick="resetZoom()" title="Reset zoom" id="zoom-reset-btn" style="display:none">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Ignore Windows (suppress recordings during known activity) -->
+<div class="card mb-3" id="ignore-windows-panel">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock"></i> Ignore Windows <small class="text-muted">(suppress recordings)</small></span>
+        <div>
+            <button class="btn btn-sm btn-outline-primary" type="button" onclick="addIgnoreWindow()">
+                <i class="bi bi-plus"></i> Add
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#ignore-windows-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="ignore-windows-body">
+        <div class="card-body p-2">
+            <div id="ignore-windows-list" class="list-group list-group-flush">
+                <div class="text-muted text-center py-2"><small>Loading...</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alarm History for this camera -->
+<div class="card mb-3" id="alarm-log-panel" style="display:none">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history"></i> Alarm History</span>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadAlarmEvents()" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#alarm-log-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="alarm-log-body">
+        <div class="card-body p-0">
+            <div id="alarm-log-list" class="list-group list-group-flush" style="max-height:250px;overflow-y:auto">
+                <div class="text-muted text-center py-2"><small>No alarm events</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recording Browser -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-record-circle"></i> <span id="recording-title">Recordings</span></span>
+        <div>
+            <span id="recording-status" class="badge bg-secondary me-2">Checking...</span>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#recordings-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="recordings-body">
+        <div class="card-body p-2">
+            <div id="recording-player" class="mb-2" style="display:none">
+                <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
+                    <small class="text-muted" id="recording-filename"></small>
+                    <div class="d-flex gap-1 align-items-center flex-wrap">
+                        <span class="text-muted me-1"><small>Speed:</small></span>
+                        <button class="btn btn-sm btn-outline-secondary active speed-btn" data-rate="1">1x</button>
+                        <button class="btn btn-sm btn-outline-secondary speed-btn" data-rate="2">2x</button>
+                        <button class="btn btn-sm btn-outline-secondary speed-btn" data-rate="3">3x</button>
+                        <button class="btn btn-sm btn-outline-secondary speed-btn" data-rate="4">4x</button>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" type="button" onclick="snapshotRecording()" title="Save snapshot of current frame">
+                            <i class="bi bi-camera"></i> Save Frame
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="markClipStart()" title="Mark clip start at current position">
+                            <i class="bi bi-skip-start"></i> Start
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="markClipEnd()" title="Mark clip end at current position">
+                            <i class="bi bi-skip-end"></i> End
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" type="button" onclick="saveClip()" title="Save clip between start/end marks">
+                            <i class="bi bi-scissors"></i> Save Clip
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" onclick="closeRecordingPlayer()">
+                            <i class="bi bi-x-lg"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div id="clip-marks" class="mb-1" style="display:none">
+                    <small class="text-muted">Clip: <span id="clip-start-label">0:00</span> to <span id="clip-end-label">end</span>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1 ms-1" onclick="clearClipMarks()" title="Clear marks"><i class="bi bi-x"></i></button></small>
+                </div>
+                <div id="recording-video-wrap" style="position:relative;overflow:hidden;max-height:400px;background:#000;user-select:none">
+                    <video id="recording-video" controls style="width:100%;max-height:400px;background:#000;display:block" playsinline></video>
+                    <div class="position-absolute top-0 end-0 p-2 d-flex gap-1 align-items-center" style="z-index:10;pointer-events:none">
+                        <span class="badge bg-dark bg-opacity-50 text-white" id="rec-zoom-level" style="display:none">100%</span>
+                    </div>
+                    <button class="btn btn-sm btn-dark bg-opacity-50 text-white py-0 px-2 position-absolute top-0 start-0 m-2" onclick="resetRecZoom()" title="Reset zoom" id="rec-zoom-reset" style="display:none;z-index:11">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="recording-segments" class="list-group list-group-flush" style="max-height:300px;overflow-y:auto">
+                <div class="text-muted text-center py-2"><small>Loading...</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Saved Files -->
+<div class="card mb-3" id="saved-panel" style="display:none">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bookmark-star"></i> Saved Files</span>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="loadSavedFiles()" title="Refresh">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#saved-body">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="collapse show" id="saved-body">
+        <div class="card-body p-2">
+            <ul class="nav nav-tabs nav-fill mb-2" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active py-1" data-bs-toggle="tab" data-bs-target="#saved-videos-tab">Saved Videos</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#saved-snaps-tab">Snapshots</button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="saved-videos-tab">
+                    <div id="saved-videos-list" class="list-group list-group-flush" style="max-height:250px;overflow-y:auto">
+                        <div class="text-muted text-center py-2"><small>No saved videos</small></div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="saved-snaps-tab">
+                    <div id="saved-snaps-list" class="list-group list-group-flush" style="max-height:250px;overflow-y:auto">
+                        <div class="text-muted text-center py-2"><small>No saved snapshots</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    var cameraId = '{{ camera.id }}';
+    var streamType = '{{ camera.stream_type }}';
+    var streamUrl = '{{ camera.stream_url|safe }}';
+    var go2rtcUrl = '{{ (go2rtc_url or "")|safe }}';
+    var webrtcUrl = '{{ (go2rtc_webrtc_url or "")|safe }}';
+    var rotation = parseInt('{{ camera.rotation }}') || 0;
+    var feed = document.getElementById('feed-{{ camera.id }}');
+    var pageUnloading = false;
+
+    // --- Fullscreen ---
+    var feedCard = document.getElementById('live-feed-card');
+    var fullscreenBtn = document.getElementById('fullscreen-btn');
+
+    window.toggleFullscreen = function() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (feedCard.requestFullscreen) feedCard.requestFullscreen();
+            else if (feedCard.webkitRequestFullscreen) feedCard.webkitRequestFullscreen();
+            else if (feedCard.querySelector('video') && feedCard.querySelector('video').webkitEnterFullscreen) {
+                feedCard.querySelector('video').webkitEnterFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+    };
+
+    document.addEventListener('fullscreenchange', updateFsBtn);
+    document.addEventListener('webkitfullscreenchange', updateFsBtn);
+    function updateFsBtn() {
+        var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        if (fullscreenBtn) {
+            fullscreenBtn.innerHTML = isFs ? '<i class="bi bi-fullscreen-exit"></i>' : '<i class="bi bi-fullscreen"></i>';
+        }
+        if (isFs) {
+            feedCard.style.minHeight = '100vh';
+            feedCard.style.height = '100vh';
+            feedCard.style.background = '#000';
+        } else {
+            feedCard.style.minHeight = '400px';
+            feedCard.style.height = '';
+            feedCard.style.background = '';
+        }
+        setTimeout(applyZoomPan, 100);
+    }
+
+    // --- Live Frame Capture ---
+    window.captureLiveFrame = function() {
+        var video = feed.querySelector('video');
+        var img = feed.querySelector('img');
+        var mediaEl = video || img;
+        if (!mediaEl || !(mediaEl.videoWidth || mediaEl.naturalWidth)) {
+            alert('No live feed to capture');
+            return;
+        }
+        var w = video ? video.videoWidth : img.naturalWidth;
+        var h = video ? video.videoHeight : img.naturalHeight;
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        if (rotation) {
+            ctx.translate(w / 2, h / 2);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.translate(-w / 2, -h / 2);
+        }
+        ctx.drawImage(mediaEl, 0, 0);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        var defaultName = '{{ camera.name }}_' + new Date().toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_');
+        var name = prompt('Save snapshot as:', defaultName);
+        if (!name) return;
+        fetch('/surveillance/api/camera/' + cameraId + '/snapshot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, data: dataUrl}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.saved) alert('Snapshot saved: ' + data.name);
+            else if (data.detail) alert('Error: ' + data.detail);
+        }).catch(function() { alert('Failed to save snapshot'); });
+    };
+
+    // --- Zoom & Pan ---
+    var zoomLevel = 1.0;
+    var panX = 0;
+    var panY = 0;
+    var isDragging = false;
+    var dragStartX = 0;
+    var dragStartY = 0;
+    var panStartX = 0;
+    var panStartY = 0;
+    var zoomLevelEl = document.getElementById('zoom-level');
+    var zoomResetBtn = document.getElementById('zoom-reset-btn');
+
+    function applyZoomPan() {
+        var mediaEl = feed.querySelector('video, img');
+        if (!mediaEl) return;
+        mediaEl.style.transformOrigin = 'center center';
+        mediaEl.style.transform = 'scale(' + zoomLevel + ') translate(' + panX + 'px, ' + panY + 'px)';
+        mediaEl.style.cursor = zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default';
+        if (zoomLevelEl) zoomLevelEl.textContent = Math.round(zoomLevel * 100) + '%';
+        if (zoomResetBtn) zoomResetBtn.style.display = zoomLevel > 1.01 ? '' : 'none';
+    }
+
+    window.resetZoom = function() {
+        zoomLevel = 1.0;
+        panX = 0;
+        panY = 0;
+        applyZoomPan();
+    };
+
+    feed.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? -0.15 : 0.15;
+        if (e.ctrlKey) {
+            delta = e.deltaY > 0 ? -0.05 : 0.05;
+        }
+        var oldZoom = zoomLevel;
+        zoomLevel = Math.max(1.0, Math.min(8.0, zoomLevel + delta));
+        if (zoomLevel === 1.0) { panX = 0; panY = 0; }
+        else if (oldZoom > 1.0) {
+            var ratio = zoomLevel / oldZoom;
+            panX *= ratio;
+            panY *= ratio;
+        }
+        applyZoomPan();
+    }, { passive: false });
+
+    feed.addEventListener('mousedown', function(e) {
+        if (zoomLevel <= 1.01) return;
+        e.preventDefault();
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        panStartX = panX;
+        panStartY = panY;
+        applyZoomPan();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        var maxPan = 200 * (zoomLevel - 1);
+        panX = Math.max(-maxPan, Math.min(maxPan, panStartX + (e.clientX - dragStartX) / zoomLevel));
+        panY = Math.max(-maxPan, Math.min(maxPan, panStartY + (e.clientY - dragStartY) / zoomLevel));
+        applyZoomPan();
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (isDragging) { isDragging = false; applyZoomPan(); }
+    });
+
+    // Touch pinch zoom for mobile
+    var touchDist = 0;
+    var touchZoomStart = 1.0;
+    feed.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            var dx = e.touches[0].clientX - e.touches[1].clientX;
+            var dy = e.touches[0].clientY - e.touches[1].clientY;
+            touchDist = Math.sqrt(dx * dx + dy * dy);
+            touchZoomStart = zoomLevel;
+        }
+    }, { passive: false });
+
+    feed.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            var dx = e.touches[0].clientX - e.touches[1].clientX;
+            var dy = e.touches[0].clientY - e.touches[1].clientY;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            zoomLevel = Math.max(1.0, Math.min(8.0, touchZoomStart * (dist / touchDist)));
+            if (zoomLevel === 1.0) { panX = 0; panY = 0; }
+            applyZoomPan();
+        }
+    }, { passive: false });
+
+    window.addEventListener('pagehide', function() { pageUnloading = true; });
+
+    function showWebRtcVideo(url, attempt) {
+        attempt = attempt || 0;
+        if (attempt > 10) attempt = 0;
+        if (!window.RTCPeerConnection) {
+            if (go2rtcUrl) { showMseVideo(go2rtcUrl); return; }
+            feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> WebRTC not supported</small></div>';
+            return;
+        }
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000';
+
+        var pc = new RTCPeerConnection();
+        var stopped = false;
+
+        pc.addTransceiver('video', {direction: 'recvonly'});
+        pc.addTransceiver('audio', {direction: 'recvonly'});
+        pc.ontrack = function(e) { video.srcObject = e.streams[0]; };
+        pc.onconnectionstatechange = function() {
+            if (stopped || pageUnloading) return;
+            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+                stopped = true;
+                try { pc.close(); } catch(e) {}
+                if (video.parentElement) video.remove();
+                var delay = Math.min(3000 * Math.pow(2, attempt), 30000);
+                if (!pageUnloading) setTimeout(function() {
+                    feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="text-center"><div class="spinner-border spinner-border-sm mb-1"></div><div><small>Reconnecting (' + Math.round(delay/1000) + 's)...</small></div></div></div>';
+                    showWebRtcVideo(url, attempt + 1);
+                }, delay);
+            }
+        };
+
+        pc.createOffer().then(function(offer) {
+            return pc.setLocalDescription(offer);
+        }).then(function() {
+            return new Promise(function(resolve) {
+                if (pc.iceGatheringState === 'complete') return resolve();
+                var t = setTimeout(resolve, 2000);
+                pc.onicegatheringstatechange = function() {
+                    if (pc.iceGatheringState === 'complete') { clearTimeout(t); resolve(); }
+                };
+            });
+        }).then(function() {
+            return fetch(url, {
+                method: 'POST',
+                body: pc.localDescription.sdp,
+                headers: {'Content-Type': 'application/sdp'},
+            });
+        }).then(function(r) {
+            if (!r.ok) throw new Error('bad status');
+            return r.text();
+        }).then(function(sdp) {
+            return pc.setRemoteDescription({type: 'answer', sdp: sdp});
+        }).catch(function() {
+            if (!stopped) {
+                stopped = true;
+                try { pc.close(); } catch(e) {}
+                if (go2rtcUrl) { showMseVideo(go2rtcUrl); }
+                else { feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-danger"><small><i class="bi bi-exclamation-triangle"></i> Stream unavailable</small></div>'; }
+            }
+        });
+
+        feed.innerHTML = '';
+        feed.appendChild(video);
+        setTimeout(applyZoomPan, 50);
+    }
+
+    function showMjpeg(url) {
+        var img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000';
+        img.alt = 'Camera feed';
+        img.onerror = function() {
+            feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-danger"><small><i class="bi bi-exclamation-triangle"></i> Connection failed</small></div>';
+        };
+        feed.innerHTML = '';
+        feed.appendChild(img);
+        setTimeout(applyZoomPan, 50);
+    }
+
+    function showHlsVideo(url) {
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000';
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url;
+            video.play().catch(function() {});
+        } else if (typeof Hls !== 'undefined') {
+            var hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                video.play().catch(function() {});
+            });
+        } else {
+            feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> HLS not supported</small></div>';
+            return;
+        }
+        feed.innerHTML = '';
+        feed.appendChild(video);
+        setTimeout(applyZoomPan, 50);
+    }
+
+    function showMseVideo(url, attempt) {
+        attempt = attempt || 0;
+        if (attempt === 0) {
+            feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-muted"><div class="text-center"><div class="spinner-border spinner-border-sm mb-1"></div><div><small>Connecting...</small></div></div></div>';
+        }
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000';
+
+        if (!window.MediaSource) {
+            feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> MSE not supported</small></div>';
+            return;
+        }
+
+        var mediaSource = new MediaSource();
+        video.src = URL.createObjectURL(mediaSource);
+        var stopped = false;
+        var abortCtrl = new AbortController();
+        var reconnectDelay = 3000;
+
+        function reconnect(reason) {
+            if (stopped) return;
+            stopped = true;
+            try { abortCtrl.abort(); } catch(e) {}
+            try { mediaSource.endOfStream(); } catch(e) {}
+            if (video.parentElement) video.remove();
+            setTimeout(function() {
+                showMseVideo(url, attempt + 1);
+            }, reconnectDelay);
+        }
+
+        mediaSource.addEventListener('sourceopen', function() {
+            fetch(url, { signal: abortCtrl.signal }).then(function(response) {
+                if (!response.ok) throw new Error('bad status');
+
+                var contentType = response.headers.get('content-type') || 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"';
+                var codecMatch = contentType.match(/codecs="([^"]+)"/);
+                var codecs = codecMatch ? codecMatch[1] : 'avc1.42E01E,mp4a.40.2';
+                var mimeType = 'video/mp4; codecs="' + codecs + '"';
+
+                var sourceBuffer = null;
+                try {
+                    sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+                } catch(e) {
+                    reconnect('codec');
+                    return;
+                }
+
+                sourceBuffer.addEventListener('error', function() { reconnect('sbe'); });
+
+                var reader = response.body.getReader();
+                var queue = [];
+                var lastData = Date.now();
+
+                function feedNext() {
+                    if (stopped) return;
+                    if (sourceBuffer.updating) return;
+                    if (queue.length === 0) return;
+                    try {
+                        sourceBuffer.appendBuffer(queue.shift());
+                    } catch(e) {
+                        reconnect('append');
+                    }
+                }
+
+                sourceBuffer.addEventListener('updateend', feedNext);
+
+                var trimTimer = setInterval(function() {
+                    if (stopped) { clearInterval(trimTimer); return; }
+                    if (sourceBuffer.updating) return;
+                    try {
+                        var buffered = sourceBuffer.buffered;
+                        if (buffered.length > 0) {
+                            var end = buffered.end(buffered.length - 1);
+                            var start = buffered.start(0);
+                            if (end - start > 12) {
+                                sourceBuffer.remove(start, end - 10);
+                            }
+                        }
+                    } catch(e) {}
+                }, 2000);
+
+                var stallTimer = setInterval(function() {
+                    if (stopped) { clearInterval(stallTimer); return; }
+                    if (Date.now() - lastData > 10000) {
+                        reconnect('data-stall');
+                        return;
+                    }
+                    var now = video.currentTime;
+                    if (now === lastVideoTime) {
+                        stuckCount++;
+                        if (stuckCount >= 2) {
+                            try {
+                                var b = sourceBuffer.buffered;
+                                if (b.length > 0) video.currentTime = b.end(b.length - 1) - 0.3;
+                            } catch(e) {}
+                            video.play().catch(function() {});
+                        }
+                        if (stuckCount >= 6) {
+                            reconnect('video-stall');
+                        }
+                    } else {
+                        lastVideoTime = now;
+                        stuckCount = 0;
+                    }
+                }, 3000);
+
+                var lastVideoTime = 0;
+                var stuckCount = 0;
+
+                function readLoop() {
+                    if (stopped) return;
+                    reader.read().then(function(result) {
+                        if (result.done) {
+                            reconnect('done');
+                            return;
+                        }
+                        lastData = Date.now();
+                        queue.push(result.value);
+                        feedNext();
+                        readLoop();
+                    }).catch(function() {
+                        if (!stopped) reconnect('read');
+                    });
+                }
+
+                readLoop();
+
+                var liveTimer = setInterval(function() {
+                    if (stopped) { clearInterval(liveTimer); return; }
+                    if (video.paused && video.readyState >= 2) video.play().catch(function() {});
+                    try {
+                        var buffered = sourceBuffer.buffered;
+                        if (buffered.length > 0) {
+                            var end = buffered.end(buffered.length - 1);
+                            if (end - video.currentTime > 2) {
+                                video.currentTime = end - 0.5;
+                            }
+                        }
+                    } catch(e) {}
+                }, 1000);
+
+            }).catch(function() {
+                if (!stopped) reconnect('fetch');
+            });
+        });
+
+        feed.innerHTML = '';
+        feed.appendChild(video);
+        setTimeout(applyZoomPan, 50);
+    }
+
+    if (streamType === 'mjpeg') {
+        showMjpeg(streamUrl);
+    } else if (streamType === 'rtsp') {
+        // WebRTC first (hardware decode, no client buffer management);
+        // MSE is the fallback.
+        if (webrtcUrl) {
+            showWebRtcVideo(webrtcUrl);
+        } else if (go2rtcUrl) {
+            showMseVideo(go2rtcUrl);
+        } else {
+            feed.innerHTML = '<div class="d-flex justify-content-center align-items-center h-100 text-warning"><small><i class="bi bi-exclamation-triangle"></i> RTSP requires go2rtc proxy</small></div>';
+        }
+    } else if (streamType === 'hls') {
+        showHlsVideo(streamUrl);
+    }
+
+    if (rotation) {
+        feed.style.transform = 'rotate(' + rotation + 'deg)';
+        feed.parentElement.style.overflow = 'hidden';
+    }
+
+    // --- Recording browser ---
+    var recordingStatus = document.getElementById('recording-status');
+    var recordingTitle = document.getElementById('recording-title');
+    var recordingPlayer = document.getElementById('recording-player');
+    var recordingVideo = document.getElementById('recording-video');
+    var recordingSegments = document.getElementById('recording-segments');
+
+    // --- Recording Video Zoom & Pan ---
+    var recZoom = 1.0, recPanX = 0, recPanY = 0;
+    var recDragging = false, recDragX = 0, recDragY = 0, recPanStartX = 0, recPanStartY = 0;
+    var recZoomLevel = document.getElementById('rec-zoom-level');
+    var recZoomReset = document.getElementById('rec-zoom-reset');
+    var recVideoWrap = document.getElementById('recording-video-wrap');
+
+    function applyRecZoom() {
+        recordingVideo.style.transformOrigin = 'center center';
+        recordingVideo.style.transform = 'scale(' + recZoom + ') translate(' + recPanX + 'px, ' + recPanY + 'px)';
+        recordingVideo.style.cursor = recZoom > 1 ? (recDragging ? 'grabbing' : 'grab') : 'default';
+        if (recZoomLevel) {
+            recZoomLevel.textContent = Math.round(recZoom * 100) + '%';
+            recZoomLevel.style.display = recZoom > 1.01 ? '' : 'none';
+        }
+        if (recZoomReset) recZoomReset.style.display = recZoom > 1.01 ? '' : 'none';
+    }
+
+    window.resetRecZoom = function() {
+        recZoom = 1.0; recPanX = 0; recPanY = 0;
+        applyRecZoom();
+    };
+
+    recVideoWrap.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? (e.ctrlKey ? -0.05 : -0.15) : (e.ctrlKey ? 0.05 : 0.15);
+        var oldZoom = recZoom;
+        recZoom = Math.max(1.0, Math.min(8.0, recZoom + delta));
+        if (recZoom === 1.0) { recPanX = 0; recPanY = 0; }
+        else if (oldZoom > 1.0) {
+            var ratio = recZoom / oldZoom;
+            recPanX *= ratio;
+            recPanY *= ratio;
+        }
+        applyRecZoom();
+    }, { passive: false });
+
+    recVideoWrap.addEventListener('mousedown', function(e) {
+        if (recZoom <= 1.01) return;
+        e.preventDefault();
+        recDragging = true;
+        recDragX = e.clientX; recDragY = e.clientY;
+        recPanStartX = recPanX; recPanStartY = recPanY;
+        applyRecZoom();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!recDragging) return;
+        var maxPan = 200 * (recZoom - 1);
+        recPanX = Math.max(-maxPan, Math.min(maxPan, recPanStartX + (e.clientX - recDragX) / recZoom));
+        recPanY = Math.max(-maxPan, Math.min(maxPan, recPanStartY + (e.clientY - recDragY) / recZoom));
+        applyRecZoom();
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (recDragging) { recDragging = false; applyRecZoom(); }
+    });
+
+    var recTouchDist = 0, recTouchZoomStart = 1.0;
+    recVideoWrap.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            var dx = e.touches[0].clientX - e.touches[1].clientX;
+            var dy = e.touches[0].clientY - e.touches[1].clientY;
+            recTouchDist = Math.sqrt(dx * dx + dy * dy);
+            recTouchZoomStart = recZoom;
+        }
+    }, { passive: false });
+
+    recVideoWrap.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            var dx = e.touches[0].clientX - e.touches[1].clientX;
+            var dy = e.touches[0].clientY - e.touches[1].clientY;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            recZoom = Math.max(1.0, Math.min(8.0, recTouchZoomStart * (dist / recTouchDist)));
+            if (recZoom === 1.0) { recPanX = 0; recPanY = 0; }
+            applyRecZoom();
+        }
+    }, { passive: false });
+
+    function loadRecordings() {
+        fetch('/surveillance/api/camera/' + cameraId + '/recordings')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                recordingStatus.textContent = data.recording ? 'Recording' : 'Idle';
+                recordingStatus.className = 'badge ' + (data.recording ? 'bg-danger' : 'bg-secondary') + ' me-2';
+                recordingTitle.textContent = 'Recordings - ' + data.camera_name;
+
+                if (!data.segments || data.segments.length === 0) {
+                    recordingSegments.innerHTML = '<div class="text-muted text-center py-2"><small>No recordings yet</small></div>';
+                    return;
+                }
+
+                var html = '<div class="d-flex justify-content-between align-items-center mb-1 px-1">' +
+                    '<small class="text-muted">' + data.segments.length + ' segments</small>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteSelected()" style="display:none" id="delete-selected-btn">' +
+                    '<i class="bi bi-trash"></i> Delete Selected</button></div>';
+                data.segments.forEach(function(seg) {
+                    var d = new Date(seg.modified);
+                    var timeStr = d.toLocaleString();
+                    var sizeMB = (seg.size / 1048576).toFixed(1);
+                    html += '<div class="list-group-item d-flex align-items-center py-1 px-2 gap-2">' +
+                        '<input type="checkbox" class="form-check-input recording-check" data-path="' + seg.path + '" style="margin:0;flex-shrink:0">' +
+                        '<button type="button" class="btn btn-link btn-sm text-start p-0 flex-grow-1 text-decoration-none" onclick="playRecording(\'' + seg.path + '\', \'' + seg.filename + '\')">' +
+                        '<i class="bi bi-play-circle me-1"></i>' + seg.filename + '</button>' +
+                        '<small class="text-muted text-nowrap">' + sizeMB + ' MB &middot; ' + timeStr + '</small>' +
+                        '<button class="btn btn-sm btn-outline-success py-0 px-1" onclick="saveRecording(\'' + seg.path + '\', \'' + seg.filename + '\')" title="Save copy"><i class="bi bi-bookmark"></i></button>' +
+                        '</div>';
+                });
+                recordingSegments.innerHTML = html;
+
+                // Shift-click range selection
+                var boxes = recordingSegments.querySelectorAll('.recording-check');
+                boxes.forEach(function(box, i) {
+                    box.addEventListener('click', function(e) {
+                        if (e.shiftKey && window._lastRecIdx !== undefined && window._lastRecIdx !== i) {
+                            var lo = Math.min(window._lastRecIdx, i);
+                            var hi = Math.max(window._lastRecIdx, i);
+                            var target = box.checked;
+                            for (var j = lo; j <= hi; j++) {
+                                boxes[j].checked = target;
+                            }
+                        }
+                        window._lastRecIdx = i;
+                        updateDeleteButton();
+                    });
+                });
+            })
+            .catch(function() {
+                recordingStatus.textContent = 'Error';
+                recordingStatus.className = 'badge bg-warning me-2';
+                recordingSegments.innerHTML = '<div class="text-muted text-center py-2"><small>Failed to load recordings</small></div>';
+            });
+    }
+
+    window.closeRecordingPlayer = function() {
+        recordingPlayer.style.display = 'none';
+        recordingVideo.src = '';
+        document.getElementById('recording-filename').textContent = '';
+        resetRecZoom();
+    };
+
+    window.updateDeleteButton = function() {
+        var checked = document.querySelectorAll('.recording-check:checked').length;
+        var btn = document.getElementById('delete-selected-btn');
+        if (btn) btn.style.display = checked > 0 ? '' : 'none';
+    };
+
+    window.snapshotRecording = function() {
+        if (!recordingVideo.src || !recordingVideo.videoWidth) return;
+        recordingVideo.pause();
+        var canvas = document.createElement('canvas');
+        canvas.width = recordingVideo.videoWidth;
+        canvas.height = recordingVideo.videoHeight;
+        canvas.getContext('2d').drawImage(recordingVideo, 0, 0);
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        var defaultName = (document.getElementById('recording-filename').textContent || 'snapshot').replace(/\.[^.]+$/, '');
+        var name = prompt('Save snapshot as:', defaultName);
+        if (!name) return;
+        fetch('/surveillance/api/camera/' + cameraId + '/snapshot', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, data: dataUrl}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.saved) { alert('Snapshot saved: ' + data.name); loadSavedFiles(); }
+            else if (data.detail) { alert('Error: ' + data.detail); }
+        }).catch(function() { alert('Failed to save snapshot'); });
+    };
+
+    window.saveRecording = function(path, filename) {
+        var defaultName = filename ? filename.replace(/\.[^.]+$/, '') + '_saved' : 'saved';
+        var name = prompt('Save recording as:', defaultName);
+        if (!name) return;
+        fetch('/surveillance/api/camera/' + cameraId + '/recordings/' + path + '/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.saved) { alert('Saved: ' + data.name); loadSavedFiles(); }
+            else if (data.detail) { alert('Error: ' + data.detail); }
+        }).catch(function() { alert('Failed to save recording'); });
+    };
+
+    // --- Clip extraction ---
+    var clipStart = null;
+    var clipEnd = null;
+
+    function fmtTime(sec) {
+        if (sec === null) return 'end';
+        var m = Math.floor(sec / 60);
+        var s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function updateClipMarks() {
+        var div = document.getElementById('clip-marks');
+        var sl = document.getElementById('clip-start-label');
+        var el = document.getElementById('clip-end-label');
+        if (clipStart !== null || clipEnd !== null) {
+            if (div) div.style.display = '';
+            if (sl) sl.textContent = fmtTime(clipStart);
+            if (el) el.textContent = fmtTime(clipEnd);
+        } else {
+            if (div) div.style.display = 'none';
+        }
+    }
+
+    window.markClipStart = function() {
+        clipStart = recordingVideo.currentTime;
+        updateClipMarks();
+    };
+
+    window.markClipEnd = function() {
+        clipEnd = recordingVideo.currentTime;
+        updateClipMarks();
+    };
+
+    window.clearClipMarks = function() {
+        clipStart = null;
+        clipEnd = null;
+        updateClipMarks();
+    };
+
+    window.saveClip = function() {
+        var filename = document.getElementById('recording-filename').textContent || 'clip';
+        var defaultName = filename.replace(/\.[^.]+$/, '') + '_clip';
+        var name = prompt('Save clip as:', defaultName);
+        if (!name) return;
+        var body = {name: name};
+        if (clipStart !== null) body.start = clipStart;
+        if (clipEnd !== null) body.end = clipEnd;
+        body.source = window._currentRecordingSource || 'recording';
+        var path = window._currentRecordingPath || '';
+        if (!path) { alert('No recording loaded'); return; }
+        fetch('/surveillance/api/camera/' + cameraId + '/recordings/' + path + '/clip', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.saved) { alert('Clip saved: ' + data.name); loadSavedFiles(); clearClipMarks(); }
+            else if (data.detail) { alert('Error: ' + data.detail); }
+        }).catch(function() { alert('Failed to extract clip'); });
+    };
+
+    window.loadSavedFiles = function() {
+        fetch('/surveillance/api/camera/' + cameraId + '/saved')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var panel = document.getElementById('saved-panel');
+                if (panel) panel.style.display = '';
+
+                var vids = data.videos || [];
+                var vlist = document.getElementById('saved-videos-list');
+                if (vlist) {
+                    if (vids.length === 0) {
+                        vlist.innerHTML = '<div class="text-muted text-center py-2"><small>No saved videos</small></div>';
+                    } else {
+                        var html = '';
+                        vids.forEach(function(v) {
+                            var sizeMB = (v.size / 1048576).toFixed(1);
+                            html += '<div class="list-group-item d-flex align-items-center py-1 px-2 gap-2">' +
+                                '<button type="button" class="btn btn-link btn-sm text-start p-0 flex-grow-1 text-decoration-none" onclick="playSavedVideo(\'' + v.name + '\')">' +
+                                '<i class="bi bi-play-circle me-1"></i>' + v.name + '</button>' +
+                                '<small class="text-muted text-nowrap">' + sizeMB + ' MB</small>' +
+                                '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteSaved(\'video\', \'' + v.name + '\')" title="Delete"><i class="bi bi-trash"></i></button>' +
+                                '</div>';
+                        });
+                        vlist.innerHTML = html;
+                    }
+                }
+
+                var snaps = data.snapshots || [];
+                var slist = document.getElementById('saved-snaps-list');
+                if (slist) {
+                    if (snaps.length === 0) {
+                        slist.innerHTML = '<div class="text-muted text-center py-2"><small>No saved snapshots</small></div>';
+                    } else {
+                        var shtml = '';
+                        snaps.forEach(function(s) {
+                            var sizeKB = (s.size / 1024).toFixed(0);
+                            shtml += '<div class="list-group-item d-flex align-items-center py-1 px-2 gap-2">' +
+                                '<a href="/surveillance/api/camera/' + cameraId + '/recordings/' + s.name + '" target="_blank" class="text-decoration-none flex-grow-1">' +
+                                '<i class="bi bi-image me-1"></i>' + s.name + '</a>' +
+                                '<small class="text-muted text-nowrap">' + sizeKB + ' KB</small>' +
+                                '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteSaved(\'snapshot\', \'' + s.name + '\')" title="Delete"><i class="bi bi-trash"></i></button>' +
+                                '</div>';
+                        });
+                        slist.innerHTML = shtml;
+                    }
+                }
+            }).catch(function() {});
+    };
+
+    window.playSavedVideo = function(name) {
+        var url = '/surveillance/api/camera/' + cameraId + '/saved/video/' + name;
+        recordingPlayer.style.display = '';
+        document.getElementById('recording-filename').textContent = name;
+        window._currentRecordingPath = name;
+        window._currentRecordingSource = 'saved';
+        clearClipMarks();
+        resetRecZoom();
+        recordingVideo.src = url;
+        applySavedRate();
+        recordingVideo.play().catch(function() {});
+    };
+
+    window.deleteSaved = function(kind, name) {
+        if (!confirm('Delete ' + kind + ' "' + name + '"?')) return;
+        fetch('/surveillance/api/camera/' + cameraId + '/saved/' + kind + '/' + name + '/delete', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) { if (data.deleted) loadSavedFiles(); });
+    };
+
+    window.deleteSelected = function() {
+        var checks = document.querySelectorAll('.recording-check:checked');
+        if (checks.length === 0) return;
+        if (!confirm('Delete ' + checks.length + ' selected recordings?')) return;
+        var paths = [];
+        checks.forEach(function(c) { paths.push(c.dataset.path); });
+        function delNext() {
+            if (paths.length === 0) { loadRecordings(); return; }
+            var p = paths.shift();
+            fetch('/surveillance/api/camera/' + cameraId + '/recordings/' + p, { method: 'POST' })
+                .then(function() { delNext(); })
+                .catch(function() { delNext(); });
+        }
+        delNext();
+    };
+
+    window.playRecording = function(path, filename) {
+        var url = '/surveillance/api/camera/' + cameraId + '/recordings/' + path;
+        recordingPlayer.style.display = '';
+        document.getElementById('recording-filename').textContent = filename || '';
+        window._currentRecordingPath = path;
+        window._currentRecordingSource = 'recording';
+        clearClipMarks();
+        resetRecZoom();
+
+        if (window.MediaSource) {
+            var mediaSource = new MediaSource();
+            recordingVideo.src = URL.createObjectURL(mediaSource);
+
+            mediaSource.addEventListener('sourceopen', function() {
+                fetch(url).then(function(response) {
+                    return response.arrayBuffer();
+                }).then(function(buffer) {
+                    var data = new Uint8Array(buffer);
+                    var codecs = 'avc1.42E01E';
+                    var avcCIdx = -1;
+                    for (var i = 0; i < data.length - 8; i++) {
+                        if (data[i]==0x61 && data[i+1]==0x76 && data[i+2]==0x63 && data[i+3]==0x43) {
+                            avcCIdx = i + 4;
+                            break;
+                        }
+                    }
+                    if (avcCIdx > 0 && avcCIdx + 3 < data.length) {
+                        var profile = data[avcCIdx + 1];
+                        var compat = data[avcCIdx + 2];
+                        var level = data[avcCIdx + 3];
+                        codecs = 'avc1.' + profile.toString(16).padStart(2,'0').toUpperCase() + compat.toString(16).padStart(2,'0').toUpperCase() + level.toString(16).padStart(2,'0').toUpperCase();
+                    }
+                    var mime = 'video/mp4; codecs="' + codecs + '"';
+                    try {
+                        var sb = mediaSource.addSourceBuffer(mime);
+                        sb.addEventListener('updateend', function() {
+                            if (!sb.updating) try { mediaSource.endOfStream(); } catch(e) {}
+                        });
+                        sb.appendBuffer(buffer);
+                    } catch(e) {
+                        recordingVideo.src = url;
+                    }
+                });
+            });
+        } else {
+            recordingVideo.src = url;
+        }
+
+        applySavedRate();
+        recordingVideo.play().catch(function() {});
+    };
+
+    document.querySelectorAll('.speed-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var rate = parseFloat(this.dataset.rate);
+            recordingVideo.playbackRate = rate;
+            localStorage.setItem('surv_playback_rate', rate);
+            document.querySelectorAll('.speed-btn').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+        });
+    });
+
+    function applySavedRate() {
+        var savedRate = parseFloat(localStorage.getItem('surv_playback_rate')) || 1;
+        recordingVideo.playbackRate = savedRate;
+        document.querySelectorAll('.speed-btn').forEach(function(b) {
+            b.classList.toggle('active', parseFloat(b.dataset.rate) === savedRate);
+        });
+    }
+
+    loadRecordings();
+    loadSavedFiles();
+})();
+
+// --- Alarm SSE ---
+(function() {
+    var zoneId = '{{ zone.id }}';
+    var alarmAudioCtx = null;
+
+    function playBeep() {
+        if (!alarmAudioCtx) {
+            alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        var ctx = alarmAudioCtx;
+        for (var i = 0; i < 3; i++) {
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            var t = ctx.currentTime + i * 0.3;
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.3, t + 0.05);
+            gain.gain.linearRampToValueAtTime(0, t + 0.2);
+            osc.start(t);
+            osc.stop(t + 0.2);
+        }
+    }
+
+    function connectAlarm() {
+        var es = new EventSource('/surveillance/api/zone/' + zoneId + '/alarm-stream');
+        es.onmessage = function(e) {
+            try {
+                var data = JSON.parse(e.data);
+                playBeep();
+                var banner = document.createElement('div');
+                banner.className = 'alert alert-danger d-flex align-items-center gap-3';
+                banner.style.cssText = 'animation: pulse 1s infinite; position:fixed; top:0; left:0; right:0; z-index:9999';
+                banner.innerHTML = '<i class="bi bi-exclamation-triangle-fill fs-3"></i><div><strong>' +
+                    data.camera_name + ': ' + data.trigger.toUpperCase() + ' DETECTED</strong>' +
+                    ' <a href="/surveillance/zone/' + zoneId + '" class="btn btn-sm btn-outline-danger ms-2">Alarm History</a>' +
+                    '<button class="btn btn-sm btn-outline-danger ms-2" onclick="this.parentElement.parentElement.remove()">Dismiss</button></div>';
+                document.body.prepend(banner);
+                setTimeout(function() { if (banner.parentElement) banner.remove(); }, 30000);
+                loadAlarmEvents();
+            } catch(err) {}
+        };
+        es.onerror = function() {
+            es.close();
+            setTimeout(connectAlarm, 5000);
+        };
+    }
+    connectAlarm();
+
+    // --- Alarm Event Log ---
+    var alarmLogPanel = document.getElementById('alarm-log-panel');
+    var alarmLogList = document.getElementById('alarm-log-list');
+
+    window.loadAlarmEvents = function() {
+        fetch('/surveillance/api/zone/' + zoneId + '/alarm-events?hours=24')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var camName = '{{ camera.name }}';
+                var filtered = (data.events || []).filter(function(ev) {
+                    return ev.camera_name === camName;
+                });
+                if (alarmLogPanel) alarmLogPanel.style.display = filtered.length > 0 ? '' : 'none';
+                if (filtered.length === 0) {
+                    if (alarmLogList) alarmLogList.innerHTML = '<div class="text-muted text-center py-2"><small>No alarm events for this camera</small></div>';
+                    return;
+                }
+                var triggerIcons = {'person': 'person-fill', 'people': 'person-fill', 'vehicle': 'car-front-fill', 'animal': 'heart-fill', 'dog_cat': 'heart-fill', 'motion': 'globe'};
+                var triggerColors = {'person': 'danger', 'people': 'danger', 'vehicle': 'warning', 'animal': 'info', 'dog_cat': 'info', 'motion': 'secondary'};
+                var html = '<div class="d-flex justify-content-between align-items-center px-3 py-1">' +
+                    '<small class="text-muted">' + filtered.length + ' events</small>' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger" id="alarm-delete-btn" style="display:none" onclick="deleteAlarmEvents()"><i class="bi bi-trash"></i> Delete Selected</button>' +
+                    '</div>';
+                filtered.forEach(function(ev) {
+                    var d = new Date(ev.timestamp);
+                    var icon = 'bi-bell'; var color = 'secondary';
+                    ev.trigger_type.split(',').forEach(function(t) {
+                        var key = t.trim().toLowerCase();
+                        if (triggerIcons[key]) icon = 'bi-' + triggerIcons[key];
+                        if (triggerColors[key]) color = triggerColors[key];
+                    });
+                    html += '<div class="list-group-item d-flex align-items-center py-2 px-3">' +
+                        '<input type="checkbox" class="form-check-input alarm-check me-2" data-id="' + ev.id + '" style="margin:0;flex-shrink:0">' +
+                        '<i class="bi ' + icon + ' text-' + color + ' me-2 fs-5"></i>' +
+                        '<div class="flex-grow-1"><span class="badge bg-' + color + '">' + ev.trigger_type + '</span></div>' +
+                        '<small class="text-muted">' + d.toLocaleString() + '</small></div>';
+                });
+                if (alarmLogList) {
+                    var prevChecked = {};
+                    alarmLogList.querySelectorAll('.alarm-check:checked').forEach(function(c) {
+                        prevChecked[c.dataset.id] = true;
+                    });
+                    alarmLogList.innerHTML = html;
+                    var recheckCount = 0;
+                    alarmLogList.querySelectorAll('.alarm-check').forEach(function(c) {
+                        if (prevChecked[c.dataset.id]) { c.checked = true; recheckCount++; }
+                    });
+                    if (recheckCount > 0) {
+                        var btn = document.getElementById('alarm-delete-btn');
+                        if (btn) btn.style.display = '';
+                    }
+                }
+            })
+            .catch(function() {});
+    };
+
+    window.deleteAlarmEvents = function() {
+        var checks = document.querySelectorAll('.alarm-check:checked');
+        if (checks.length === 0) return;
+        if (!confirm('Delete ' + checks.length + ' selected alarm events?')) return;
+        var ids = [];
+        checks.forEach(function(c) { ids.push(c.dataset.id); });
+        fetch('/surveillance/api/zone/' + zoneId + '/alarm-events/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: ids}),
+        }).then(function() { loadAlarmEvents(); });
+    };
+
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('alarm-check')) {
+            var checked = document.querySelectorAll('.alarm-check:checked').length;
+            var btn = document.getElementById('alarm-delete-btn');
+            if (btn) btn.style.display = checked > 0 ? '' : 'none';
+        }
+    });
+    loadAlarmEvents();
+    setInterval(loadAlarmEvents, 60000);
+
+    // Keep session alive for overnight monitoring
+    setInterval(function() {
+        fetch('/api/v1/auth/refresh-session', {method: 'POST', credentials: 'include'})
+            .then(function() {})
+            .catch(function() {});
+    }, 15 * 60 * 1000);
+})();
+
+// --- Ignore Windows ---
+(function() {
+    var cameraId = '{{ camera.id }}';
+    var dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    function dayLabel(dowStr) {
+        var days = dowStr.split(',');
+        if (days.length === 7) return 'Every day';
+        return days.map(function(d) { return dayNames[parseInt(d)] || d; }).join(', ');
+    }
+
+    window.loadIgnoreWindows = function() {
+        fetch('/surveillance/api/camera/' + cameraId + '/ignore-windows')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var list = document.getElementById('ignore-windows-list');
+                var windows = data.windows || [];
+                if (windows.length === 0) {
+                    list.innerHTML = '<div class="text-muted text-center py-2"><small>No ignore windows — all motion will be recorded</small></div>';
+                    return;
+                }
+                var html = '';
+                windows.forEach(function(w) {
+                    var muted = w.is_enabled ? '' : 'text-muted';
+                    var badge = w.is_enabled
+                        ? '<span class="badge bg-success">Active</span>'
+                        : '<span class="badge bg-secondary">Disabled</span>';
+                    html += '<div class="list-group-item d-flex align-items-center py-2 px-3 ' + muted + '">' +
+                        '<i class="bi bi-clock me-2"></i>' +
+                        '<div class="flex-grow-1">' +
+                        (w.name ? '<strong>' + w.name + '</strong><br>' : '') +
+                        '<small>' + w.start_time + ' - ' + w.end_time + ' &middot; ' + dayLabel(w.days_of_week) + '</small> ' +
+                        badge +
+                        '</div>' +
+                        '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteIgnoreWindow(\'' + w.id + '\')"><i class="bi bi-trash"></i></button>' +
+                        '</div>';
+                });
+                list.innerHTML = html;
+            });
+    };
+
+    window.addIgnoreWindow = function() {
+        var name = prompt('Name (optional):', '');
+        if (name === null) return;
+        var start = prompt('Start time (HH:MM, 24h):', '07:00');
+        if (!start) return;
+        var end = prompt('End time (HH:MM, 24h):', '08:00');
+        if (!end) return;
+        var days = prompt('Days (0=Mon..6=Sun, comma-separated, or leave blank for all):', '');
+        if (days === null) return;
+        if (!days.trim()) days = '0,1,2,3,4,5,6';
+
+        fetch('/surveillance/api/camera/' + cameraId + '/ignore-windows', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, start_time: start, end_time: end, days_of_week: days}),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.created) loadIgnoreWindows();
+            else if (data.detail) alert('Error: ' + data.detail);
+        });
+    };
+
+    window.deleteIgnoreWindow = function(id) {
+        if (!confirm('Delete this ignore window?')) return;
+        fetch('/surveillance/api/camera/' + cameraId + '/ignore-windows/' + id + '/delete', {method: 'POST'})
+            .then(function() { loadIgnoreWindows(); });
+    };
+
+    loadIgnoreWindows();
+})();
+</script>
+{% endblock %}

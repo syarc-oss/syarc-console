@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}{{ conversation.subject }} - Messages{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+                <li class="breadcrumb-item active">{{ conversation.subject }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mt-2 mb-3">
+            <h3 class="mb-0">{{ conversation.subject }}</h3>
+            <div class="d-flex align-items-center gap-2">
+                <small class="text-muted">With:
+                {% for p, u in participants %}
+                    {% if u.id != user.id %}
+                    <span class="badge bg-light text-dark border">{{ u.username }}</span>
+                    {% endif %}
+                {% endfor %}
+                </small>
+                <form method="post"
+                      action="/platforms/messaging/conversations/{{ conversation.id }}/delete"
+                      onsubmit="return confirm('Delete this conversation and all its messages?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            title="Delete thread">
+                        <i class="bi bi-trash"></i> Delete thread
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="mb-4" id="message-scroll" style="max-height: 500px; overflow-y: auto;">
+            {% for msg, sender in message_rows %}
+            <div class="card mb-2 {% if sender.id == user.id %}border-start border-primary border-3{% else %}border-start border-secondary border-3{% endif %}" data-msg-id="{{ msg.id }}">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between">
+                        <strong class="{% if sender.id == user.id %}text-primary{% endif %}">{{ sender.username }}</strong>
+                        <div class="d-flex align-items-center gap-2">
+                            {% if sender.id == user.id or user.is_superuser %}
+                            <form method="post"
+                                  action="/platforms/messaging/conversations/{{ conversation.id }}/messages/{{ msg.id }}/delete"
+                                  onsubmit="return confirm('Delete this message?');">
+                                <button type="submit" class="btn btn-sm btn-link text-danger p-0"
+                                        title="Delete message">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <small class="text-muted">{{ msg.created_at|localtime('%b %d, %Y %H:%M') }}</small>
+                        </div>
+                    </div>
+                    <div class="mt-1" style="white-space: pre-wrap;">{{ msg.content }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Reply</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="/platforms/messaging/conversations/{{ conversation.id }}/reply">
+                    <div class="mb-3">
+                        <textarea class="form-control" name="content" rows="3" required placeholder="Type your reply..."></textarea>
+                        {% if is_mesh %}
+                        <div class="form-text">
+                            Start with <code>!</code> to send verbatim (no
+                            &ldquo;name:&rdquo; prefix) — for mesh bot commands like
+                            <code>!T</code>; use <code>!!</code> for a literal <code>!</code>.
+                        </div>
+                        {% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-reply"></i> Send Reply</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const convId = "{{ conversation.id }}";
+    const container = document.getElementById("message-scroll");
+    const me = {{ user.username | tojson }};
+    const canModerate = {{ 'true' if user.is_superuser else 'false' }};
+    let lastTs = {{ poll_after | tojson }};
+
+    function fmtTime(iso) {
+        try {
+            const d = new Date(iso);
+            return d.toLocaleString(undefined, {
+                month: "short", day: "numeric", year: "numeric",
+                hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+            });
+        } catch (e) {
+            return "";
+        }
+    }
+
+    let audioCtx = null;
+    function beep() {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === "suspended") audioCtx.resume();
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(880, t);      /* A5 */
+            osc.frequency.setValueAtTime(1174.7, t + 0.12); /* D6 */
+            gain.gain.setValueAtTime(0.001, t);
+            gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.30);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.32);
+        } catch (e) {
+            /* audio unavailable; silent fallback */
+        }
+    }
+
+    function appendMessage(m) {
+        if (m.id) {
+            if (document.querySelector(`[data-msg-id="${m.id}"]`)) return;
+        }
+        const mine = m.sender === me;
+        const card = document.createElement("div");
+        card.className = "card mb-2 " +
+            (mine ? "border-start border-primary border-3"
+                  : "border-start border-secondary border-3");
+        if (m.id) card.dataset.msgId = m.id;
+
+        const body = document.createElement("div");
+        body.className = "card-body py-2";
+
+        const head = document.createElement("div");
+        head.className = "d-flex justify-content-between";
+
+        const who = document.createElement("strong");
+        if (mine) who.className = "text-primary";
+        who.textContent = m.sender;
+
+        const right = document.createElement("div");
+        right.className = "d-flex align-items-center gap-2";
+        if (mine || canModerate) {
+            const del = document.createElement("button");
+            del.type = "button";
+            del.className = "btn btn-sm btn-link text-danger p-0";
+            del.title = "Delete message";
+            del.innerHTML = "<i class=\"bi bi-x-circle\"></i>";
+            del.onclick = async () => {
+                if (!confirm("Delete this message?")) return;
+                const body = new URLSearchParams();
+                await fetch(`/platforms/messaging/conversations/${convId}/messages/${m.id}/delete`,
+                            { method: "POST", body });
+                card.remove();
+            };
+            right.appendChild(del);
+        }
+
+        const when = document.createElement("small");
+        when.className = "text-muted";
+        when.textContent = fmtTime(m.created_at);
+
+        right.appendChild(when);
+        head.appendChild(who);
+        head.appendChild(right);
+
+        const text = document.createElement("div");
+        text.className = "mt-1";
+        text.style.whiteSpace = "pre-wrap";
+        text.textContent = m.content;
+
+        body.appendChild(head);
+        body.appendChild(text);
+        card.appendChild(body);
+        container.appendChild(card);
+    }
+
+    /* Live updates via Server-Sent Events: local broker ingestion and
+       replies wake the stream instantly; a server-side safety poll
+       covers messages written by sibling workers. EventSource
+       reconnects on its own and replays via Last-Event-ID. */
+    const es = new EventSource(
+        `/platforms/messaging/conversations/${convId}/events?after=` +
+        encodeURIComponent(lastTs)
+    );
+    es.addEventListener("message", (ev) => {
+        try {
+            const m = JSON.parse(ev.data);
+            if (document.querySelector(`[data-msg-id="${m.id}"]`)) return;
+            const nearBottom =
+                container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+            appendMessage(m);
+            if (nearBottom) container.scrollTop = container.scrollHeight;
+            if (m.sender !== me) beep();
+        } catch (e) {
+            /* malformed event; ignore */
+        }
+    });
+    container.scrollTop = container.scrollHeight;
+})();
+</script>
+{% endblock %}

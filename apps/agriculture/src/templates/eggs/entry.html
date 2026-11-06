@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Egg Entry - Eggs{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/eggs/">Eggs</a></li>
+        <li class="breadcrumb-item"><a href="/eggs/coops/{{ coop_id }}">{{ coop_name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Egg Entry</li>
+    </ol>
+</nav>
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Daily Egg Entry</h2>
+                <p class="text-muted">Record today's egg production (or select a different date)</p>
+            </div>
+            <div>
+                <a href="/eggs/coops/{{ coop_id }}" class="btn btn-outline-primary">
+                    <i class="bi bi-house-door me-2"></i>Menu
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Egg Entry Form -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <form id="eggEntryForm" class="needs-validation" novalidate>
+            <div class="mb-3">
+                <label for="hen_ids" class="form-label">Select Hens (multiple)</label>
+                <select class="form-select" id="hen_ids" name="hen_ids" multiple required>
+                    {% for hen in active_hens %}
+                        <option value="{{ hen.id }}">{{ hen.name }}{% if hen.breed %} ({{ hen.breed }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Click to select multiple hens (use Ctrl/Cmd to select multiple)</div>
+                <div class="invalid-feedback">Please select at least one hen.</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="collection_date" class="form-label">Collection Date</label>
+                <input type="date" class="form-control" id="collection_date" name="collection_date" required>
+                <div class="invalid-feedback">Please select a date.</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="quantity" class="form-label">Eggs (per selected hen)</label>
+                <input type="number" class="form-control" id="quantity" name="quantity" min="1" max="999" value="1">
+                <div class="form-text">Set above 1 when a hen laid more than one egg, or when recording a total without picking each hen individually.</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="notes" class="form-label">Notes (optional)</label>
+                <textarea class="form-control" id="notes" name="notes" rows="2"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+    </div>
+</div>
+
+<!-- Recent Entries -->
+<div class="row mt-5">
+    <div class="col-md-12">
+        <h3>Recent Entries</h3>
+        <div id="recentEntries"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const coopId = "{{ coop_id }}";
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateInput = document.getElementById('collection_date');
+        if (!dateInput.value) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}`;
+        }
+
+        fetchRecentEntries();
+
+        document.getElementById('eggEntryForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const henSelect = document.getElementById('hen_ids');
+            const selectedHenIds = Array.from(henSelect.selectedOptions).map(option => option.value);
+
+            if (selectedHenIds.length === 0) {
+                alert('Please select at least one hen');
+                return;
+            }
+
+            let entriesCreated = 0;
+            let entriesFailed = 0;
+
+            selectedHenIds.forEach(henId => {
+                const entryFormData = new FormData();
+                entryFormData.append('hen_id', henId);
+                entryFormData.append('collection_date', formData.get('collection_date'));
+                entryFormData.append('quantity', formData.get('quantity') || '1');
+                entryFormData.append('notes', formData.get('notes') || '');
+
+                fetch(`/eggs/coops/${coopId}/production/add`, {
+                    method: 'POST',
+                    body: entryFormData,
+                    credentials: 'include'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        entriesCreated++;
+                        checkAllEntriesComplete(selectedHenIds.length, entriesCreated, entriesFailed);
+                    } else {
+                        entriesFailed++;
+                        checkAllEntriesComplete(selectedHenIds.length, entriesCreated, entriesFailed);
+                    }
+                })
+                .catch(error => {
+                    entriesFailed++;
+                    checkAllEntriesComplete(selectedHenIds.length, entriesCreated, entriesFailed);
+                });
+            });
+        });
+
+        function checkAllEntriesComplete(total, created, failed) {
+            const completed = created + failed;
+            if (completed === total) {
+                if (created === total) {
+                    alert(`${created} egg entries recorded successfully!`);
+                } else {
+                    alert(`Created ${created} entries, ${failed} failed`);
+                }
+                document.getElementById('eggEntryForm').reset();
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                dateInput.value = `${year}-${month}-${day}`;
+                fetchRecentEntries();
+            }
+        }
+    });
+
+    function fetchRecentEntries() {
+        fetch(`/eggs/coops/${coopId}/production/list`)
+            .then(response => response.json())
+            .then(data => {
+                let html = '';
+                if (data.length > 0) {
+                    html = '<table class="table"><thead><tr><th>Date</th><th>Hen</th><th>Eggs</th><th>Notes</th><th>Actions</th></tr></thead><tbody>';
+                    data.forEach(entry => {
+                        const parts = entry.collection_date.substring(0, 10).split('-');
+                        const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                        const dateStr = dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+                        html += `<tr><td>${dateStr}</td><td>${entry.hen_name}</td><td>${entry.quantity || 1}</td><td>${entry.notes || ''}</td><td><button class="btn btn-sm btn-danger" onclick="deleteEntry('${entry.id}')">Delete</button></td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                } else {
+                    html = '<p>No recent entries.</p>';
+                }
+                document.getElementById('recentEntries').innerHTML = html;
+            })
+            .catch(error => console.error('Error fetching recent entries:', error));
+    }
+
+    function deleteEntry(entryId) {
+        if (confirm('Are you sure you want to delete this entry?')) {
+            fetch(`/eggs/coops/${coopId}/production/${entryId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) { alert('Entry deleted successfully!'); fetchRecentEntries(); }
+                else { response.json().then(error => alert('Error: ' + error.detail)); }
+            })
+            .catch(error => console.error('Error deleting entry:', error));
+        }
+    }
+</script>
+{% endblock %}

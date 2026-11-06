@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}{{ camera.name if camera else "New Camera" }} - {{ zone.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/surveillance/">Surveillance</a></li>
+        <li class="breadcrumb-item"><a href="/surveillance/zone/{{ zone.id }}">{{ zone.name }}</a></li>
+        <li class="breadcrumb-item active">{{ camera.name if camera else "New Camera" }}</li>
+    </ol>
+</nav>
+
+<h2>{{ "Edit Camera" if camera else "Add Camera" }}</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" action="{{ '/surveillance/zone/' ~ zone.id ~ '/camera/' ~ camera.id ~ '/edit' if camera else '/surveillance/zone/' ~ zone.id ~ '/camera/new' }}">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="name" class="form-label">Camera Name</label>
+                    <input type="text" class="form-control" id="name" name="name"
+                           value="{{ camera.name if camera else '' }}" required
+                           placeholder="e.g. Front Gate, Back Yard">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="location" class="form-label">Location</label>
+                    <input type="text" class="form-control" id="location" name="location"
+                           value="{{ camera.location if camera and camera.location else '' }}"
+                           placeholder="e.g. Driveway gate post">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label for="stream_url" class="form-label">Stream URL</label>
+                    <input type="text" class="form-control" id="stream_url" name="stream_url"
+                           value="{{ camera.stream_url if camera else '' }}" required
+                           placeholder="e.g. http://192.168.1.100/cgi-bin/CGIStream.cgi?cmd=GetMJStream">
+                    <div class="form-text">
+                        MJPEG: <code>http://ip/cgi-bin/CGIStream.cgi?cmd=GetMJStream</code> (Foscam) or
+                        <code>http://ip/video/mjpg.cgi</code><br>
+                        RTSP (requires proxy): <code>rtsp://ip:554/stream1</code><br>
+                        HLS: <code>http://ip:8080/stream.m3u8</code>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="stream_type" class="form-label">
+                        Stream Type
+                        {% if go2rtc_running %}
+                        <span class="badge bg-success ms-1" title="go2rtc proxy is running"><i class="bi bi-check-circle"></i> Proxy</span>
+                        {% else %}
+                        <span class="badge bg-danger ms-1" title="go2rtc proxy is not running — RTSP streams will not work"><i class="bi bi-x-circle"></i> Proxy</span>
+                        {% endif %}
+                    </label>
+                    <select class="form-select" id="stream_type" name="stream_type">
+                        <option value="mjpeg" {{ 'selected' if not camera or camera.stream_type == 'mjpeg' }}>MJPEG (direct)</option>
+                        <option value="hls" {{ 'selected' if camera and camera.stream_type == 'hls' }}>HLS</option>
+                        <option value="rtsp" {{ 'selected' if not camera or camera.stream_type == 'rtsp' }}>RTSP (needs proxy)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="rotation" class="form-label">Image Rotation</label>
+                    <select class="form-select" id="rotation" name="rotation" style="max-width: 160px">
+                        <option value="0" {{ 'selected' if not camera or camera.rotation == 0 }}>0&#176; (normal)</option>
+                        <option value="90" {{ 'selected' if camera and camera.rotation == 90 }}>90&#176;</option>
+                        <option value="180" {{ 'selected' if camera and camera.rotation == 180 }}>180&#176; (flip)</option>
+                        <option value="270" {{ 'selected' if camera and camera.rotation == 270 }}>270&#176;</option>
+                    </select>
+                    <div class="form-text">Rotates the live view display. Use 180&#176; for upside-down mounts.</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="username" class="form-label">Camera Username <small class="text-muted">(optional)</small></label>
+                    <input type="text" class="form-control" id="username" name="username"
+                           value="{{ camera.username if camera and camera.username else '' }}"
+                           placeholder="Camera login">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="password" class="form-label">Camera Password <small class="text-muted">(optional)</small></label>
+                    <input type="password" class="form-control" id="password" name="password"
+                           placeholder="{{ 'Leave blank to keep current' if camera else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Enabled</label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" id="is_enabled" name="is_enabled"
+                               {% if not camera or camera.is_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="is_enabled">Camera Active</label>
+                    </div>
+                </div>
+            </div>
+
+            {% if not camera or camera.stream_type != 'mjpeg' %}
+            <hr>
+            <h5><i class="bi bi-record-circle"></i> Recording</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="recording_enabled" name="recording_enabled"
+                               {% if camera and camera.recording_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="recording_enabled">Enable recording</label>
+                    </div>
+                    <div class="form-text">Records 5-minute MP4 segments to <code>/usr/local/library/surveillance_recordings/</code></div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="recording_retention_days" class="form-label">Keep recordings (days)</label>
+                    <input type="number" class="form-control" id="recording_retention_days" name="recording_retention_days"
+                           value="{{ camera.recording_retention_days if camera else 30 }}"
+                           min="1" max="365" style="max-width: 120px">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="recording_mode" class="form-label">Recording Mode</label>
+                    <select class="form-select" id="recording_mode" name="recording_mode" style="max-width: 200px">
+                        <option value="continuous" {{ 'selected' if not camera or camera.recording_mode == 'continuous' }}>Continuous</option>
+                        <option value="motion" {{ 'selected' if camera and camera.recording_mode == 'motion' }}>Motion-triggered</option>
+                    </select>
+                    <div class="form-text">Motion detection via camera API polling (0.5s interval) handled by the surveillance-webhook systemd service</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="motion_timeout" class="form-label">Post-motion timeout (seconds)</label>
+                    <input type="number" class="form-control" id="motion_timeout" name="motion_timeout"
+                           value="{{ camera.motion_timeout if camera else 30 }}"
+                           min="5" max="300" style="max-width: 120px">
+                    <div class="form-text">Continue recording this long after motion stops</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <hr>
+            <h5><i class="bi bi-bell"></i> Alarm</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="alarm_enabled" name="alarm_enabled"
+                               {% if camera and camera.alarm_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="alarm_enabled">Enable alarm beep</label>
+                    </div>
+                    <div class="form-text">Plays a beep in the browser when triggered, only while viewing the zone</div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="alarm_types" class="form-label">Trigger On</label>
+                    <select class="form-select" id="alarm_types" name="alarm_types" style="max-width: 220px">
+                        <option value="people" {{ 'selected' if not camera or camera.alarm_types == 'people' }}>People only</option>
+                        <option value="people,vehicle" {{ 'selected' if camera and camera.alarm_types == 'people,vehicle' }}>People &amp; Vehicles</option>
+                        <option value="people,vehicle,dog_cat" {{ 'selected' if camera and camera.alarm_types == 'people,vehicle,dog_cat' }}>People, Vehicles &amp; Animals</option>
+                        <option value="people,motion" {{ 'selected' if camera and camera.alarm_types == 'people,motion' }}>People &amp; Any Motion</option>
+                        <option value="motion" {{ 'selected' if camera and camera.alarm_types == 'motion' }}>Any Motion</option>
+                        <option value="vehicle" {{ 'selected' if camera and camera.alarm_types == 'vehicle' }}>Vehicles only</option>
+                        <option value="dog_cat" {{ 'selected' if camera and camera.alarm_types == 'dog_cat' }}>Animals only</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label for="alarm_start" class="form-label">Active From</label>
+                    <input type="time" class="form-control" id="alarm_start" name="alarm_start"
+                           value="{{ camera.alarm_start if camera else '22:00' }}">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="alarm_end" class="form-label">Active Until</label>
+                    <input type="time" class="form-control" id="alarm_end" name="alarm_end"
+                           value="{{ camera.alarm_end if camera else '06:00' }}">
+                </div>
+            </div>
+            <div class="form-text mb-2">Alarm is silent outside this time window (e.g., 22:00 to 06:00 for overnight)</div>
+
+            {% if cameras %}
+            <hr>
+            <h5><i class="bi bi-link-45deg"></i> Linked Recording</h5>
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label for="trigger_camera_ids" class="form-label">Trigger Recording On</label>
+                    <select class="form-select" id="trigger_camera_ids" name="trigger_camera_ids" style="max-width: 300px">
+                        <option value="">None</option>
+                        {% for cam in cameras %}
+                        {% if not camera or cam.id != camera.id %}
+                        <option value="{{ cam.id }}" {{ 'selected' if camera and camera.trigger_camera_ids and cam.id|string in camera.trigger_camera_ids }}>{{ cam.name }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">When this camera starts recording, also start recording the selected camera</div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="trigger_delay" class="form-label">Delay (seconds)</label>
+                    <input type="number" class="form-control" id="trigger_delay" name="trigger_delay"
+                           value="{{ camera.trigger_delay if camera else 0 }}"
+                           min="0" max="300" style="max-width: 120px">
+                </div>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle"></i> {{ "Update" if camera else "Add" }} Camera
+            </button>
+            <a href="/surveillance/zone/{{ zone.id }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

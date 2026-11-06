@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit event" if event else "New event" }} - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item"><a href="/calendar/events">Events</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ "Edit" if event else "New" }}</li>
+    </ol>
+</nav>
+
+<h2 class="mb-3"><i class="bi bi-calendar-event"></i> {{ "Edit event" if event else "New event" }}</h2>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-body">
+                <form method="post"
+                      action="{{ '/calendar/events/' ~ event.id ~ '/edit' if event else '/calendar/events/new' }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Title *</label>
+                        <input class="form-control" name="title" required maxlength="200"
+                               value="{{ event.title if event else '' }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Category *</label>
+                            <select class="form-select" name="category" required>
+                                {% for c in categories %}
+                                <option value="{{ c[0] }}" {{ 'selected' if event and event.category == c[0] }}>{{ c[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Date *</label>
+                            <input type="date" class="form-control" name="event_date" required
+                                   value="{{ event.event_date if event else '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Time</label>
+                            <input type="time" class="form-control" name="event_time"
+                                   value="{{ event.event_time or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Duration (minutes)</label>
+                            <input type="number" step="5" min="5" class="form-control" name="duration_mins"
+                                   value="{{ event.duration_mins or '' }}">
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label fw-bold">Location</label>
+                            <input class="form-control" name="location" maxlength="255"
+                                   value="{{ event.location or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Notes</label>
+                        <textarea class="form-control" name="notes" rows="3">{{ event.notes or '' }}</textarea>
+                    </div>
+                    <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Save</button>
+                    <a href="/calendar/events" class="btn btn-outline-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if event %}
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-header"><i class="bi bi-people"></i> Invitees</div>
+            <div class="card-body">
+                <ul class="list-group mb-3">
+                    {% for i in invitees %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ i.username }}
+                            <span class="badge {{ 'bg-success' if i.status == 'confirmed' else 'bg-warning text-dark' if i.status == 'pending' else 'bg-secondary' }}">{{ i.status }}</span>
+                        </span>
+                        <form method="post" action="/calendar/events/{{ event.id }}/invitees/{{ i.id }}/remove"
+                              onsubmit="return confirm('Remove {{ i.username }} from this event?')">
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="list-group-item text-muted">No invitees yet{% if event.category == 'appointment' %} (appointments usually don't need any){% endif %}.</li>
+                    {% endfor %}
+                </ul>
+                <form method="post" action="/calendar/events/{{ event.id }}/invitees/add" class="d-flex gap-2">
+                    <select name="user_id" class="form-select form-select-sm" required>
+                        <option value="" disabled selected>Invite user…</option>
+                        {% for u in users %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-primary"><i class="bi bi-person-plus"></i> Invite</button>
+                </form>
+                <p class="text-muted small mt-2 mb-0">Invited users see the invite in their Calendar Invites panel.</p>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">Danger zone</div>
+            <div class="card-body">
+                <form method="post" action="/calendar/events/{{ event.id }}/delete"
+                      onsubmit="return confirm('Delete this event?')">
+                    <input type="hidden" name="back" value="/calendar/events">
+                    <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Delete event</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

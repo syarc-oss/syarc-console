@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}MeshCore — Settings{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item active">Settings</li>
+  </ol>
+</nav>
+<h2 class="mb-3"><i class="bi bi-gear"></i> Node settings
+  <small class="text-muted">{{ 'connected' if radio_connected else 'radio offline' }}</small></h2>
+
+{% if not radio_connected %}
+<div class="alert alert-warning">The MeshCore radio is not connected; settings cannot be read or changed right now.
+  {% if radio_detail %}<span class="font-monospace">({{ radio_detail }})</span>{% endif %}</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Attached node</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-25">Name</th><td>{{ info.name or "—" }}</td></tr>
+      <tr><th>Board type</th><td>{{ board.model or "—" }} <small class="text-muted">{{ board.fw_version }}</small></td></tr>
+      <tr><th>Public key</th><td class="font-monospace" style="word-break:break-all">{{ info.pubkey or "—" }}</td></tr>
+      <tr><th>Latitude</th><td>{{ info.lat if info.lat is defined and info.lat != 0.0 else "—" }}</td></tr>
+      <tr><th>Longitude</th><td>{{ info.lon if info.lon is defined and info.lon != 0.0 else "—" }}</td></tr>
+    </table>
+  </div></div></div>
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Radio</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-25">Frequency</th><td>{{ info.freq_mhz }} MHz</td></tr>
+      <tr><th>Bandwidth</th><td>{{ info.bw_khz }} kHz</td></tr>
+      <tr><th>SF / CR</th><td>{{ info.sf }} / {{ info.cr }}</td></tr>
+      <tr><th>TX power</th><td>{{ info.tx_power }} dBm <small class="text-muted">(max {{ info.max_tx_power }})</small></td></tr>
+    </table>
+  </div></div></div>
+</div>
+
+<h5 class="text-muted">Adjust settings for {{ info.name or "node" }}</h5>
+<form method="post" action="/platforms/meshcore/settings/save" class="card shadow-sm p-3 mb-4">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Node name</label>
+      <input class="form-control" name="name" value="{{ info.name or '' }}" maxlength="32">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Latitude</label>
+      <input class="form-control" name="lat" value="{{ info.lat if info.lat is defined else '' }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Longitude</label>
+      <input class="form-control" name="lon" value="{{ info.lon if info.lon is defined else '' }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">TX power (dBm)</label>
+      <input class="form-control" name="tx_power" value="{{ info.tx_power or 0 }}">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="share_location" id="share" value="1"
+               {{ 'checked' if info.adv_loc_policy is defined and info.adv_loc_policy and info.adv_loc_policy != 0 }}>
+        <label class="form-check-label" for="share">Share location in advert</label>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-primary mt-3"><i class="bi bi-save"></i> Save to node</button>
+</form>
+
+<h5 class="text-muted">Remote management</h5>
+<div class="card shadow-sm p-3">
+  <form method="post" action="/platforms/meshcore/settings/advert" class="d-inline">
+    <button class="btn btn-outline-primary"><i class="bi bi-broadcast"></i> Send advert (flood)</button>
+  </form>
+  <form method="post" action="/platforms/meshcore/settings/reboot" class="d-inline"
+        onsubmit="return confirm('Reboot the mesh node?')">
+    <button class="btn btn-outline-danger"><i class="bi bi-arrow-repeat"></i> Reboot node</button>
+  </form>
+</div>
+{% endblock %}

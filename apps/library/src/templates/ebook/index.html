@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Ebook Library{% endblock %}
+
+{% block content %}
+<style>
+    .feature-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .topic-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+    }
+    .topic-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .book-card {
+        transition: transform 0.2s;
+        height: 100%;
+    }
+    .book-card:hover {
+        transform: translateY(-3px);
+    }
+    .book-cover {
+        aspect-ratio: 2/3;
+        object-fit: cover;
+        background: #e9ecef;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Ebooks</li>
+            </ol>
+        </nav>
+        <h2><i class="bi bi-book"></i> Ebook Library</h2>
+        {% if write_access %}
+        <p class="text-muted">Browse and manage your ebook topics and legacy library</p>
+        {% else %}
+        <p class="text-muted">Browse public ebook topics</p>
+        {% endif %}
+
+        <!-- Library Stats -->
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ all_books_count }}</h2>
+                            <p class="mb-0">Total Books</p>
+                        </div>
+                        <i class="bi bi-book-fill" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ total_authors }}</h2>
+                            <p class="mb-0">Authors</p>
+                        </div>
+                        <i class="bi bi-people-fill" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ total_categories }}</h2>
+                            <p class="mb-0">Categories</p>
+                        </div>
+                        <i class="bi bi-tags-fill" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if full_access and legacy_book_count > 0 %}
+        <div class="alert alert-secondary d-flex align-items-center" role="alert">
+            <i class="bi bi-info-circle me-2"></i>
+            <div>
+                <strong>{{ legacy_book_count }}</strong> books are in the legacy library (not yet assigned to topics).
+                These are accessible via Browse Authors / Browse Books below. Use topics to organize new imports.
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Feature Cards -->
+        <div class="row row-cols-1 row-cols-md-3 row-cols-lg-5 g-4 mt-3 mb-4">
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/ebook/browse/topics'">
+                    <div class="card-body">
+                        <div class="feature-icon text-success"><i class="bi bi-tags-fill"></i></div>
+                        <h5 class="card-title">Browse Topics</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/ebook/browse/authors'">
+                    <div class="card-body">
+                        <div class="feature-icon text-warning"><i class="bi bi-people-fill"></i></div>
+                        <h5 class="card-title">Authors</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/ebook/browse/books'">
+                    <div class="card-body">
+                        <div class="feature-icon text-info"><i class="bi bi-book-fill"></i></div>
+                        <h5 class="card-title">All Books</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/ebook/reading-lists'">
+                    <div class="card-body">
+                        <div class="feature-icon text-secondary"><i class="bi bi-list-task"></i></div>
+                        <h5 class="card-title">Reading Lists</h5>
+                    </div>
+                </div>
+            </div>
+            {% if user.is_superuser %}
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/ebook/admin'">
+                    <div class="card-body">
+                        <div class="feature-icon text-danger"><i class="bi bi-shield-lock"></i></div>
+                        <h5 class="card-title">Admin</h5>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Search -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5><i class="bi bi-search"></i> Search</h5>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="quickSearchInput" placeholder="Search books, authors, topics...">
+                    <button class="btn btn-primary" id="quickSearchBtn"><i class="bi bi-search"></i></button>
+                </div>
+                <div id="searchResults" class="mt-3" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Library Management -->
+        {% if full_access %}
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Library Management</h5>
+            </div>
+            <div class="card-body">
+                <h6><i class="bi bi-plus-circle"></i> Add Book</h6>
+                <p class="text-muted small">Browse or enter the path to an .epub or .pdf file, or a directory containing ebooks.</p>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" id="addBookPath"
+                           placeholder="/path/to/book.epub or /path/to/directory/">
+                    <button class="btn btn-outline-secondary" type="button" id="dirBrowserSelectBtn">
+                        <i class="bi bi-folder2-open"></i>
+                    </button>
+                    <button class="btn btn-success" type="button" id="addBookBtn">
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                </div>
+                <div id="addBookResult" class="mt-2" style="display:none;"></div>
+
+                <hr>
+
+                <h6><i class="bi bi-gear"></i> Full Scan</h6>
+                <p class="text-muted small">Scan your ebook directory to discover and index new books.</p>
+                <button class="btn btn-primary" id="scanMyLibraryBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Scan My Library
+                </button>
+                <div id="scanStatus" class="mt-2"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('scanMyLibraryBtn')?.addEventListener('click', async function() {
+    const btn = this;
+    const status = document.getElementById('scanStatus');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
+    status.innerHTML = '<div class="text-muted">Scanning your library, this may take a moment...</div>';
+    try {
+        const res = await fetch('/library/ebook/scan/my-library', {method: 'POST'});
+        const data = await res.json();
+        if (res.ok) {
+            status.innerHTML = '<div class="alert alert-success py-1">' + data.message + '</div>';
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            status.innerHTML = '<div class="alert alert-warning py-1">' + (data.error || 'Scan failed') + '</div>';
+        }
+    } catch(e) {
+        status.innerHTML = '<div class="alert alert-danger py-1">Error starting scan.</div>';
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Scan My Library';
+});
+
+document.getElementById('quickSearchBtn').addEventListener('click', doSearch);
+document.getElementById('quickSearchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') doSearch();
+});
+
+async function doSearch() {
+    const q = document.getElementById('quickSearchInput').value.trim();
+    const div = document.getElementById('searchResults');
+    if (!q) { div.style.display = 'none'; return; }
+    div.style.display = 'block';
+    div.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Searching...';
+    try {
+        const res = await fetch('/library/ebook/search?q=' + encodeURIComponent(q));
+        const data = await res.json();
+        let html = '';
+        if (data.authors && data.authors.length > 0) {
+            html += '<h6>Authors</h6><ul class="list-group mb-2">';
+            data.authors.forEach(a => html += '<li class="list-group-item"><a href="/library/ebook/author/'+a.id+'">'+a.name+'</a></li>');
+            html += '</ul>';
+        }
+        if (data.books && data.books.length > 0) {
+            html += '<h6>Books</h6><div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-2 mb-2">';
+            data.books.forEach(b => {
+                let img = b.cover ? '/library/ebook/cover/'+b.id : '/static/vendor/no-cover.svg';
+                html += '<div class="col"><div class="card h-100"><a href="/library/ebook/book/'+b.id+'"><img src="'+img+'" class="card-img-top" style="object-fit:cover;aspect-ratio:2/3;"></a><div class="card-body p-1"><small>'+b.title+'<br><span class="text-muted">'+b.author_name+'</span></small></div></div></div>';
+            });
+            html += '</div>';
+        }
+        if (data.topics && data.topics.length > 0) {
+            html += '<h6>Topics</h6><ul class="list-group">';
+            data.topics.forEach(t => html += '<li class="list-group-item"><a href="/library/ebook/topic/'+t.id+'">'+t.name+'</a></li>');
+            html += '</ul>';
+        }
+        if (!html) html = '<div class="alert alert-info">No results found.</div>';
+        div.innerHTML = html;
+    } catch(e) { div.innerHTML = '<div class="alert alert-danger">Search error.</div>'; }
+}
+var addBookBtnEl = document.getElementById('addBookBtn');
+if (addBookBtnEl) {
+    addBookBtnEl.addEventListener('click', async function() {
+        var path = document.getElementById('addBookPath').value.trim();
+        var resultDiv = document.getElementById('addBookResult');
+        if (!path) {
+            resultDiv.innerHTML = '<div class="alert alert-warning py-1">Please enter a file or folder path.</div>';
+            resultDiv.style.display = 'block';
+            return;
+        }
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+        try {
+            var fd = new FormData();
+            fd.append('file_path', path);
+            var response = await fetch('/library/ebook/add', { method: 'POST', body: new URLSearchParams(fd) });
+            var data = await response.json();
+            if (response.ok && data.success) {
+                resultDiv.innerHTML = '<div class="alert alert-success py-1">' + data.message + '</div>';
+                document.getElementById('addBookPath').value = '';
+            } else {
+                resultDiv.innerHTML = '<div class="alert alert-danger py-1">' + (data.message || data.detail || 'Failed to add') + '</div>';
+            }
+        } catch (err) {
+            resultDiv.innerHTML = '<div class="alert alert-danger py-1">Error: ' + err.message + '</div>';
+        }
+        resultDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plus-lg"></i> Add';
+    });
+}
+
+var DIR_BROWSER_ROOT = "ebook";
+var DIR_BROWSER_INPUT_ID = "addBookPath";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "/usr/local/library/ebooks/{{ user.username }}";
+var DIR_BROWSER_ALLOW_FILES = true;
+</script>
+{% include "library/dir_browser.html" %}
+{% endblock %}

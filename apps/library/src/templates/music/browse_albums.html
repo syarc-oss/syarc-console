@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Albums - Music Library{% endblock %}
+
+{% block content %}
+<style>
+    .alphabet-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    .alphabet-nav a, .alphabet-nav span {
+        display: inline-block;
+        width: 35px;
+        height: 35px;
+        line-height: 35px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        text-decoration: none;
+        color: #495057;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    .alphabet-nav a:hover {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    .alphabet-nav a.active {
+        background: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    .album-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        position: relative;
+    }
+    .album-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    /* Card with open dropdown should be on top */
+    .album-card.dropdown-active {
+        z-index: 9998;
+        position: relative;
+    }
+    /* Disable hover effects when any dropdown is open */
+    body.dropdown-open .album-card:hover {
+        transform: translateY(0);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    /* But allow hover on the card with the dropdown */
+    body.dropdown-open .album-card.dropdown-active:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .album-art {
+        aspect-ratio: 1;
+        object-fit: cover;
+        background: #333;
+    }
+    .album-art-placeholder {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #444;
+        color: #888;
+        font-size: 0.9rem;
+        text-align: center;
+        padding: 10px;
+    }
+    .pagination-nav {
+        margin-top: 30px;
+    }
+    .dropdown-menu {
+        z-index: 9999;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/library/music/">Music</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Albums</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-disc"></i> Browse Albums</h2>
+            <div class="d-flex gap-2">
+                {% if write_access %}
+                <div class="form-check form-switch d-flex align-items-center">
+                    <input class="form-check-input" type="checkbox" role="switch" id="myLibraryToggle"
+                           {% if my_library %}checked{% endif %}
+                           onchange="toggleMyLibrary()">
+                    <label class="form-check-label ms-2" for="myLibraryToggle">
+                        <i class="bi bi-person-circle"></i> My Library
+                    </label>
+                </div>
+                {% endif %}
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-list-ol"></i> {{ per_page }} per page
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">Items per page</h6></li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 24 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if my_library %}my_library=1&{% endif %}page=1&per_page=24">
+                                24
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 48 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if my_library %}my_library=1&{% endif %}page=1&per_page=48">
+                                48
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 72 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if my_library %}my_library=1&{% endif %}page=1&per_page=72">
+                                72
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 96 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if my_library %}my_library=1&{% endif %}page=1&per_page=96">
+                                96
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item {% if per_page == 120 %}active{% endif %}"
+                               href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}{% if my_library %}my_library=1&{% endif %}page=1&per_page=120">
+                                120
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    {% if selected_author %}
+                    <a href="/library/music/browse/albums?per_page={{ per_page }}" class="btn btn-outline-secondary me-2">
+                        <i class="bi bi-x-circle"></i> Clear Filter
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Info -->
+        {% if selected_author %}
+        <div class="alert alert-info">
+            Filtering by artist: <strong>{{ selected_author.name }}</strong>
+        </div>
+        {% else %}
+        <!-- Alphabet Navigation -->
+        <div class="alphabet-nav">
+            <a href="/library/music/browse/albums?per_page={{ per_page }}{% if my_library %}&my_library=1{% endif %}" class="{% if not current_letter %}active{% endif %}">All</a>
+            {% set alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' %}
+            {% for char in alphabet %}
+            <a href="/library/music/browse/albums?letter={{ char }}&per_page={{ per_page }}{% if my_library %}&my_library=1{% endif %}" 
+               class="{% if current_letter == char %}active{% endif %}">{{ char }}</a>
+            {% endfor %}
+            <a href="/library/music/browse/albums?letter=0&per_page={{ per_page }}{% if my_library %}&my_library=1{% endif %}" 
+               class="{% if current_letter == '0' %}active{% endif %}">#</a>
+        </div>
+        {% endif %}
+
+        <!-- Summary -->
+        <div class="alert alert-secondary">
+            Showing {{ albums|length }} of {{ total }} albums
+            {% if my_library %} <span class="badge bg-primary">My Library</span>{% endif %}
+            {% if current_letter %} starting with "{{ current_letter }}"{% endif %}
+            {% if selected_author %} by {{ selected_author.name }}{% endif %}
+        </div>
+
+        <!-- Albums Grid -->
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
+            {% for album in albums %}
+            <div class="col">
+                <div class="card album-card h-100">
+                    <a href="/library/music/album/{{ album.id }}{% if current_letter %}?from_letter={{ current_letter }}{% endif %}">
+                        {% if album.image_filename %}
+                        <img src="/library/music/art/{{ album.id }}?t={{ album.updated_at0 }}"
+                             class="card-img-top album-art" alt="{{ album.title }}">
+                        {% else %}
+                        <div class="album-art-placeholder">
+                            <i class="bi bi-music-note-beamed" style="font-size: 2rem; display: block; margin-bottom: 5px;"></i>
+                            <span>No Cover</span>
+                        </div>
+                        {% endif %}
+                    </a>
+                    <div class="card-body p-2">
+                        <h6 class="card-title mb-1" style="font-size: 0.9rem;">
+                            <a href="/library/music/album/{{ album.id }}{% if current_letter %}?from_letter={{ current_letter }}{% endif %}" class="text-decoration-none">
+                                {{ album.title }}
+                            </a>
+                        </h6>
+                        <p class="card-text text-muted mb-0" style="font-size: 0.8rem;">
+                            <a href="/library/music/author/{{ album.author_id }}{% if current_letter %}?from_letter={{ current_letter }}{% endif %}" class="text-decoration-none text-muted">
+                                {{ album.author_name | default('Unknown') }}
+                            </a>
+                        </p>
+                    </div>
+                    <div class="card-footer p-2 bg-transparent border-0">
+                        <a href="/library/music/player?source=album:{{ album.id }}&shuffle=false" target="_blank" class="btn btn-sm btn-outline-primary w-100">
+                            <i class="bi bi-play-circle"></i> Play
+                        </a>
+                        <div class="dropdown mt-1">
+                            <button class="btn btn-sm btn-secondary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-boundary="viewport">
+                                <i class="bi bi-plus-circle"></i> Add to Playlist
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><h6 class="dropdown-header">Create New Playlist</h6></li>
+                                <li>
+                                    <form onsubmit="createPlaylist(event, 'album', {{ album.id }})" style="margin: 0;">
+                                        <div class="px-3 pb-2">
+                                            <input type="text" class="form-control form-control-sm" name="name" placeholder="Playlist name" required>
+                                        </div>
+                                        <button type="submit" class="dropdown-item">
+                                            <i class="bi bi-folder-plus"></i> Create Playlist
+                                        </button>
+                                    </form>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Existing Playlists</h6></li>
+                                {% for playlist in playlists %}
+                                <li>
+                                    <button type="button" class="dropdown-item" onclick="addToPlaylist('{{ playlist.name }}', 'album', {{ album.id }})">
+                                        <i class="bi bi-music-note-list"></i> {{ playlist.name }}
+                                    </button>
+                                </li>
+                                {% else %}
+                                <li>
+                                    <div class="dropdown-item-text text-muted" style="font-size: 0.8rem;">
+                                        No playlists yet
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if albums|length == 0 %}
+        <div class="alert alert-warning mt-3">
+            No albums found
+            {% if current_letter %} starting with "{{ current_letter }}"{% endif %}
+            {% if selected_author %} by {{ selected_author.name }}{% endif %}.
+        </div>
+        {% endif %}
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav class="pagination-nav" aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}page={{ current_page - 1 }}&per_page={{ per_page }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+
+                {% set start_page = [1, current_page - 2]|max %}
+                {% set end_page = [total_pages, current_page + 2]|min %}
+
+                {% if start_page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}page=1&per_page={{ per_page }}">1</a>
+                </li>
+                {% if start_page > 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endif %}
+
+                {% for page_num in range(start_page, end_page + 1) %}
+                <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}page={{ page_num }}&per_page={{ per_page }}">
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% endfor %}
+
+                {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}page={{ total_pages }}&per_page={{ per_page }}">
+                        {{ total_pages }}
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if current_letter %}letter={{ current_letter }}&{% endif %}{% if author_id %}author_id={{ author_id }}&{% endif %}page={{ current_page + 1 }}&per_page={{ per_page }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="playlistToast" class="toast align-items-center text-white bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toastMessage">
+                Added to playlist
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleMyLibrary() {
+        const checked = document.getElementById('myLibraryToggle').checked;
+        const url = new URL(window.location);
+        if (checked) {
+            url.searchParams.set('my_library', '1');
+        } else {
+            url.searchParams.delete('my_library');
+        }
+        url.searchParams.delete('page');
+        window.location = url.toString();
+    }
+
+    // Toggle dropdown-active class to prevent hover flickering when dropdown is open
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropdowns = document.querySelectorAll('.dropdown');
+        dropdowns.forEach(function(dropdown) {
+            dropdown.addEventListener('show.bs.dropdown', function() {
+                document.body.classList.add('dropdown-open');
+                // Add active class to parent card
+                const card = dropdown.closest('.album-card');
+                if (card) {
+                    card.classList.add('dropdown-active');
+                }
+            });
+            dropdown.addEventListener('hide.bs.dropdown', function() {
+                document.body.classList.remove('dropdown-open');
+                // Remove active class from parent card
+                const card = dropdown.closest('.album-card');
+                if (card) {
+                    card.classList.remove('dropdown-active');
+                }
+            });
+        });
+    });
+
+    async function createPlaylist(event, itemType, itemId) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        formData.append('type', itemType);
+        formData.append('item_id', itemId);
+
+        try {
+            const response = await fetch('/library/music/playlists/create', {
+                method: 'POST',
+                credentials: 'include',
+                body: new URLSearchParams(formData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(data.message);
+                form.reset();
+                setTimeout(() => location.reload(), 1000);
+            }
+        } catch (error) {
+            console.error('Error creating playlist:', error);
+            showToast('Error creating playlist', 'bg-danger');
+        }
+    }
+
+    async function addToPlaylist(playlistName, itemType, itemId) {
+        const formData = new FormData();
+        formData.append('type', itemType);
+        formData.append('item_id', itemId);
+
+        try {
+            const response = await fetch(`/library/music/playlists/${encodeURIComponent(playlistName)}/add`, {
+                method: 'POST',
+                credentials: 'include',
+                body: new URLSearchParams(formData)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(data.message);
+            }
+        } catch (error) {
+            console.error('Error adding to playlist:', error);
+            showToast('Error adding to playlist', 'bg-danger');
+        }
+    }
+
+    function showToast(message, bgClass = 'bg-success') {
+        const toastEl = document.getElementById('playlistToast');
+        const toastMessage = document.getElementById('toastMessage');
+        
+        toastMessage.textContent = message;
+        toastEl.className = `toast align-items-center text-white ${bgClass} border-0`;
+        
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
+    }
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

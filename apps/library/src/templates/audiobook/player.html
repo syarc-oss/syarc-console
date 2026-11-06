@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player - {{ source_name }}</title>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/vendor/bootstrap-icons.min.css">
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .player-card {
+            background: #1e1e1e;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            padding: 20px;
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+            position: relative;
+        }
+
+        .album-art-container {
+            width: 100%;
+            max-height: 40vh;
+            flex-shrink: 0;
+            margin-bottom: 20px;
+        }
+
+        .album-art {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            background-color: #333;
+            transition: opacity 0.3s ease;
+        }
+
+        .album-art.fade-out {
+            opacity: 0;
+        }
+
+        .album-art.fade-in {
+            opacity: 1;
+        }
+
+        .info-section {
+            flex-shrink: 0;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .track-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .track-artist {
+            color: #b3b3b3;
+            font-size: 1rem;
+        }
+
+        .track-album {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .control-btn {
+            background: none;
+            border: none;
+            color: #b3b3b3;
+            font-size: 1.5rem;
+            margin: 0 10px;
+            transition: color 0.2s;
+            cursor: pointer;
+        }
+        .control-btn:hover {
+            color: white;
+        }
+        .control-btn.active {
+            color: #1db954;
+        }
+        .play-btn {
+            font-size: 3rem;
+            color: white;
+        }
+
+        audio {
+            width: 100%;
+            margin-bottom: 15px;
+            height: 30px;
+        }
+
+        .track-list-scroll {
+            flex-grow: 1;
+            overflow-y: auto;
+            text-align: left;
+            font-size: 0.85rem;
+            padding-right: 5px;
+        }
+
+        .track-item {
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .track-item:hover {
+            background-color: #333;
+        }
+        .track-item.active {
+            background-color: #333;
+            color: #1db954;
+            font-weight: bold;
+        }
+        .track-item.error {
+            background-color: #4a1a1a;
+            color: #ff6b6b;
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .track-item .title {
+            font-weight: 500;
+        }
+        .track-item .meta {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        .album-change-indicator {
+            background: linear-gradient(90deg, #1db954, #0d6efd);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            animation: pulse 2s;
+        }
+
+        .error-indicator {
+            background: linear-gradient(90deg, #dc3545, #fd7e14);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            animation: pulse 2s;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #777; }
+
+        /* Loading indicator */
+        #loading-indicator {
+            display: none !important;
+        }
+        #loading-indicator.active {
+            display: flex !important;
+        }
+
+        /* ========== EQUALIZER STYLES ========== */
+        .eq-toggle {
+            position: relative;
+        }
+
+        .eq-panel {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2a2a2a;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+            z-index: 1000;
+            width: 90vw;
+            max-width: 450px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .eq-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .eq-header h4 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .eq-close {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .eq-close:hover {
+            color: white;
+        }
+
+        .eq-presets {
+            margin-bottom: 20px;
+        }
+
+        .eq-preset-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .eq-preset-select {
+            flex: 1;
+            background: #1e1e1e;
+            color: white;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+        }
+
+        .eq-preset-select:focus {
+            outline: none;
+            border-color: #1db954;
+        }
+
+        .eq-preset-btn {
+            background: #1e1e1e;
+            color: #b3b3b3;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 8px 15px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .eq-preset-btn:hover {
+            background: #333;
+            color: white;
+            border-color: #1db954;
+        }
+
+        .eq-sliders-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 8px;
+            padding: 20px 10px;
+            background: #1e1e1e;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .eq-slider-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .eq-slider-label {
+            font-size: 0.7rem;
+            color: #999;
+            margin-bottom: 5px;
+            writing-mode: horizontal-tb;
+        }
+
+        /* FIXED: Modern vertical slider syntax - no deprecation warning */
+        .eq-slider {
+            writing-mode: vertical-lr;
+            direction: rtl;
+            width: 20px;
+            height: 120px;
+            background: linear-gradient(to top, #1db954 0%, #1db954 50%, #666 50%, #666 100%);
+            border-radius: 10px;
+            outline: none;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .eq-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 2px solid #1db954;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .eq-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 2px solid #1db954;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .eq-value {
+            font-size: 0.7rem;
+            color: #1db954;
+            margin-top: 5px;
+            min-width: 35px;
+            text-align: center;
+        }
+
+        .eq-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .eq-toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .eq-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .eq-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .eq-switch-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .eq-switch-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .eq-switch input:checked + .eq-switch-slider {
+            background-color: #1db954;
+        }
+
+        .eq-switch input:checked + .eq-switch-slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Spectrum Analyzer */
+        .spectrum-container {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #1e1e1e;
+            border-radius: 10px;
+            height: 60px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 2px;
+        }
+
+        .spectrum-bar {
+            flex: 1;
+            background: linear-gradient(to top, #1db954, #0d6efd);
+            border-radius: 2px 2px 0 0;
+            transition: height 0.1s ease;
+            min-height: 2px;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 480px) {
+            .eq-panel {
+                width: 95vw;
+            }
+            
+            .eq-sliders-container {
+                gap: 4px;
+                padding: 15px 5px;
+            }
+            
+            .eq-slider {
+                height: 100px;
+            }
+            
+            .eq-slider-label {
+                font-size: 0.6rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="player-card">
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="text-center" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; display: none; background: rgba(0,0,0,0.7); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 15px;">
+            <div class="spinner-border text-white" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Album Art -->
+        <div class="album-art-container">
+            <img id="display-art" class="album-art" src="" alt="Album Art">
+        </div>
+
+        <!-- Album Change Indicator -->
+        <div id="album-change" class="album-change-indicator hidden">
+            <i class="bi bi-disc"></i> New Book Playing
+        </div>
+
+        <!-- Error Indicator -->
+        <div id="error-indicator" class="error-indicator hidden">
+            <i class="bi bi-exclamation-triangle"></i> Track not found - skipping
+        </div>
+
+        <!-- Info Section -->
+        <div class="info-section">
+            <div id="track-title" class="track-title">Loading...</div>
+            <div id="track-artist" class="track-artist">-</div>
+            <div id="track-album" class="track-album">-</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="d-flex justify-content-center align-items-center" style="flex-shrink: 0; margin-bottom: 15px;">
+            <!-- Shuffle -->
+            <button class="control-btn" id="btn-shuffle" title="Shuffle">
+                <i class="bi bi-shuffle"></i>
+            </button>
+
+            <!-- Prev -->
+            <button class="control-btn" id="btn-prev" title="Previous">
+                <i class="bi bi-skip-start-fill"></i>
+            </button>
+
+            <!-- Play/Pause -->
+            <button class="control-btn play-btn" id="btn-play-pause">
+                <i class="bi bi-play-circle-fill"></i>
+            </button>
+
+            <!-- Retry Button (only shows when audio fails) -->
+            <button class="control-btn" id="btn-retry" style="display: none;" title="Retry Play">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+
+            <!-- Next -->
+            <button class="control-btn" id="btn-next" title="Next">
+                <i class="bi bi-skip-end-fill"></i>
+            </button>
+
+            <!-- Repeat -->
+            <button class="control-btn" id="btn-repeat" title="Repeat Mode">
+                <i class="bi bi-repeat"></i>
+            </button>
+
+            <!-- Equalizer Toggle -->
+            <button class="control-btn eq-toggle" id="btn-eq" title="Equalizer">
+                <i class="bi bi-sliders"></i>
+            </button>
+        </div>
+
+        <!-- Audio Element -->
+        <audio id="audio-player" preload="metadata" style="flex-shrink: 0;" crossorigin="anonymous"></audio>
+
+        <!-- Playlist -->
+        <div class="track-list-scroll" id="playlist-container">
+            <!-- Tracks injected via JS -->
+        </div>
+
+        <!-- Equalizer Panel -->
+        <div id="eq-panel" class="eq-panel hidden">
+            <div class="eq-header">
+                <h4><i class="bi bi-sliders"></i> Equalizer</h4>
+                <button class="eq-close" id="eq-close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <!-- Spectrum Analyzer -->
+            <div class="spectrum-container" id="spectrum-container">
+                <!-- 32 bars for spectrum -->
+            </div>
+
+            <!-- Presets -->
+            <div class="eq-presets">
+                <div class="eq-preset-row">
+                    <select class="eq-preset-select" id="eq-preset-select">
+                        <option value="flat">Flat</option>
+                        <option value="rock">Rock</option>
+                        <option value="pop">Pop</option>
+                        <option value="jazz">Jazz</option>
+                        <option value="classical">Classical</option>
+                        <option value="bass-boost">Bass Boost</option>
+                        <option value="treble-boost">Treble Boost</option>
+                        <option value="vocal">Vocal</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <button class="eq-preset-btn" id="eq-save-btn" title="Save current EQ as Custom">
+                        <i class="bi bi-floppy"></i> Save
+                    </button>
+                    <button class="eq-preset-btn" id="eq-reset-btn" title="Reset to Flat">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- EQ Sliders -->
+            <div class="eq-sliders-container" id="eq-sliders">
+                <!-- Sliders injected via JS -->
+            </div>
+
+            <!-- EQ Controls -->
+            <div class="eq-controls">
+                <div class="eq-toggle-switch">
+                    <span style="font-size: 0.9rem;">Equalizer</span>
+                    <label class="eq-switch">
+                        <input type="checkbox" id="eq-enabled" checked>
+                        <span class="eq-switch-slider"></span>
+                    </label>
+                </div>
+                <button class="eq-preset-btn" id="eq-export-btn" title="Export EQ settings">
+                    <i class="bi bi-download"></i> Export
+                </button>
+                <button class="eq-preset-btn" id="eq-import-btn" title="Import EQ settings">
+                    <i class="bi bi-upload"></i> Import
+                </button>
+                <input type="file" id="eq-import-file" accept=".json" style="display: none;">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('=== UNIVERSAL PLAYER WITH EQUALIZER DEBUG ===');
+
+        // Data from Jinja
+        const rawTracks = {{ tracks | tojson | safe }};
+        console.log('DEBUG: Loaded', rawTracks.length, 'tracks');
+
+        // State
+        let playlist = [...rawTracks];
+        let originalOrder = [...rawTracks];
+        let currentIndex = -1;
+        let isShuffled = {{ 'true' if shuffle else 'false' }};
+        let repeatMode = 'none'; // 'none', 'all', 'one'
+        let currentAlbumId = null;
+        let failedTracks = new Set(); // Track IDs that failed to load
+
+        // DOM Elements
+        let audio, titleEl, artistEl, albumEl, artEl, albumChangeEl, errorIndicatorEl, playBtnIcon, playlistContainer, retryBtn;
+
+        try {
+            audio = document.getElementById('audio-player');
+            titleEl = document.getElementById('track-title');
+            artistEl = document.getElementById('track-artist');
+            albumEl = document.getElementById('track-album');
+            artEl = document.getElementById('display-art');
+            albumChangeEl = document.getElementById('album-change');
+            errorIndicatorEl = document.getElementById('error-indicator');
+            playBtnIcon = document.querySelector('#btn-play-pause i');
+            playlistContainer = document.getElementById('playlist-container');
+            retryBtn = document.getElementById('btn-retry');
+        } catch (e) {
+            console.error('ERROR finding DOM elements:', e);
+        }
+
+        // Initialize Equalizer
+        let equalizer;
+        audio.addEventListener('loadedmetadata', () => {
+            if (!equalizer) {
+                equalizer = new Equalizer(audio);
+                console.log('Equalizer initialized');
+            }
+        });
+
+        // FIXED: Error handling for missing/corrupted audio files
+        audio.addEventListener('error', (e) => {
+            console.error('ERROR: Audio error event:', e);
+            const track = playlist[currentIndex];
+            if (track) {
+                console.error(`ERROR: Failed to load track ${track.id}: ${track.title}`);
+                failedTracks.add(track.id);
+                showErrorIndicator(`Track not found: ${track.title}`);
+                markTrackAsError(currentIndex);
+                // Auto-skip to next track after 1 second
+                setTimeout(() => {
+                    playNext();
+                }, 1000);
+            }
+        });
+
+        // FIXED: Handle stalled/timeout situations
+        let loadTimeout;
+        audio.addEventListener('loadstart', () => {
+            // Clear any existing timeout
+            if (loadTimeout) clearTimeout(loadTimeout);
+            
+            // Set 5-second timeout for loading
+            loadTimeout = setTimeout(() => {
+                if (audio.networkState === audio.NETWORK_NO_SOURCE || 
+                    audio.readyState === audio.HAVE_NOTHING) {
+                    console.error('ERROR: Audio load timeout - no supported source');
+                    const track = playlist[currentIndex];
+                    if (track) {
+                        failedTracks.add(track.id);
+                        showErrorIndicator(`Timeout loading: ${track.title}`);
+                        markTrackAsError(currentIndex);
+                        // Auto-skip to next track
+                        playNext();
+                    }
+                }
+            }, 5000);
+        });
+
+        // Clear timeout when audio loads successfully
+        audio.addEventListener('loadeddata', () => {
+            if (loadTimeout) {
+                clearTimeout(loadTimeout);
+                loadTimeout = null;
+            }
+        });
+
+        // Equalizer UI Toggle
+        document.getElementById('btn-eq').addEventListener('click', () => {
+            const panel = document.getElementById('eq-panel');
+            panel.classList.toggle('hidden');
+        });
+
+        document.getElementById('eq-close').addEventListener('click', () => {
+            document.getElementById('eq-panel').classList.add('hidden');
+        });
+
+        // Initialize
+        console.log('DEBUG: Initializing player');
+        if (isShuffled) {
+            shuffleArray(playlist);
+            document.getElementById('btn-shuffle').classList.add('active');
+        }
+
+        if (playlist.length > 0) {
+            console.log('DEBUG: Loading first track');
+            loadTrack(0, true); // Auto-play first track
+        } else {
+            console.error('ERROR: No tracks in playlist!');
+        }
+
+        renderPlaylist();
+
+        // --- Event Listeners ---
+
+        document.getElementById('btn-play-pause').addEventListener('click', togglePlay);
+        document.getElementById('btn-next').addEventListener('click', playNext);
+        document.getElementById('btn-prev').addEventListener('click', playPrev);
+        document.getElementById('btn-retry').addEventListener('click', () => {
+            console.log('DEBUG: Retry button clicked');
+            loadTrack(currentIndex, true);
+        });
+
+        document.getElementById('btn-shuffle').addEventListener('click', () => {
+            isShuffled = !isShuffled;
+            const btn = document.getElementById('btn-shuffle');
+            btn.classList.toggle('active', isShuffled);
+
+            if (isShuffled) {
+                shufflePlaylist();
+            } else {
+                playlist = [...originalOrder];
+                if(currentIndex > -1) {
+                    const currentId = rawTracks[currentIndex].id;
+                    currentIndex = playlist.findIndex(t => t.id === currentId);
+                }
+            }
+            renderPlaylist();
+        });
+
+        document.getElementById('btn-repeat').addEventListener('click', () => {
+            const modes = ['none', 'all', 'one'];
+            const currentIdx = modes.indexOf(repeatMode);
+            repeatMode = modes[(currentIdx + 1) % modes.length];
+
+            const btn = document.getElementById('btn-repeat');
+            const icon = btn.querySelector('i');
+
+            btn.classList.toggle('active', repeatMode !== 'none');
+
+            if (repeatMode === 'one') {
+                icon.className = 'bi bi-repeat-1';
+            } else {
+                icon.className = 'bi bi-repeat';
+            }
+        });
+
+        audio.addEventListener('ended', () => {
+            if (repeatMode === 'one') {
+                audio.currentTime = 0;
+                audio.play();
+            } else {
+                playNext();
+            }
+        });
+
+        // --- Functions ---
+
+        function togglePlay() {
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+            }
+        }
+
+        // Sync play icon with native audio events
+        audio.addEventListener('play', () => playBtnIcon.className = 'bi bi-pause-circle-fill');
+        audio.addEventListener('pause', () => playBtnIcon.className = 'bi bi-play-circle-fill');
+
+        function loadTrack(index, autoPlay = true) {
+            console.log('DEBUG: loadTrack called with index', index, 'autoPlay', autoPlay);
+
+            if (index < 0 || index >= playlist.length) {
+                console.error('ERROR: Invalid index', index, 'playlist length', playlist.length);
+                return;
+            }
+
+            currentIndex = index;
+            const track = playlist[index];
+            console.log('DEBUG: Loading track', track.title, 'ID:', track.id);
+
+            // Check if this track previously failed
+            if (failedTracks.has(track.id)) {
+                console.warn('WARN: Skipping previously failed track:', track.title);
+                showErrorIndicator(`Skipping failed track: ${track.title}`);
+                markTrackAsError(currentIndex);
+                setTimeout(() => playNext(), 1000);
+                return;
+            }
+
+            // Show loading indicator
+            const loadingEl = document.getElementById('loading-indicator');
+            if (loadingEl) loadingEl.classList.add('active');
+
+            audio.src = `/library/audiobook/stream/${track.id}`;
+            console.log('DEBUG: Audio src set to', audio.src);
+
+            // Update text
+            titleEl.textContent = track.title;
+            artistEl.textContent = track.artistName;
+            albumEl.textContent = track.albumTitle;
+
+            // Update album art with animation if album changed
+            updateAlbumArt(track.albumId, track.albumImage, track.albumUpdatedAt);
+
+            renderPlaylist();
+
+            if (autoPlay) {
+                console.log('DEBUG: Auto-playing track');
+                // Hide retry button initially
+                if (retryBtn) retryBtn.style.display = 'none';
+
+                // Wait for audio to be ready before playing
+                audio.onloadeddata = () => {
+                    console.log('DEBUG: Audio data loaded, playing now');
+                    audio.play().then(() => {
+                        if (loadingEl) loadingEl.classList.remove('active');
+                        if (retryBtn) retryBtn.style.display = 'none';
+                        audio.onloadeddata = null; // Remove event listener
+                    }).catch(e => {
+                        console.error('ERROR: Audio play failed:', e);
+                        if (loadingEl) loadingEl.classList.remove('active');
+                        // Error will be caught by error event listener
+                    });
+                };
+            } else {
+                // Hide loading indicator immediately if not auto-playing
+                if (loadingEl) loadingEl.classList.remove('active');
+            }
+        }
+
+        function updateAlbumArt(albumId, imageFilename, albumUpdatedAt) {
+            console.log('DEBUG: updateAlbumArt', albumId, imageFilename, albumUpdatedAt);
+
+            if (albumId === currentAlbumId) {
+                // Same album, no change needed
+                return;
+            }
+
+            currentAlbumId = albumId;
+
+            // Show album change indicator
+            albumChangeEl.classList.remove('hidden');
+            setTimeout(() => {
+                albumChangeEl.classList.add('hidden');
+            }, 2000);
+
+            // Fade out old art
+            artEl.classList.add('fade-out');
+
+            // Wait for fade out, then change image and fade in
+            setTimeout(() => {
+                if (imageFilename) {
+                    const timestamp = albumUpdatedAt ? `?t=${albumUpdatedAt}` : `?t=${Date.now()}`;
+                    artEl.src = `/library/audiobook/book/${albumId}/art${timestamp}`;
+                    console.log('DEBUG: Album art set to', artEl.src);
+                } else {
+                    // Use default album art pattern: album_{id}.jpg
+                    artEl.src = `/library/audiobook/book/${albumId}/art`;
+                    console.log('DEBUG: Using default album art', artEl.src);
+                }
+                artEl.classList.remove('fade-out');
+                artEl.classList.add('fade-in');
+
+                // Remove fade-in class after animation
+                setTimeout(() => {
+                    artEl.classList.remove('fade-in');
+                }, 300);
+            }, 300);
+        }
+
+        function playNext() {
+            if (currentIndex < playlist.length - 1) {
+                loadTrack(currentIndex + 1);
+            } else {
+                if (repeatMode === 'all') {
+                    // Reshuffle and start from beginning
+                    if (isShuffled) {
+                        shufflePlaylist();
+                    }
+                    loadTrack(0);
+                } else {
+                    audio.pause();
+                }
+            }
+        }
+
+        function playPrev() {
+            if (audio.currentTime > 3) {
+                audio.currentTime = 0;
+            } else {
+                if (currentIndex > 0) {
+                    loadTrack(currentIndex - 1);
+                } else {
+                    if (repeatMode === 'all') {
+                        loadTrack(playlist.length - 1);
+                    }
+                }
+            }
+        }
+
+        function shufflePlaylist() {
+            shuffleArray(playlist);
+        }
+
+        function shuffleArray(array) {
+            // Fisher-Yates shuffle
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function showErrorIndicator(message) {
+            errorIndicatorEl.textContent = message;
+            errorIndicatorEl.classList.remove('hidden');
+            setTimeout(() => {
+                errorIndicatorEl.classList.add('hidden');
+            }, 3000);
+        }
+
+        function markTrackAsError(index) {
+            const trackEl = playlistContainer.children[index];
+            if (trackEl) {
+                trackEl.classList.add('error');
+            }
+        }
+
+        function renderPlaylist() {
+            playlistContainer.innerHTML = '';
+            playlist.forEach((track, idx) => {
+                const div = document.createElement('div');
+                const isError = failedTracks.has(track.id);
+                div.className = `track-item ${idx === currentIndex ? 'active' : ''} ${isError ? 'error' : ''}`;
+                div.innerHTML = `
+                    <div class="title">${isError ? '⚠️ ' : ''}${track.trackNumber}. ${track.title}</div>
+                    <div class="meta">
+                        <i class="bi bi-person"></i> ${track.artistName} &bull;
+                        <i class="bi bi-disc"></i> ${track.albumTitle}
+                    </div>
+                `;
+                div.onclick = () => loadTrack(idx);
+                playlistContainer.appendChild(div);
+            });
+
+            // Scroll active track into view
+            const activeItem = playlistContainer.children[currentIndex];
+            if (activeItem) {
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    </script>
+</body>
+</html>

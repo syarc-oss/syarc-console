@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Import Audiobooks - {{ topic.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/audiobook/"><i class="bi bi-headphones"></i> Audiobooks</a></li>
+                <li class="breadcrumb-item"><a href="/library/audiobook/topic/{{ topic.id }}">{{ topic.name }}</a></li>
+                <li class="breadcrumb-item active">Import</li>
+            </ol>
+        </nav>
+        <h3 class="mt-3"><i class="bi bi-upload"></i> Import Audiobooks into {{ topic.name }}</h3>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <form action="/library/audiobook/topic/{{ topic.id }}/import-path" method="POST">
+                    <div class="mb-3">
+                        <label for="import_path" class="form-label">Path to audiobook files</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="import_path" name="import_path"
+                                   placeholder="/path/to/audiobook/folder/" required>
+                            <button type="button" class="btn btn-outline-secondary" id="dirBrowserSelectBtn">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Browse or enter the path to a folder containing MP3, M4B, FLAC, or other audio files. The scanner will detect authors and chapters automatically.</div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="make_public" name="make_public"
+                               {% if topic.is_public %}checked{% endif %}>
+                        <label class="form-check-label" for="make_public">Make imported books public</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Import
+                    </button>
+                    <a href="/library/audiobook/topic/{{ topic.id }}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5><i class="bi bi-info-circle"></i> Supported Formats</h5>
+                <ul>
+                    <li><strong>MP3</strong> - Multiple MP3 files in a folder (chapters)</li>
+                    <li><strong>M4B</strong> - Single audiobook file</li>
+                    <li><strong>FLAC, OGG, OPUS</strong> - Other audio formats</li>
+                </ul>
+                <p class="text-muted">Folder structure should be: <code>Author/Book Title/</code> or a single audio file.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var DIR_BROWSER_ROOT = "audiobook";
+var DIR_BROWSER_INPUT_ID = "import_path";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "{{ topic.directory_path }}";
+</script>
+{% include "library/dir_browser.html" %}
+{% endblock %}

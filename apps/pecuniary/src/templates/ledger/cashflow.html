@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}Ledger - Cash Flow Analysis{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+            <li class="breadcrumb-item"><a href="/pecuniary/ledger/select">Ledger</a></li>
+            <li class="breadcrumb-item"><a href="/pecuniary/ledger/?book_id={{ book_id }}">{{ book_name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Cash Flow Analysis</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-graph-up"></i> Cash Flow Analysis</h2>
+        <div class="d-flex gap-2 align-items-center">
+            <label class="text-muted mb-0">Year:</label>
+            <select id="yearSelect" class="form-select form-select-sm" style="width:auto;">
+                {% for yr in available_years %}
+                <option value="{{ yr }}" {% if yr == year %}selected{% endif %}>{{ yr }}</option>
+                {% endfor %}
+            </select>
+            <a href="/pecuniary/ledger/?book_id={{ book_id }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Back to Ledger
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-success bg-opacity-10 border-success">
+                <div class="card-body text-center">
+                    <h6 class="text-success">Annual Income</h6>
+                    <h3 class="text-success">${{ "%.2f" | format(total_income) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-danger bg-opacity-10 border-danger">
+                <div class="card-body text-center">
+                    <h6 class="text-danger">Annual Liabilities</h6>
+                    <h3 class="text-danger">${{ "%.2f" | format(total_liability) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %} bg-opacity-10
+                        border-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %}">
+                <div class="card-body text-center">
+                    <h6 class="text-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %}">Net Cash Flow</h6>
+                    <h3 class="text-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %}">
+                        ${{ "%.2f" | format(net_cash_flow) }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-bar-chart"></i> Monthly Income vs Liabilities
+        </div>
+        <div class="card-body">
+            <canvas id="cashflowChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success bg-opacity-10">
+                    <i class="bi bi-arrow-down-circle text-success"></i> Income by Type
+                </div>
+                <div class="card-body">
+                    {% if income_type_totals %}
+                    <canvas id="incomeChart" height="200"></canvas>
+                    <table class="table table-sm mt-3">
+                        <thead><tr><th>Type</th><th class="text-end">Total</th></tr></thead>
+                        <tbody>
+                            {% for type_name, total in income_type_totals | items %}
+                            <tr>
+                                <td>{{ type_name | replace('_', ' ') | title }}</td>
+                                <td class="text-end">${{ "%.2f" | format(total) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted">No income data for this period.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-danger bg-opacity-10">
+                    <i class="bi bi-arrow-up-circle text-danger"></i> Liabilities by Type
+                </div>
+                <div class="card-body">
+                    {% if liability_type_totals %}
+                    <canvas id="liabilityChart" height="200"></canvas>
+                    <table class="table table-sm mt-3">
+                        <thead><tr><th>Type</th><th class="text-end">Total</th></tr></thead>
+                        <tbody>
+                            {% for type_name, total in liability_type_totals | items %}
+                            <tr>
+                                <td>{{ type_name | replace('_', ' ') | title }}</td>
+                                <td class="text-end">${{ "%.2f" | format(total) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="text-muted">No liability data for this period.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><i class="bi bi-table"></i> Monthly Breakdown</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Month</th>
+                            <th class="text-end">Income</th>
+                            <th class="text-end">Liabilities</th>
+                            <th class="text-end">Net</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i in range(1, 13) %}
+                        {% set m = monthly_data[i | string] %}
+                        <tr>
+                            <td>{{ month_names[i] }}</td>
+                            <td class="text-end text-success">${{ "%.2f" | format(m.income) }}</td>
+                            <td class="text-end text-danger">${{ "%.2f" | format(m.liability) }}</td>
+                            <td class="text-end text-{% if m.net >= 0 %}primary{% else %}warning{% endif %}">
+                                ${{ "%.2f" | format(m.net) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td>Total</td>
+                            <td class="text-end">${{ "%.2f" | format(total_income) }}</td>
+                            <td class="text-end">${{ "%.2f" | format(total_liability) }}</td>
+                            <td class="text-end">${{ "%.2f" | format(net_cash_flow) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/vendor/chart.umd.js"></script>
+<script>
+(function() {
+    var chartData = {{ chart_data | tojson }};
+
+    var ctx = document.getElementById('cashflowChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Income',
+                    data: chartData.income,
+                    backgroundColor: 'rgba(25, 135, 84, 0.6)',
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    borderWidth: 1,
+                    order: 2,
+                },
+                {
+                    label: 'Liabilities',
+                    data: chartData.liability,
+                    backgroundColor: 'rgba(220, 53, 69, 0.6)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1,
+                    order: 2,
+                },
+                {
+                    label: 'Net Cash Flow',
+                    data: chartData.net,
+                    type: 'line',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    order: 1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.dataset.label + ': $' + ctx.parsed.y.toFixed(2);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(v) { return '$' + v.toLocaleString(); }
+                    }
+                }
+            }
+        }
+    });
+
+    var incomeTotals = {{ income_type_totals | tojson }};
+    var incLabels = Object.keys(incomeTotals).map(function(k) {
+        return k.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+    });
+    var incValues = Object.values(incomeTotals);
+    if (incLabels.length > 0) {
+        var incCtx = document.getElementById('incomeChart').getContext('2d');
+        new Chart(incCtx, {
+            type: 'doughnut',
+            data: {
+                labels: incLabels,
+                datasets: [{
+                    data: incValues,
+                    backgroundColor: [
+                        '#198754','#20c997','#0dcaf0','#6f42c1','#fd7e14',
+                        '#e83e8c','#17a2b8','#6610f2','#28a745','#ffc107'
+                    ],
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.label + ': $' + ctx.parsed.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    var liabTotals = {{ liability_type_totals | tojson }};
+    var liabLabels = Object.keys(liabTotals).map(function(k) {
+        return k.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+    });
+    var liabValues = Object.values(liabTotals);
+    if (liabLabels.length > 0) {
+        var liabCtx = document.getElementById('liabilityChart').getContext('2d');
+        new Chart(liabCtx, {
+            type: 'doughnut',
+            data: {
+                labels: liabLabels,
+                datasets: [{
+                    data: liabValues,
+                    backgroundColor: [
+                        '#dc3545','#fd7e14','#ffc107','#6c757d','#0d6efd',
+                        '#6610f2','#d63384','#198754','#20c997','#e83e8c',
+                        '#6f42c1','#0dcaf0','#17a2b8','#343a40','#adb5bd','#495057'
+                    ],
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.label + ': $' + ctx.parsed.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    document.getElementById('yearSelect').addEventListener('change', function() {
+        window.location.href = '/pecuniary/ledger/analytics/cashflow?book_id={{ book_id }}&year=' + this.value;
+    });
+})();
+</script>
+{% endblock %}

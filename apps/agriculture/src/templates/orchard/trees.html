@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Tree Management - {{ orchard_name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/">Orchards</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/{{ orchard_id }}">{{ orchard_name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Tree Management</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2><i class="bi bi-tree me-2"></i>Tree Management</h2>
+                <p class="text-muted">Manage the trees in {{ orchard_name }}</p>
+            </div>
+            <a href="/orchard/{{ orchard_id }}" class="btn btn-outline-success">
+                <i class="bi bi-house-door me-2"></i>Orchard Menu
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Tree Form -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <form id="treeForm" class="needs-validation" novalidate>
+            <input type="hidden" id="treeId">
+            <h5 id="formTitle">Add New Tree</h5>
+
+            <div class="mb-3">
+                <label for="treeType" class="form-label">Tree Type *</label>
+                <input type="text" class="form-control" id="treeType" name="tree_type" required maxlength="100"
+                       placeholder="e.g., Apple, Cherry, Peach, Pear">
+                <div class="invalid-feedback">Please enter a tree type (1-100 characters)</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="variety" class="form-label">Variety *</label>
+                <input type="text" class="form-control" id="variety" name="variety" required maxlength="100"
+                       placeholder="e.g., Granny Smith, Bing, Redhaven">
+                <div class="invalid-feedback">Please enter a variety (1-100 characters)</div>
+            </div>
+
+            <div class="mb-3">
+                <label for="plantingDate" class="form-label">Planting Date</label>
+                <input type="date" class="form-control" id="plantingDate" name="planting_date">
+            </div>
+
+            <div class="mb-3">
+                <label for="locationNotes" class="form-label">Location in Orchard</label>
+                <input type="text" class="form-control" id="locationNotes" name="location_notes" maxlength="200"
+                       placeholder="e.g., Row 3, North side">
+            </div>
+
+            <div class="mb-3">
+                <label for="treeNotes" class="form-label">Notes</label>
+                <textarea class="form-control" id="treeNotes" name="notes" rows="2"></textarea>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn btn-success">Add Tree</button>
+            <button type="button" id="cancelBtn" class="btn btn-secondary" style="display: none;">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<!-- Trees List -->
+<div class="row mt-5">
+    <div class="col-md-12">
+        <h3>Your Trees</h3>
+        <div id="treesList"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const orchardId = "{{ orchard_id }}";
+    let editingTreeId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadTrees();
+
+        const form = document.getElementById('treeForm');
+        if (!form) { console.error("Form not found!"); return; }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const isUpdate = editingTreeId !== null;
+
+            const url = isUpdate ? `/orchard/${orchardId}/trees/${editingTreeId}` : `/orchard/${orchardId}/trees/create`;
+            const method = isUpdate ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
+                body: formData,
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert(isUpdate ? 'Tree updated successfully!' : 'Tree added successfully!');
+                    resetForm();
+                    loadTrees();
+                } else {
+                    response.json().then(errorData => {
+                        let errorMessage = 'An unknown error occurred.';
+                        if (errorData && errorData.detail) {
+                            if (Array.isArray(errorData.detail)) {
+                                errorMessage = errorData.detail.map(err => err.msg).join(', ');
+                            } else {
+                                errorMessage = errorData.detail;
+                            }
+                        }
+                        alert('Error: ' + errorMessage);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Fetch error:', error);
+                alert('An unexpected error occurred: ' + error.message);
+            });
+        });
+
+        document.getElementById('cancelBtn').addEventListener('click', function() {
+            resetForm();
+        });
+    });
+
+    function resetForm() {
+        document.getElementById('treeForm').reset();
+        editingTreeId = null;
+        document.getElementById('treeId').value = '';
+        document.getElementById('formTitle').textContent = 'Add New Tree';
+        document.getElementById('submitBtn').textContent = 'Add Tree';
+        document.getElementById('submitBtn').className = 'btn btn-success';
+        document.getElementById('cancelBtn').style.display = 'none';
+    }
+
+    function populateTreeForm(tree) {
+        editingTreeId = tree.id;
+        document.getElementById('treeId').value = tree.id;
+        document.getElementById('treeType').value = tree.tree_type;
+        document.getElementById('variety').value = tree.variety;
+        document.getElementById('plantingDate').value = tree.planting_date || '';
+        document.getElementById('locationNotes').value = tree.location_notes || '';
+        document.getElementById('treeNotes').value = tree.notes || '';
+
+        document.getElementById('formTitle').textContent = 'Update Tree';
+        document.getElementById('submitBtn').textContent = 'Update Tree';
+        document.getElementById('submitBtn').className = 'btn btn-warning';
+        document.getElementById('cancelBtn').style.display = 'inline-block';
+        document.getElementById('treeForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function loadTrees() {
+        fetch(`/orchard/${orchardId}/trees/list`)
+            .then(response => response.json())
+            .then(data => {
+                let html = '';
+                if (data.length > 0) {
+                    html = '<table class="table table-hover"><thead><tr><th>Type</th><th>Variety</th><th>Planted</th><th>Location</th><th>Last Maintenance</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+
+                    data.forEach(tree => {
+                        const plantingDate = tree.planting_date
+                            ? new Date(tree.planting_date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : '';
+                        const lastMaint = tree.last_maintenance
+                            ? new Date(tree.last_maintenance + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : 'None';
+
+                        html += `
+                            <tr>
+                                <td><strong>${tree.tree_type}</strong></td>
+                                <td>${tree.variety}</td>
+                                <td>${plantingDate || '-'}</td>
+                                <td>${tree.location_notes || '-'}</td>
+                                <td>${lastMaint}</td>
+                                <td>
+                                    <span class="badge ${tree.is_active ? 'bg-success' : 'bg-secondary'}">
+                                        ${tree.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="/orchard/${orchardId}/trees/${tree.id}" class="btn btn-sm btn-primary" title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <button onclick="populateTreeForm(${JSON.stringify(tree).replace(/"/g, '&quot;')})"
+                                            class="btn btn-sm btn-outline-success" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button onclick="toggleTreeStatus('${tree.id}')"
+                                            class="btn btn-sm ${tree.is_active ? 'btn-outline-warning' : 'btn-outline-success'}" title="${tree.is_active ? 'Deactivate' : 'Activate'}">
+                                        <i class="bi bi-${tree.is_active ? 'pause' : 'play'}-circle"></i>
+                                    </button>
+                                    <button onclick="deleteTree('${tree.id}')" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    html += '</tbody></table>';
+                } else {
+                    html = '<div class="alert alert-info">No trees in this orchard yet. Add one above!</div>';
+                }
+                document.getElementById('treesList').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading trees:', error);
+                document.getElementById('treesList').innerHTML = '<p class="text-danger">Error loading trees.</p>';
+            });
+    }
+
+    function toggleTreeStatus(treeId) {
+        fetch(`/orchard/${orchardId}/trees/${treeId}/toggle`, {
+            method: 'PATCH',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) { loadTrees(); }
+            else { response.json().then(error => alert('Error: ' + error.detail)); }
+        });
+    }
+
+    function deleteTree(treeId) {
+        if (!confirm('Are you sure? This will delete the tree and all its maintenance records.')) return;
+        fetch(`/orchard/${orchardId}/trees/${treeId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        })
+        .then(response => {
+            if (response.ok) { loadTrees(); }
+            else { response.json().then(error => alert('Error: ' + error.detail)); }
+        });
+    }
+</script>
+{% endblock %}

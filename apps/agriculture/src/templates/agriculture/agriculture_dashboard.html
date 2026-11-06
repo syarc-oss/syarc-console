@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Agriculture{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="mb-4"><i class="bi bi-tree"></i> Agriculture</h2>
+            <p class="text-muted mb-4">Farm and agricultural management</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% if 'agronomy' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-success">
+                <div class="card-body text-center">
+                    <i class="bi bi-flower1 display-4 text-success"></i>
+                    <h4 class="mt-3">Agronomy</h4>
+                    <p class="text-muted">Crop and field management.</p>
+                    <a href="/agriculture/agronomy/" class="btn btn-success">Open Agronomy</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'husbandry' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-heart display-4 text-warning"></i>
+                    <h4 class="mt-3">Husbandry</h4>
+                    <p class="text-muted">Animal management and tracking.</p>
+                    <a href="/agriculture/husbandry/" class="btn btn-warning">Open Husbandry</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'foraging' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-info">
+                <div class="card-body text-center">
+                    <i class="bi bi-basket3 display-4 text-info"></i>
+                    <h4 class="mt-3">Foraging</h4>
+                    <p class="text-muted">Track gathering, fishing, and hunting outings.</p>
+                    <a href="/agriculture/foraging/" class="btn btn-info">Open Foraging</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not allowed_sub_apps %}
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h4>No Agriculture Apps Available</h4>
+                <p>Contact your administrator to request access.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

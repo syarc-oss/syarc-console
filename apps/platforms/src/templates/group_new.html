@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}New Group{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-md-8 offset-md-2">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+                <li class="breadcrumb-item active">New Group</li>
+            </ol>
+        </nav>
+        <h3 class="mt-2"><i class="bi bi-people"></i> New Group</h3>
+        <div class="card mt-3">
+            <div class="card-body">
+                <form method="post" action="/platforms/messaging/groups/new" id="group-form">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Group name</label>
+                        <input type="text" class="form-control" id="name" name="name" required placeholder="Group name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-block">Visibility</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="visibility" id="vis-public" value="public" onchange="toggleMembers()">
+                            <label class="form-check-label" for="vis-public">Public &mdash; anyone can see and join the group</label>
+                        </div>
+                        <br>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="visibility" id="vis-private" value="private" checked onchange="toggleMembers()">
+                            <label class="form-check-label" for="vis-private">Private &mdash; only selected members can access it</label>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="members-block">
+                        <label class="form-label">Members</label>
+                        {% if all_users %}
+                        <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                            {% for u in all_users %}
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="member_{{ u.id }}" name="member_ids" value="{{ u.id }}">
+                                <label class="form-check-label" for="member_{{ u.id }}">{{ u.username }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Required for private groups: pick at least one member to invite.</small>
+                        {% else %}
+                        <p class="text-muted">No other users available.</p>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Create Group</button>
+                        <a href="/platforms/messaging/" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function toggleMembers() {
+    var priv = document.getElementById('vis-private').checked;
+    document.getElementById('members-block').style.display = priv ? '' : 'none';
+}
+document.getElementById('group-form').addEventListener('submit', function(e) {
+    if (document.getElementById('vis-private').checked &&
+        !document.querySelector('input[name="member_ids"]:checked')) {
+        e.preventDefault();
+        alert('Private groups need at least one member.');
+    }
+});
+</script>
+{% endblock %}

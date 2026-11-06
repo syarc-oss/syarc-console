@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}{{ movie.title }} - Movie Library{% endblock %}
+
+{% block content %}
+<style>
+    .movie-detail-poster {
+        max-width: 300px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        border-radius: 8px;
+    }
+</style>
+
+{% set cat_qs = "page=" ~ cat_page ~ "&per_page=" ~ cat_per_page ~ ("&letter=" ~ cat_letter if cat_letter else "") %}
+{% set movie_qs = "cat_page=" ~ cat_page ~ "&cat_per_page=" ~ cat_per_page ~ ("&cat_letter=" ~ cat_letter if cat_letter else "") %}
+
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+        <li class="breadcrumb-item"><a href="/library/movie/category/{{ category.id }}?{{ cat_qs }}">{{ category.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ movie.title }}</li>
+    </ol>
+</nav>
+
+<div class="row mt-3">
+    <div class="col-md-4">
+        <div class="text-center">
+            {% if movie.poster_filename %}
+            <img src="/library/movie/poster/{{ movie.id }}"
+                 class="img-fluid movie-detail-poster" alt="{{ movie.title }}">
+            {% else %}
+            <div class="img-fluid movie-detail-poster d-flex align-items-center justify-content-center bg-dark text-white mx-auto" style="aspect-ratio: 2/3;">
+                <div class="text-center">
+                    <i class="bi bi-film" style="font-size: 4rem;"></i>
+                    <div class="mt-2">{{ movie.title[:40] }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="mt-4">
+                {% if movie.file_type != 'dvd' %}
+                <a href="/library/movie/player/{{ movie.id }}" target="_blank" class="btn btn-primary btn-lg w-100 mb-2">
+                    <i class="bi bi-play-fill"></i> Play Movie
+                </a>
+                {% else %}
+                <div class="alert alert-warning mb-2">
+                    <small><i class="bi bi-disc"></i> DVD format - cannot play in browser</small>
+                </div>
+                {% if is_owner %}
+                <button class="btn btn-success w-100 mb-2" id="convertDvdBtn"
+                        data-movie-id="{{ movie.id }}">
+                    <i class="bi bi-arrow-repeat"></i> Convert to MP4
+                </button>
+                <div id="convertStatus" class="mt-2" style="display:none;"></div>
+                {% endif %}
+                {% endif %}
+
+                {% if is_owner %}
+                <a href="/library/movie/movie/{{ movie.id }}/edit?{{ movie_qs }}" class="btn btn-warning w-100 mb-2">
+                    <i class="bi bi-pencil"></i> Edit Metadata
+                </a>
+                <div class="input-group mb-2">
+                    <select class="form-select form-select-sm" id="posterSkipSelect">
+                        <option value="3">Skip 3s</option>
+                        <option value="6">Skip 6s</option>
+                        <option value="9">Skip 9s</option>
+                        <option value="12">Skip 12s</option>
+                        <option value="15">Skip 15s</option>
+                    </select>
+                    <button class="btn btn-outline-info" type="button" id="generatePosterBtn"
+                            data-movie-id="{{ movie.id }}">
+                        <i class="bi bi-image"></i> Generate Poster
+                    </button>
+                </div>
+                <hr class="my-3">
+
+                <div class="mb-3">
+                    <label for="moveCategorySelect" class="form-label fw-bold"><i class="bi bi-folder2-open"></i> Move to Category</label>
+                    <select class="form-select form-select-sm mb-2" id="moveCategorySelect">
+                        <option value="">-- Select category --</option>
+                        {% for cat in own_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id == movie.category_id %}disabled{% endif %}>
+                            {{ cat.name }}{% if cat.id == movie.category_id %} (current){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-info btn-sm w-100" id="moveMovieBtn" disabled>
+                        <i class="bi bi-arrow-right-circle"></i> Move Movie
+                    </button>
+                </div>
+
+                <hr class="my-3">
+
+                {% if movie.is_public %}
+                <form action="/library/movie/movie/{{ movie.id }}/remove-public" method="POST" class="d-inline w-100 mb-2">
+                    <button type="submit" class="btn btn-outline-secondary w-100 mb-2">
+                        <i class="bi bi-eye-slash"></i> Remove from Public
+                    </button>
+                </form>
+                {% elif not movie.is_banned %}
+                <form action="/library/movie/movie/{{ movie.id }}/make-public" method="POST" class="d-inline w-100 mb-2">
+                    <button type="submit" class="btn btn-outline-success w-100 mb-2">
+                        <i class="bi bi-eye"></i> Make Public
+                    </button>
+                </form>
+                {% endif %}
+
+                <button class="btn btn-outline-danger w-100 mb-2" id="deleteDbOnlyBtn">
+                    <i class="bi bi-database"></i> Delete from Database Only
+                </button>
+                <button class="btn btn-danger w-100 mb-2" id="deleteWithDiskBtn">
+                    <i class="bi bi-hard-drive"></i> Delete from Database &amp; Disk
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h2>{{ movie.title }}</h2>
+                <h5 class="text-muted">
+                    <a href="/library/movie/category/{{ category.id }}?{{ cat_qs }}" class="text-decoration-none">
+                        {{ category.name }}
+                    </a>
+                    <span class="ms-2 text-muted" style="font-size: 0.8rem;">by {{ category.owner.username }}</span>
+                </h5>
+            </div>
+            <a href="/library/movie/category/{{ category.id }}?{{ cat_qs }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to {{ category.name }}
+            </a>
+        </div>
+
+        {% if movie.file_type == 'dvd' %}
+        <span class="badge bg-danger mb-2">DVD</span>
+        {% elif movie.file_type == 'mov' %}
+        <span class="badge bg-info mb-2">MOV</span>
+        {% elif movie.file_type == 'mkv' %}
+        <span class="badge bg-secondary mb-2">MKV</span>
+        {% elif movie.file_type == 'avi' %}
+        <span class="badge bg-dark mb-2">AVI</span>
+        {% else %}
+        <span class="badge bg-primary mb-2">{{ movie.file_type|upper }}</span>
+        {% endif %}
+        {% if movie.year %}
+        <span class="badge bg-light text-dark mb-2">{{ movie.year }}</span>
+        {% endif %}
+        {% if movie.is_public %}
+        <span class="badge bg-success mb-2">Public</span>
+        {% else %}
+        <span class="badge bg-secondary mb-2">Private</span>
+        {% endif %}
+        {% if movie.is_banned %}
+        <span class="badge bg-danger mb-2"><i class="bi bi-slash-circle"></i> Banned</span>
+        {% endif %}
+
+        <hr>
+
+        <div class="mb-3">
+            <h5>Details</h5>
+            <table class="table table-sm">
+                {% if movie.year %}
+                <tr>
+                    <th style="width: 150px;">Year:</th>
+                    <td>{{ movie.year }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <th>Category:</th>
+                    <td>
+                        <a href="/library/movie/category/{{ category.id }}?{{ cat_qs }}">{{ category.name }}</a>
+                        <span class="text-muted">(by {{ category.owner.username }})</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Format:</th>
+                    <td>{{ movie.file_type|upper }}</td>
+                </tr>
+                <tr>
+                    <th>Path:</th>
+                    <td><code style="font-size: 0.8rem;">{{ movie.file_path }}</code></td>
+                </tr>
+                {% if movie.file_size %}
+                <tr>
+                    <th>File Size:</th>
+                    <td>{% if movie.file_size < 1048576 %}{{ "%.0f"|format(movie.file_size / 1024) }} KB{% elif movie.file_size < 1073741824 %}{{ "%.1f"|format(movie.file_size / 1048576) }} MB{% else %}{{ "%.1f"|format(movie.file_size / 1073741824) }} GB{% endif %}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+
+        {% if movie.description %}
+        <div class="mb-3">
+            <h5>Description</h5>
+            <p>{{ movie.description }}</p>
+        </div>
+        {% endif %}
+
+        <div class="mt-4">
+            <a href="/library/movie/browse/categories" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-tags-fill"></i> Browse Categories
+            </a>
+            <a href="/library/movie/category/{{ category.id }}?{{ cat_qs }}" class="btn btn-outline-secondary">
+                <i class="bi bi-collection"></i> More in {{ category.name }}
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+{% if is_owner %}
+document.getElementById('generatePosterBtn').addEventListener('click', async function() {
+    const movieId = this.getAttribute('data-movie-id');
+    const skipSeconds = document.getElementById('posterSkipSelect').value;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Extracting...';
+    try {
+        const response = await fetch(`/library/movie/movie/${movieId}/generate-poster?skip_seconds=${skipSeconds}`, { method: 'POST' });
+        const result = await response.json();
+        if (response.ok) {
+            alert(result.message);
+            window.location.reload();
+        } else {
+            alert(result.detail || 'Error generating poster');
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-image"></i> Generate Poster';
+});
+
+async function deleteMovie(fromDisk) {
+    var msg = fromDisk
+        ? 'This will permanently delete this movie from the database AND remove files from disk. Are you sure?'
+        : 'This will remove this movie from the database. The file will remain on disk. Are you sure?';
+    if (!confirm(msg)) return;
+    if (!confirm('This cannot be undone. Proceed?')) return;
+
+    try {
+        var fd = new FormData();
+        fd.append('delete_from_disk', fromDisk ? 'true' : 'false');
+        var response = await fetch('/library/movie/movie/{{ movie.id }}/delete', {
+            method: 'POST',
+            body: new URLSearchParams(fd)
+        });
+        var data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            window.location.href = '/library/movie/category/{{ category.id }}?{{ cat_qs }}';
+        } else {
+            alert('Error: ' + (data.detail || 'Failed to delete movie'));
+        }
+    } catch (err) {
+        alert('Error deleting movie: ' + err.message);
+    }
+}
+
+document.getElementById('deleteDbOnlyBtn').addEventListener('click', function() { deleteMovie(false); });
+document.getElementById('deleteWithDiskBtn').addEventListener('click', function() { deleteMovie(true); });
+
+var moveSelect = document.getElementById('moveCategorySelect');
+var moveBtn = document.getElementById('moveMovieBtn');
+
+moveSelect.addEventListener('change', function() {
+    moveBtn.disabled = !this.value;
+});
+
+moveBtn.addEventListener('click', async function() {
+    var targetId = moveSelect.value;
+    if (!targetId) return;
+
+    var selectedOption = moveSelect.options[moveSelect.selectedIndex];
+    var catName = selectedOption.textContent.trim();
+
+    if (!confirm('Move this movie to "' + catName + '"? The file will be moved on disk.')) return;
+
+    moveBtn.disabled = true;
+    moveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Moving...';
+
+    try {
+        var fd = new FormData();
+        fd.append('target_category_id', targetId);
+        fd.append('cat_page', '{{ cat_page }}');
+        fd.append('cat_per_page', '{{ cat_per_page }}');
+        fd.append('cat_letter', '{{ cat_letter }}');
+
+        var response = await fetch('/library/movie/movie/{{ movie.id }}/move', {
+            method: 'POST', body: new URLSearchParams(fd)
+        });
+        var data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            window.location.href = data.redirect || ('/library/movie/movie/{{ movie.id }}');
+        } else {
+            alert('Error: ' + (data.detail || 'Failed to move movie'));
+            moveBtn.disabled = false;
+            moveBtn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Move Movie';
+        }
+    } catch (err) {
+        alert('Error moving movie: ' + err.message);
+        moveBtn.disabled = false;
+        moveBtn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Move Movie';
+    }
+});
+{% endif %}
+
+var convertDvdBtn = document.getElementById('convertDvdBtn');
+if (convertDvdBtn) {
+    convertDvdBtn.addEventListener('click', async function() {
+        var movieId = this.getAttribute('data-movie-id');
+        var statusDiv = document.getElementById('convertStatus');
+        if (!confirm('Convert this DVD to MP4? This may take several minutes.')) return;
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Converting...';
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<div class="text-muted">Converting DVD to MP4, this may take several minutes...</div>';
+        try {
+            var response = await fetch('/library/movie/movie/' + movieId + '/convert-dvd', { method: 'POST' });
+            var result = await response.json();
+            if (response.ok) {
+                statusDiv.innerHTML = '<div class="alert alert-success py-1">' + result.message + '</div>';
+                setTimeout(function() { window.location.reload(); }, 3000);
+            } else {
+                statusDiv.innerHTML = '<div class="alert alert-danger py-1">' + (result.detail || 'Conversion failed') + '</div>';
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Convert to MP4';
+            }
+        } catch (error) {
+            statusDiv.innerHTML = '<div class="alert alert-danger py-1">Error: ' + error.message + '</div>';
+            this.disabled = false;
+            this.innerHTML = '<i class="bi bi-arrow-repeat"></i> Convert to MP4';
+        }
+    });
+}
+</script>
+{% endblock %}

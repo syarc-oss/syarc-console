@@ -1,0 +1,15 @@
+[package]
+name = "syarc-hangman"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+syarc-plugin-api = { path = "../../crates/plugin-api" }
+axum = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+async-trait = { workspace = true }
+rand = "0.8"

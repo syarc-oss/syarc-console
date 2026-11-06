@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Gardens{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item active">Gardens</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-flower2"></i> Gardens</h2>
+    <a href="/agriculture/agronomy/garden/new" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle"></i> New Garden
+    </a>
+</div>
+
+{% if gardens %}
+<div class="list-group">
+    {% for item in gardens %}
+    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+        <div>
+            <a href="/agriculture/agronomy/garden/{{ item.garden.id }}" class="fw-bold text-decoration-none">
+                <i class="bi bi-flower2"></i> {{ item.garden.name }}
+            </a>
+            {% if item.garden.location %}
+            <span class="text-muted ms-2">({{ item.garden.location }})</span>
+            {% endif %}
+            {% if not item.is_owner %}
+            <span class="badge bg-info ms-2">Shared by {{ item.owner_username }}</span>
+            {% endif %}
+            <br>
+            <small class="text-muted">{{ item.crop_count }} crop{{ "s" if item.crop_count != 1 }}</small>
+        </div>
+        <div>
+            {% if item.is_owner %}
+            <a href="/agriculture/agronomy/garden/{{ item.garden.id }}/edit" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">No gardens yet. Create one to get started.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Category - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if store_id %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store_id }}">Store</a></li>
+        {% endif %}
+        {% for ancestor in ancestor_chain %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ ancestor.id }}">{{ ancestor.name }}</a></li>
+        {% endfor %}
+        {% if mode == 'edit' %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ category.id }}">{{ category.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">{% if mode == 'edit' %}Edit{% else %}New{% endif %} Category</li>
+    </ol>
+</nav>
+
+<h2>{% if mode == 'edit' %}Edit{% else %}New{% endif %} Category</h2>
+
+<form method="post"
+      action="{% if mode == 'edit' %}/supply/categories/{{ category.id }}/edit{% else %}/supply/categories/new{% endif %}">
+    <div class="mb-3">
+        <label for="name" class="form-label">Name</label>
+        <input type="text" class="form-control" id="name" name="name" required
+               value="{% if mode == 'edit' %}{{ category.name }}{% endif %}">
+    </div>
+
+    <div class="mb-3">
+        <label for="description" class="form-label">Description</label>
+        <textarea class="form-control" id="description" name="description" rows="2">{{ category.description if mode == 'edit' and category.description else '' }}</textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="parent_id" class="form-label">Parent Category</label>
+        <select class="form-select" id="parent_id" name="parent_id">
+            <option value="">-- None (root) --</option>
+            {% for cat in all_categories %}
+            <option value="{{ cat.id }}"
+                    {% if mode == 'edit' and category.parent_id == cat.id %}selected{% endif %}
+                    {% if mode == 'new' and parent_id and parent_id == cat.id %}selected{% endif %}>
+                {{ cat.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-primary">{% if mode == 'edit' %}Update{% else %}Create{% endif %}</button>
+    {% if store_id %}
+    <a href="/supply/stores/{{ store_id }}" class="btn btn-outline-secondary">Cancel</a>
+    {% else %}
+    <a href="/supply/" class="btn btn-outline-secondary">Cancel</a>
+    {% endif %}
+    {% if store_id %}
+    <input type="hidden" name="store_id" value="{{ store_id }}">
+    {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Select Store - Supply{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>Supply Stores</h2>
+                    <p class="text-muted">Choose a store to view and manage inventory</p>
+                </div>
+                <a href="/supply/store/new" class="btn btn-primary">
+                    + Create New Store
+                </a>
+            </div>
+
+            <form method="get" action="/supply/search" class="mb-4">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="q"
+                           placeholder="Search items across all stores...">
+                    <button class="btn btn-outline-primary" type="submit">
+                        <i class="bi bi-search"></i> Search All Stores
+                    </button>
+                </div>
+            </form>
+
+            {% if stores %}
+            <div class="row g-4">
+                {% for s in stores %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 {{ 'border-primary' if s.is_owner else 'border-info' }}">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                {{ s.store.name }}
+                                {% if s.is_owner %}
+                                    <span class="badge bg-primary ms-2">Yours</span>
+                                {% else %}
+                                    <span class="badge bg-info ms-2">Shared</span>
+                                {% endif %}
+                            </h5>
+                            {% if s.store.description %}
+                            <p class="card-text">{{ s.store.description }}</p>
+                            {% endif %}
+                            <p class="card-text text-muted">{{ s.item_count }} items</p>
+                            {% if not s.is_owner %}
+                                <p class="card-text"><small class="text-muted">Shared on {{ s.shared_at[:10] }}</small></p>
+                            {% endif %}
+                            <a href="/supply/stores/{{ s.store.id }}" class="btn {{ 'btn-primary' if s.is_owner else 'btn-info' }}">
+                                Open Store
+                            </a>
+                            {% if s.is_owner %}
+                            <div class="mt-2">
+                                <a href="/supply/store/{{ s.store.id }}/edit" class="btn btn-sm btn-outline-primary me-2">Edit</a>
+                                <form action="/supply/store/{{ s.store.id }}/delete" method="post"
+                                      style="display:inline;" onsubmit="return confirm('Delete store &quot;{{ s.store.name }}&quot; and all its categories and items?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <h4>No Supply Stores Found</h4>
+                <p>You don't have any supply stores yet. Create one to get started!</p>
+                <a href="/supply/store/new" class="btn btn-primary">
+                    + Create Your First Store
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

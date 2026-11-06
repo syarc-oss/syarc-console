@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+
+{% block title %}Search Items - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if store %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store.id }}">{{ store.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">Search Items</li>
+    </ol>
+</nav>
+
+<h2><i class="bi bi-search"></i> Search Items</h2>
+
+<form method="get" action="/supply/search" class="mb-4">
+    {% if store_id %}
+    <input type="hidden" name="store_id" value="{{ store_id }}">
+    {% endif %}
+    <div class="input-group">
+        <input type="text" class="form-control" name="q" id="search-input"
+               placeholder="Search by description, key, barcode, location, or notes..."
+               value="{{ query }}" autofocus>
+        <button class="btn btn-primary" type="submit">
+            <i class="bi bi-search"></i> Search
+        </button>
+        <a href="/supply/search{% if store_id %}?store_id={{ store_id }}{% endif %}" class="btn btn-outline-secondary">Clear</a>
+    </div>
+    <small class="text-muted">Multiple words are matched independently across all fields.{% if not store_id %} Searching all your stores.{% endif %}</small>
+</form>
+
+{% if query %}
+<h5>Results for "{{ query }}"
+    <small class="text-muted">({{ items | length }} item{{ 's' if items | length != 1 }} found)</small>
+</h5>
+
+{% if not items %}
+<div class="alert alert-light">No items found matching your search.</div>
+{% else %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover" id="searchTable">
+        <thead class="table-light">
+            <tr>
+                <th>Key</th>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Location</th>
+                <th>Barcode</th>
+                {% if not store_id %}<th>Store</th>{% endif %}
+                <th>Category</th>
+                <th>Notes</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in items %}
+            {% set item = entry.item %}
+            {% set cat = entry.category %}
+            <tr id="row-{{ item.id }}">
+                <td>{{ item.key }}</td>
+                <td>{{ item.description or '' }}</td>
+                <td>
+                    <div class="d-flex align-items-center gap-1">
+                        <button class="btn btn-outline-secondary btn-sm p-0 px-1" onclick="adjustQty('{{ item.id }}', -1)">
+                            <i class="bi bi-dash"></i>
+                        </button>
+                        <span id="qty-{{ item.id }}" class="fw-bold">{{ item.quantity }}</span>
+                        <button class="btn btn-outline-secondary btn-sm p-0 px-1" onclick="adjustQty('{{ item.id }}', 1)">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </td>
+                <td><span id="loc-{{ item.id }}">{{ item.location or '' }}</span></td>
+                <td><small class="text-muted">{{ item.barcode or '' }}</small></td>
+                {% if not store_id %}<td><small>{{ entry.store.name if entry.store else '' }}</small></td>{% endif %}
+                <td>
+                    <a href="/supply/categories/{{ cat.id }}">{{ cat.name }}</a>
+                </td>
+                <td><small>{{ item.notes or '' }}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-info" title="Transfer to another location"
+                        data-item-id="{{ item.id }}"
+                        data-item-key="{{ item.key }}"
+                        data-item-desc="{{ item.description or '' }}"
+                        data-item-qty="{{ item.quantity }}"
+                        data-item-location="{{ item.location or '' }}"
+                        onclick="openTransferFromData(this)">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </button>
+                    <a href="/supply/items/{{ item.id }}/edit?next={{ current_path | urlencode }}" class="btn btn-sm btn-outline-secondary" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <a href="/supply/items/{{ item.id }}/move" class="btn btn-sm btn-outline-primary" title="Move to another category">
+                        <i class="bi bi-folder2-open"></i>
+                    </a>
+                    <a href="/supply/items/{{ item.id }}/track" class="btn btn-sm btn-outline-info" title="Usage tracking">
+                        <i class="bi bi-clock-history"></i>
+                    </a>
+                    <form method="post" action="/supply/items/{{ item.id }}/delete?next={{ current_path | urlencode }}" class="d-inline"
+                          onsubmit="return confirm('Delete this item?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% if item.barcode %}
+                    <button class="btn btn-sm btn-outline-info" title="Re-lookup barcode online" onclick="relookupBarcode('{{ item.id }}', this)">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Transfer Modal -->
+<div id="transferModal" class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 justify-content-center align-items-center d-none" style="z-index: 1050;">
+    <div class="bg-white p-4 rounded shadow" style="width: 440px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Transfer Stock</h5>
+            <button type="button" class="btn-close" onclick="closeTransferModal()"></button>
+        </div>
+        <p class="fw-bold mb-1" id="transferItemName"></p>
+        <p class="text-muted small mb-3">Source: <span id="transferSourceLoc"></span> (<span id="transferSourceQty"></span> available)</p>
+        <div class="mb-3">
+            <label for="transferQty" class="form-label">Quantity to transfer</label>
+            <input type="number" class="form-control" id="transferQty" min="1" required>
+        </div>
+        <div class="mb-3">
+            <label for="transferTargetLoc" class="form-label">Destination location</label>
+            <input type="text" class="form-control" id="transferTargetLoc" placeholder="e.g. Kitchen, Shelf B2" required list="locationList">
+            <datalist id="locationList">
+                {% for entry in items %}
+                {% if entry.item.location %}
+                <option value="{{ entry.item.location }}">
+                {% endif %}
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-secondary" onclick="closeTransferModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitTransfer()">Transfer</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let transferSourceId = null;
+
+async function adjustQty(itemId, delta) {
+    const qtyEl = document.getElementById('qty-' + itemId);
+    try {
+        const resp = await fetch('/supply/api/items/' + itemId + '/adjust', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({adjustment: delta})
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            qtyEl.textContent = data.quantity;
+        }
+    } catch (e) {
+        console.error('Adjustment failed', e);
+    }
+}
+
+function openTransferFromData(btn) {
+    openTransferModal(
+        btn.dataset.itemId,
+        btn.dataset.itemKey,
+        btn.dataset.itemDesc,
+        parseInt(btn.dataset.itemQty, 10),
+        btn.dataset.itemLocation
+    );
+}
+
+function openTransferModal(itemId, itemKey, itemDesc, qty, location) {
+    transferSourceId = itemId;
+    document.getElementById('transferItemName').textContent = itemKey + (itemDesc ? ' — ' + itemDesc : '');
+    document.getElementById('transferSourceLoc').textContent = location || '(no location)';
+    document.getElementById('transferSourceQty').textContent = qty;
+    document.getElementById('transferQty').value = '';
+    document.getElementById('transferQty').max = qty;
+    document.getElementById('transferTargetLoc').value = '';
+    const modal = document.getElementById('transferModal');
+    modal.classList.remove('d-none');
+    modal.classList.add('d-flex');
+    document.getElementById('transferQty').focus();
+}
+
+function closeTransferModal() {
+    const modal = document.getElementById('transferModal');
+    modal.classList.remove('d-flex');
+    modal.classList.add('d-none');
+    transferSourceId = null;
+}
+
+async function submitTransfer() {
+    if (!transferSourceId) return;
+    const qty = parseInt(document.getElementById('transferQty').value);
+    const targetLoc = document.getElementById('transferTargetLoc').value.trim();
+
+    if (!qty || qty <= 0) { alert('Enter a positive quantity.'); return; }
+    if (!targetLoc) { alert('Enter a destination location.'); return; }
+
+    try {
+        const resp = await fetch('/supply/api/items/' + transferSourceId + '/transfer', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({quantity: qty, target_location: targetLoc})
+        });
+        if (resp.ok) {
+            location.reload();
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.detail || 'Transfer failed'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+document.getElementById('transferModal').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitTransfer(); }
+    if (e.key === 'Escape') closeTransferModal();
+});
+
+async function relookupBarcode(itemId, btn) {
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const resp = await fetch('/supply/api/items/' + itemId + '/lookup-barcode', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.updated) {
+                location.reload();
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
+                if (!data.barcode) {
+                    alert('No barcode on this item.');
+                } else {
+                    alert('No new description found for barcode: ' + data.barcode);
+                }
+            }
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+            alert('Lookup failed.');
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+        alert('Error: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Remote management — error{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts">Contacts</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts/{{ node_id }}">{{ node_id[:12] }}</a></li>
+    <li class="breadcrumb-item active">Remote management</li>
+  </ol>
+</nav>
+<h2 class="mb-3"><i class="bi bi-sliders"></i> Remote management</h2>
+<div class="alert alert-danger">
+  <i class="bi bi-x-octagon"></i> {{ error }}
+</div>
+<div class="btn-group">
+  <a class="btn btn-outline-secondary" href="/platforms/meshcore/contacts/{{ node_id }}"><i class="bi bi-arrow-left"></i> Back to contact</a>
+  <form method="post" action="/platforms/meshcore/contacts/{{ node_id }}/admin/logout">
+    <button class="btn btn-outline-danger"><i class="bi bi-box-arrow-right"></i> Clear stored login</button>
+  </form>
+</div>
+{% endblock %}

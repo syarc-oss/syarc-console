@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Select Group - Milk{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item active">Milk</li>
+    </ol>
+</nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-cup-straw"></i> Milk Groups</h2>
+    <a href="/milk/group/new" class="btn btn-primary"><i class="bi bi-plus-circle"></i> New Group</a>
+</div>
+{% if groups %}
+<div class="row g-4">
+    {% for g in groups %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 {{ 'border-primary' if g.is_owner else 'border-info' }}">
+            <div class="card-body">
+                <h5 class="card-title">
+                    {{ g.group.name }}
+                    {% if g.is_owner %}<span class="badge bg-primary ms-1">Yours</span>
+                    {% else %}<span class="badge bg-info ms-1">Shared</span>{% endif %}
+                </h5>
+                {% if g.group.description %}<p class="card-text text-muted small">{{ g.group.description }}</p>{% endif %}
+                <p class="card-text"><i class="bi bi-droplet"></i> {{ g.animal_count }} animals &middot; {{ g.producing_count }} producing</p>
+                <a href="/milk/groups/{{ g.group.id }}" class="btn {{ 'btn-primary' if g.is_owner else 'btn-info' }}">Open</a>
+                {% if g.is_owner %}
+                <a href="/milk/group/{{ g.group.id }}/edit" class="btn btn-sm btn-outline-primary">Edit</a>
+                <form action="/milk/group/{{ g.group.id }}/delete" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            onclick="return confirm('Delete group {{ g.group.name }}? This will permanently delete all animals, production records, and medical records in this group.')">Delete</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">No milk groups yet. Create one to get started!</div>
+{% endif %}
+{% endblock %}

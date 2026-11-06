@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Pecuniary - Financial Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="mb-4"><i class="bi bi-currency-dollar"></i> Pecuniary</h2>
+            <p class="text-muted mb-4">Your unified financial management suite</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% if 'checkbook' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body text-center">
+                    <i class="bi bi-wallet2 display-4 text-primary"></i>
+                    <h4 class="mt-3">Checkbook</h4>
+                    <p class="text-muted">Manage checking, savings, and money market registers with multi-user sharing.</p>
+                    <a href="/pecuniary/checkbook/select" class="btn btn-primary">Open Checkbook</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'pms' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-coin display-4 text-warning"></i>
+                    <h4 class="mt-3">Precious Metals</h4>
+                    <p class="text-muted">Track gold, silver, platinum, and palladium holdings with live pricing.</p>
+                    <a href="/pecuniary/pms/select" class="btn btn-warning">Open PMS</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'stocks' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-success">
+                <div class="card-body text-center">
+                    <i class="bi bi-graph-up-arrow display-4 text-success"></i>
+                    <h4 class="mt-3">Stocks</h4>
+                    <p class="text-muted">Track stock portfolios with live quotes, cost basis, and gain/loss reporting.</p>
+                    <a href="/pecuniary/stocks/select" class="btn btn-success">Open Stocks</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'ledger' in allowed_sub_apps %}
+        <div class="col-md-4">
+            <div class="card h-100 border-info">
+                <div class="card-body text-center">
+                    <i class="bi bi-journal-text display-4 text-info"></i>
+                    <h4 class="mt-3">Ledger</h4>
+                    <p class="text-muted">Track income and liabilities with cash flow analysis and historical reporting.</p>
+                    <a href="/pecuniary/ledger/select" class="btn btn-info">Open Ledger</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not allowed_sub_apps %}
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h4>No Financial Apps Available</h4>
+                <p>Contact your administrator to request access to checkbook, PMS, stocks, or ledger.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

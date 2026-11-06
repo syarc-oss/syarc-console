@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Ledger - {{ book.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+            <li class="breadcrumb-item"><a href="/pecuniary/ledger/select">Ledger</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ book.name }}</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-journal-text"></i> {{ book.name }}</h2>
+        <div class="d-flex gap-2">
+            <a href="/pecuniary/ledger/analytics/cashflow?book_id={{ book_id }}"
+               class="btn btn-outline-info btn-sm">
+                <i class="bi bi-graph-up"></i> Cash Flow
+            </a>
+            {% if is_owner %}
+            <div class="dropdown">
+                <button class="btn btn-primary btn-sm dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-plus-circle"></i> Add Entry
+                </button>
+                <ul class="dropdown-menu">
+                    <li>
+                        <a class="dropdown-item text-success"
+                           href="/pecuniary/ledger/entry/new?book_id={{ book_id }}&category=income">
+                            <i class="bi bi-arrow-down-circle"></i> Income
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item text-danger"
+                           href="/pecuniary/ledger/entry/new?book_id={{ book_id }}&category=liability">
+                            <i class="bi bi-arrow-up-circle"></i> Liability
+                        </a>
+                    </li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-success bg-opacity-10 border-success">
+                <div class="card-body text-center">
+                    <h6 class="text-success">Total Income</h6>
+                    <h3 class="text-success">${{ "%.2f" | format(total_income) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-danger bg-opacity-10 border-danger">
+                <div class="card-body text-center">
+                    <h6 class="text-danger">Total Liabilities</h6>
+                    <h3 class="text-danger">${{ "%.2f" | format(total_liability) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %} bg-opacity-10
+                        border-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %}">
+                <div class="card-body text-center">
+                    <h6 class="text-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %}">Net Cash Flow</h6>
+                    <h3 class="text-{% if net_cash_flow >= 0 %}primary{% else %}warning{% endif %}">
+                        ${{ "%.2f" | format(net_cash_flow) }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            {% if entries %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Source</th>
+                            <th class="text-end">Amount</th>
+                            <th>Recurrence</th>
+                            <th>Reconciled</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in entries %}
+                        <tr class="{% if entry.category == 'income' %}table-success{% else %}table-danger{% endif %} opacity-75">
+                            <td>{{ entry.entry_date }}</td>
+                            <td>
+                                <span class="badge bg-{% if entry.category == 'income' %}success{% else %}danger{% endif %}">
+                                    {{ entry.category | title }}
+                                </span>
+                            </td>
+                            <td>{{ entry.entry_type | replace('_', ' ') | title }}</td>
+                            <td>{{ entry.description }}</td>
+                            <td>{{ entry.source or '' }}</td>
+                            <td class="text-end font-monospace">
+                                {% if entry.category == 'income' %}+{% else %}-{% endif %}${{ "%.2f" | format(entry.amount) }}
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {{ entry.recurrence | replace('_', ' ') | title }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <form method="post" action="/pecuniary/ledger/entry/{{ entry.id }}/reconcile"
+                                      class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-link p-0"
+                                            title="{% if entry.is_reconciled %}Reconciled{% else %}Unreconciled{% endif %}">
+                                        <i class="bi bi-{% if entry.is_reconciled %}check-circle-fill text-success{% else %}circle text-muted{% endif %}"></i>
+                                    </button>
+                                </form>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="/pecuniary/ledger/entry/{{ entry.id }}/edit"
+                                       class="btn btn-outline-secondary" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form method="post" action="/pecuniary/ledger/entry/{{ entry.id }}/delete"
+                                          onsubmit="return confirm('Delete this entry?')">
+                                        <input type="hidden" name="book_id" value="{{ book_id }}">
+                                        <button type="submit" class="btn btn-outline-danger" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if total_pages is defined and total_pages > 1 %}
+            <div class="d-flex justify-content-between align-items-center mt-3 p-3 border-top">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-list-ol"></i> {{ per_page }} per page</button>
+                    <ul class="dropdown-menu">
+                        {% for pp in [50, 100, 150, 200] %}
+                        <li><a class="dropdown-item {% if per_page == pp %}active{% endif %}" href="?book_id={{ book_id }}&page=1&per_page={{ pp }}">{{ pp }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <span class="text-muted small">{{ entries|length }} of {{ total }} entries (Page {{ page }} of {{ total_pages }})</span>
+                <ul class="pagination pagination-sm mb-0">
+                    {% if page > 1 %}<li class="page-item"><a class="page-link" href="?book_id={{ book_id }}&page={{ page - 1 }}&per_page={{ per_page }}">&laquo;</a></li>{% endif %}
+                    {% set sp = [1, page - 2]|max %}{% set ep = [total_pages, page + 2]|min %}
+                    {% if sp > 1 %}<li class="page-item"><a class="page-link" href="?book_id={{ book_id }}&page=1&per_page={{ per_page }}">1</a></li>{% if sp > 2 %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}{% endif %}
+                    {% for p in range(sp, ep + 1) %}<li class="page-item {% if p == page %}active{% endif %}"><a class="page-link" href="?book_id={{ book_id }}&page={{ p }}&per_page={{ per_page }}">{{ p }}</a></li>{% endfor %}
+                    {% if ep < total_pages %}{% if ep < total_pages - 1 %}<li class="page-item disabled"><span class="page-link">...</span></li>{% endif %}<li class="page-item"><a class="page-link" href="?book_id={{ book_id }}&page={{ total_pages }}&per_page={{ per_page }}">{{ total_pages }}</a></li>{% endif %}
+                    {% if page < total_pages %}<li class="page-item"><a class="page-link" href="?book_id={{ book_id }}&page={{ page + 1 }}&per_page={{ per_page }}">&raquo;</a></li>{% endif %}
+                </ul>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <h5>No entries yet</h5>
+                <p>Add income and liability entries to start tracking cash flow.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if is_owner and (shared_users or all_users) %}
+    <div class="card mt-4">
+        <div class="card-header"><i class="bi bi-people"></i> Sharing</div>
+        <div class="card-body">
+            {% if shared_users %}
+            <h6>Shared with:</h6>
+            <ul class="list-group mb-3">
+                {% for s in shared_users %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>{{ s.shared_user.username }} ({{ s.shared_user.email }})</span>
+                    <form method="post" action="/pecuniary/ledger/revoke/{{ s.share.id }}">
+                        <input type="hidden" name="book_id" value="{{ book_id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% if all_users %}
+            <form method="post" action="/pecuniary/ledger/share" class="row g-2">
+                <input type="hidden" name="book_id" value="{{ book_id }}">
+                <div class="col-auto">
+                    <select name="share_with_user_id" class="form-select form-select-sm">
+                        {% for u in all_users %}
+                        <option value="{{ u.id }}">{{ u.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Share</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

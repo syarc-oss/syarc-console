@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Item - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        {% if mode == 'edit' %}
+        {% if store_id %}
+        <li class="breadcrumb-item"><a href="/supply/stores/{{ store_id }}">Store</a></li>
+        {% endif %}
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ item.category_id }}">Category</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">{% if mode == 'edit' %}Edit{% else %}New{% endif %} Item</li>
+    </ol>
+</nav>
+
+<h2>{% if mode == 'edit' %}Edit{% else %}New{% endif %} Item</h2>
+
+<form method="post"
+      action="{% if mode == 'edit' %}/supply/items/{{ item.id }}/edit{% else %}/supply/items/new{% endif %}">
+    {% if next_url %}
+    <input type="hidden" name="next" value="{{ next_url }}">
+    {% endif %}
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="key" class="form-label">Key / Name</label>
+            <input type="text" class="form-control" id="key" name="key" required
+                   value="{% if mode == 'edit' %}{{ item.key }}{% endif %}">
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <label for="category_id" class="form-label">Category</label>
+            <select class="form-select" id="category_id" name="category_id" required>
+                {% for cat in categories %}
+                <option value="{{ cat.id }}"
+                    {% if mode == 'edit' and item.category_id == cat.id %}selected{% endif %}
+                    {% if mode == 'new' and selected_category_id and selected_category_id == cat.id %}selected{% endif %}>
+                    {{ cat.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="description" class="form-label">Description</label>
+            <input type="text" class="form-control" id="description" name="description"
+                   value="{{ item.description if mode == 'edit' and item.description else '' }}">
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <label for="quantity" class="form-label">Quantity</label>
+            <input type="number" class="form-control" id="quantity" name="quantity" min="0"
+                   value="{% if mode == 'edit' %}{{ item.quantity }}{% else %}1{% endif %}">
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <label for="minimum" class="form-label">Minimum Stock</label>
+            <input type="number" class="form-control" id="minimum" name="minimum" min="0"
+                   value="{{ item.minimum if mode == 'edit' and item.minimum else '' }}"
+                   placeholder="Min level">
+        </div>
+
+        <div class="col-md-3 mb-3">
+            <label for="barcode" class="form-label">Barcode</label>
+            <input type="text" class="form-control" id="barcode" name="barcode"
+                   value="{{ item.barcode if mode == 'edit' and item.barcode else '' }}">
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="location" class="form-label">Location</label>
+            <input type="text" class="form-control" id="location" name="location"
+                   value="{{ item.location if mode == 'edit' and item.location else '' }}">
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="notes" class="form-label">Notes</label>
+        <textarea class="form-control" id="notes" name="notes" rows="2">{{ item.notes if mode == 'edit' and item.notes else '' }}</textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">{% if mode == 'edit' %}Update{% else %}Create{% endif %}</button>
+    <a href="{{ next_url or ('/supply/categories/' ~ item.category_id if mode == 'edit' else (store_id and '/supply/stores/' ~ store_id or '/supply/')) }}" class="btn btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}

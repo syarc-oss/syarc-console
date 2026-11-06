@@ -1,0 +1,23 @@
+[Unit]
+Description=SYARC Console (Rust)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=syarc
+Group=syarc
+WorkingDirectory=/opt/syarc-console
+Environment=DATABASE_URL=sqlite:///opt/syarc-console/syarc-console.db?mode=rwc
+# Environment=PORT=8090
+# Environment=MESH_BROKER_URL=http://127.0.0.1:8081
+# Environment=MESH_BROKER_TOKEN=change-me
+# Mesh participation (pick one):
+#  direct radio:  MESH_RADIO_ENABLED=1 MESH_RADIO_HOST=192.168.1.50:4000
+#  share radio:   MESH_BROKER_SERVE_ENABLED=1
+ExecStart=/opt/syarc-console/bin/syarc-console
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

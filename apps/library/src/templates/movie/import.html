@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Import Movies - {{ category.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+                <li class="breadcrumb-item"><a href="/library/movie/category/{{ category.id }}">{{ category.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Import</li>
+            </ol>
+        </nav>
+        <h2 class="mt-2"><i class="bi bi-cloud-upload"></i> Import Movies to {{ category.name }}</h2>
+
+        <!-- Import from directory path -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-folder2-open"></i> Import from Directory</h5>
+            </div>
+            <div class="card-body">
+                <form action="/library/movie/category/{{ category.id }}/import-path" method="POST">
+                    <div class="mb-3">
+                        <label for="import_path" class="form-label">Directory or File Path</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="import_path" name="import_path"
+                                   placeholder="/path/to/movies/ or /path/to/movie.mkv" required>
+                            <button type="button" class="btn btn-outline-secondary" id="dirBrowserSelectBtn">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            Browse or enter a directory containing movie files, or a single movie file path.
+                            Supports: .mp4, .mkv, .avi, .mov, .m4v, .webm, and DVD directories (VIDEO_TS).
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="make_public" name="make_public"
+                               {% if category.is_public %}checked{% endif %}>
+                        <label class="form-check-label" for="make_public">
+                            Make imported movies public
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-cloud-upload"></i> Import
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Category Directory -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-folder"></i> Category Directory</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Files placed directly in this category's directory will be detected by rescan:</p>
+                <code>{{ category.directory_path }}</code>
+            </div>
+        </div>
+
+        <!-- Maintenance -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear"></i> Maintenance</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-secondary" id="rescanBtn">
+                    <i class="bi bi-arrow-clockwise"></i> Rescan Directory
+                </button>
+                <div class="form-text mt-2">
+                    Rescan will detect new files in the category directory and remove entries for deleted files.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('rescanBtn').addEventListener('click', async function() {
+    if (!confirm('Rescan this category directory for changes?')) return;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanning...';
+    try {
+        var resp = await fetch('/library/movie/category/{{ category.id }}/rescan', { method: 'POST' });
+        var data = await resp.json();
+        alert(data.message);
+        if (resp.ok) window.location.reload();
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
+    this.disabled = false;
+    this.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Rescan Directory';
+});
+
+var DIR_BROWSER_ROOT = "";
+var DIR_BROWSER_INPUT_ID = "import_path";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "{{ category.directory_path }}";
+</script>
+{% include "library/dir_browser.html" %}
+{% endblock %}

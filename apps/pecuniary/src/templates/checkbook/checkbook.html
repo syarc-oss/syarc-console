@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+        
+{% block title %}Check Book - FastAPI App{% endblock %}
+            
+{% block content %}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <!-- Breadcrumb and Header -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+                    <li class="breadcrumb-item"><a href="/pecuniary/checkbook/select">Select Checkbook Register</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ register.name }}</li>
+                </ol>
+            </nav>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2>{{ register.name }}</h2>
+                    <p class="text-muted mb-0">{{ register.bank_name }} - {{ register.account_type | replace('_', ' ') | title }}</p>
+                    <p class="text-muted">
+                        {% if is_owner %}Manage your check book{% else %}Viewing shared check book{% endif %}
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    {% if is_owner %}
+                    <!-- New Entry Button -->
+                    <button class="btn btn-primary" onclick="openModal()">New Entry</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Share Checkbook Section -->
+            {% if is_owner %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Share Your Register</h5>
+                    <form action="/pecuniary/checkbook/share?register_id={{ register_id }}" method="post" class="d-flex gap-2">
+                        <select name="share_with_user_id" class="form-select" style="max-width: 300px;" required>
+                            <option value="">Select a user to share with...</option>
+                            {% for u in all_users %}
+                                <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-success">Grant Access</button>
+                    </form>
+
+                    {% if shared_users %}
+                    <div class="mt-3">
+                        <h6 class="text-muted">Users with access:</h6>
+                        <div class="list-group">
+                            {% for s in shared_users %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>{{ s.shared_user.username }} ({{ s.shared_user.email }})</span>
+                                <form action="/pecuniary/checkbook/revoke/{{ s.share.id }}?register_id={{ register_id }}" method="post" onsubmit="return confirm('Revoke access?');" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Entries toolbar -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small">Showing {{ entries|length }} of {{ total }} entries (Page {{ page }} of {{ total_pages }})</span>
+                <form method="get" action="/pecuniary/checkbook" class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="register_id" value="{{ register_id }}">
+                    <input type="hidden" name="page" value="1">
+                    <input type="hidden" name="sort" value="{{ sort }}">
+                    <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+                    <label class="text-muted small mb-0" for="per_page_sel">Rows per page</label>
+                    <select name="per_page" id="per_page_sel" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        {% for pp in [25, 50, 100, 150, 200] %}
+                        <option value="{{ pp }}" {% if per_page == pp %}selected{% endif %}>{{ pp }}</option>
+                        {% endfor %}
+                    </select>
+                    <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
+                </form>
+            </div>
+
+            <!-- Responsive Table -->
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover table-striped" id="checkbookTable">
+                    <thead class="table-light">
+                        <tr>
+                            {% set base_url = '?register_id=' ~ register_id ~ '&per_page=' ~ per_page ~ '&sort=' ~ sort ~ '&sort_dir=' ~ sort_dir %}
+                            <th class="sortable">
+                                <a class="text-decoration-none text-dark" href="?register_id={{ register_id }}&page=1&per_page={{ per_page }}&sort=date&sort_dir={{ 'asc' if sort == 'date' and sort_dir == 'desc' else 'desc' }}">Date {% if sort == 'date' %}{{ '↓' if sort_dir == 'desc' else '↑' }}{% endif %}</a>
+                            </th>
+                            <th class="sortable">
+                                <a class="text-decoration-none text-dark" href="?register_id={{ register_id }}&page=1&per_page={{ per_page }}&sort=type&sort_dir={{ 'asc' if sort == 'type' and sort_dir == 'desc' else 'desc' }}">Type {% if sort == 'type' %}{{ '↓' if sort_dir == 'desc' else '↑' }}{% endif %}</a>
+                            </th>
+                            <th class="sortable text-center">
+                                <a class="text-decoration-none text-dark" href="?register_id={{ register_id }}&page=1&per_page={{ per_page }}&sort=check_number&sort_dir={{ 'asc' if sort == 'check_number' and sort_dir == 'desc' else 'desc' }}">Check # {% if sort == 'check_number' %}{{ '↓' if sort_dir == 'desc' else '↑' }}{% endif %}</a>
+                            </th>
+                            <th class="sortable">
+                                <a class="text-decoration-none text-dark" href="?register_id={{ register_id }}&page=1&per_page={{ per_page }}&sort=payee_description&sort_dir={{ 'asc' if sort == 'payee_description' and sort_dir == 'desc' else 'desc' }}">Description {% if sort == 'payee_description' %}{{ '↓' if sort_dir == 'desc' else '↑' }}{% endif %}</a>
+                            </th>
+                            <th class="text-end">Payment</th>
+                            <th class="text-end">Deposit</th>
+                            <th class="text-end">Balance</th>
+                            <th class="text-center">Returned</th>
+                            <th class="text-center">Owner</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in entries %}
+                             <tr class="{{ 'table-secondary opacity-50' if entry.returned else '' }}">
+                                <td>{{ entry.date }}</td>
+                                <td>{{ entry.type }}</td>
+                                <td class="text-center">{{ entry.check_number or '' }}</td>
+                                <td>{{ entry.payee_description }}</td>
+                                <td class="text-end">{{ entry.payment | num(2) if entry.payment > 0 else '' }}</td>
+                                <td class="text-end">{{ entry.deposit | num(2) if entry.deposit > 0 else '' }}</td>
+                                <td class="text-end fw-bold">{{ entry.balance | num(2) }}</td>
+                                <td class="text-center">
+                                    <form action="/pecuniary/checkbook/toggle_returned/{{ entry.id }}?register_id={{ register_id }}" method="post" style="display:inline;">
+                                        <input type="checkbox" class="form-check-input" onchange="this.form.submit()" {{ 'checked' if entry.returned else '' }}>
+                                    </form>
+                                </td>
+                                <td class="text-center">
+                                    {% if entry.user_id == user.id %}
+                                        <span class="badge bg-primary">You</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ entry.creator }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="editEntry({{ entry.id }})">
+                                            ✏️ Edit
+                                        </button>
+                                        <form action="/pecuniary/checkbook/delete/{{ entry.id }}?register_id={{ register_id }}" method="post" style="display:inline;" onsubmit="return confirm('Delete this transaction?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                🗑️
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if total_pages > 1 %}
+            <nav aria-label="Page navigation" class="mt-2">
+                <ul class="pagination justify-content-center pagination-sm">
+                    {% if page > 1 %}
+                    <li class="page-item"><a class="page-link" href="?register_id={{ register_id }}&page=1&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">&laquo;&laquo;</a></li>
+                    <li class="page-item"><a class="page-link" href="?register_id={{ register_id }}&page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">&laquo;</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">&laquo;&laquo;</span></li>
+                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                    {% endif %}
+
+                    {% set start_page = [1, page - 2]|max %}
+                    {% set end_page = [total_pages, page + 2]|min %}
+
+                    {% if start_page > 1 %}
+                    <li class="page-item"><a class="page-link" href="?register_id={{ register_id }}&page=1&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">1</a></li>
+                    {% if start_page > 2 %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                    {% endif %}
+
+                    {% for p in range(start_page, end_page + 1) %}
+                    <li class="page-item {% if p == page %}active{% endif %}">
+                        <a class="page-link" href="?register_id={{ register_id }}&page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">{{ p }}</a>
+                    </li>
+                    {% endfor %}
+
+                    {% if end_page < total_pages %}
+                    {% if end_page < total_pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                    <li class="page-item"><a class="page-link" href="?register_id={{ register_id }}&page={{ total_pages }}&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">{{ total_pages }}</a></li>
+                    {% endif %}
+
+                    {% if page < total_pages %}
+                    <li class="page-item"><a class="page-link" href="?register_id={{ register_id }}&page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">&raquo;</a></li>
+                    <li class="page-item"><a class="page-link" href="?register_id={{ register_id }}&page={{ total_pages }}&per_page={{ per_page }}&sort={{ sort }}&sort_dir={{ sort_dir }}">&raquo;&raquo;</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                    <li class="page-item disabled"><span class="page-link">&raquo;&raquo;</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Entry Modal -->
+<div id="entryModal" class="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 justify-content-center align-items-center d-none" style="z-index: 1050;">
+    <div class="bg-white p-4 rounded shadow" style="width: 50%; max-height: 90vh; overflow-y: auto;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 id="modalTitle">New Entry</h3>
+            <button type="button" class="btn-close" onclick="closeModal()"></button>
+        </div>
+        
+        <form action="/pecuniary/checkbook/add?register_id={{ register_id }}" method="post">
+            <input type="hidden" name="entry_id" id="entryId" value="">
+            <input type="hidden" name="register_id" value="{{ register_id }}"> 
+            
+            <div class="mb-3">
+                <label for="entryType" class="form-label">Type</label>
+                <select name="entry_type" id="entryType" class="form-select" onchange="onTypeChange()">
+                    <option value="check">Check</option>
+                    <option value="autopay">Autopay</option>
+                    <option value="transfer_in">Transfer In</option>
+                    <option value="transfer_out">Transfer Out</option>
+                    <option value="deposit">Deposit</option>
+                    <option value="withdrawal">Withdrawal</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="entryDate" class="form-label">Date</label>
+                <input type="date" name="entry_date" id="entryDate" class="form-control" required>
+            </div>
+
+            <div class="mb-3" id="checkNumberField">
+                <label for="checkNumber" class="form-label">Check Number</label>
+                <input type="text" name="check_number" id="checkNumber" class="form-control">
+            </div>
+
+            <div class="mb-3">
+                <label for="amount" class="form-label">Amount (figure)</label>
+                <input type="number" step="0.01" name="amount" id="amount" class="form-control" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="payee" class="form-label">Payee / Description</label>
+                <input type="text" name="payee" id="payee" class="form-control">
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Save Entry</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        const nextCheckNum = "{{ next_check_number }}";
+        const lastDate = "{{ last_date }}";
+
+        function closeModal() {
+            const modal = document.getElementById('entryModal');
+            modal.classList.remove('d-flex');
+            modal.classList.add('d-none');
+        }
+
+        function openModal() {
+            document.getElementById('entryId').value = "";
+            document.getElementById('modalTitle').textContent = "New Entry";
+
+            // Get last selected type from localStorage, default to 'autopay'
+            const lastType = localStorage.getItem('lastCheckbookType') || 'autopay';
+            document.getElementById('entryType').value = lastType;
+            // Call onTypeChange to show/hide check number field and set default value
+            onTypeChange();
+
+            const dateField = document.getElementById('entryDate');
+            if (lastDate) {
+                dateField.value = lastDate;
+            } else {
+                const today = new Date().toISOString().split('T')[0];
+                dateField.value = today;
+            }
+
+            document.getElementById('amount').value = '';
+            document.getElementById('payee').value = '';
+
+            const modal = document.getElementById('entryModal');
+            modal.classList.remove('d-none');
+            modal.classList.add('d-flex');
+        }
+
+        function resetFormForNewEntry() {
+            document.getElementById('entryId').value = "";
+            document.getElementById('modalTitle').textContent = "New Entry";
+
+            // Get last selected type from localStorage, default to 'autopay'
+            const lastType = localStorage.getItem('lastCheckbookType') || 'autopay';
+            document.getElementById('entryType').value = lastType;
+            // Call onTypeChange to show/hide check number field and set default value
+            onTypeChange();
+
+            document.getElementById('amount').value = '';
+            document.getElementById('payee').value = '';
+        }
+
+        async function editEntry(id) {
+            const register_id = "{{ register_id }}";
+            const response = await fetch(`/pecuniary/checkbook/entry/${id}?register_id=${register_id}`);
+            if (response.ok) {
+                const data = await response.json();
+                populateForm(data);
+                document.getElementById('entryId').value = id;
+                document.getElementById('modalTitle').textContent = "Edit Entry";
+
+                const modal = document.getElementById('entryModal');
+                modal.classList.remove('d-none');
+                modal.classList.add('d-flex');
+            } else {
+                alert("Failed to load entry data");
+            }
+        }
+
+        function onTypeChange() {
+            const type = document.getElementById('entryType').value;
+            const checkNumField = document.getElementById('checkNumber');
+            const checkNumberDiv = document.getElementById('checkNumberField');
+
+            if (type === 'check') {
+                checkNumberDiv.style.display = 'block';
+                if (!checkNumField.value) {
+                    checkNumField.value = nextCheckNum;
+                }
+            } else {
+                checkNumberDiv.style.display = 'none';
+                if (checkNumField.value === nextCheckNum) {
+                    checkNumField.value = '';
+                }
+            }
+        }
+
+        function populateForm(data) {
+            document.getElementById('entryType').value = (data.type || 'check').toLowerCase();
+            document.getElementById('entryDate').value = data.date;
+            const checkNumField = document.getElementById('checkNumber');
+            if (data.check_number) checkNumField.value = data.check_number;
+            document.getElementById('amount').value = data.amount || 0;
+            document.getElementById('payee').value = data.payee || '';
+            // Call onTypeChange to show/hide check number field appropriately
+            onTypeChange();
+        }
+
+        async function saveEntry() {
+            const form = document.querySelector('#entryModal form');
+            const formData = new FormData(form);
+
+            try {
+                const register_id = "{{ register_id }}";
+                const response = await fetch(`/pecuniary/checkbook/add?register_id=${register_id}`, {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+
+                if (response.ok) {
+                    // Save the selected type to localStorage for next entry
+                    const selectedType = document.getElementById('entryType').value;
+                    localStorage.setItem('lastCheckbookType', selectedType);
+
+                    // Store flag in session storage to reopen modal on page reload
+                    sessionStorage.setItem('reopenModal', 'true');
+                    // Reload page to show updated table
+                    window.location.reload();
+                } else {
+                    const errorText = await response.text();
+                    alert('Failed to save entry: ' + errorText);
+                }
+            } catch (error) {
+                alert('Error saving entry: ' + error.message);
+            }
+        }
+
+        // Intercept form submission and handle auto-open modal
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we should auto-open the modal after save
+            if (sessionStorage.getItem('reopenModal') === 'true') {
+                sessionStorage.removeItem('reopenModal');
+                openModal();
+            }
+
+            const form = document.querySelector('#entryModal form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    saveEntry();
+                });
+            }
+        });
+
+        // Table sorting functionality
+    </script>
+
+    <style>
+        .sortable {
+            cursor: pointer;
+        }
+
+        .sortable:hover {
+            background-color: #e9ecef;
+        }
+
+        .sort-icon {
+            margin-left: 5px;
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+
+        .sortable.table-active .sort-icon {
+            color: #0d6efd;
+            font-weight: bold;
+        }
+
+        th.sortable {
+            position: relative;
+        }
+    </style>
+{% endblock %}

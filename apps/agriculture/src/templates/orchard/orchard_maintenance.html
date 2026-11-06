@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Orchard Maintenance - {{ orchard.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/agronomy/">Agronomy</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/">Orchards</a></li>
+        <li class="breadcrumb-item"><a href="/orchard/{{ orchard.id }}">{{ orchard.name }}</a></li>
+        <li class="breadcrumb-item active">Orchard Maintenance</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-list-check"></i> Orchard Maintenance</h2>
+</div>
+
+<!-- Orchard Maintenance Records -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clipboard-check"></i> {{ orchard.name }} - Orchard Activities</span>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="collapse" data-bs-target="#add-maintenance-form">
+            <i class="bi bi-plus-circle"></i> Add Record
+        </button>
+    </div>
+    <div class="card-body">
+        <!-- Add Maintenance Form -->
+        <div class="collapse mb-3" id="add-maintenance-form">
+            <form id="maint-form" class="row g-2 align-items-end border rounded p-2 bg-light">
+                <input type="hidden" id="edit-maint-id" value="">
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Date *</small></label>
+                    <input type="date" class="form-control form-control-sm" name="maintenance_date" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Type *</small></label>
+                    <select class="form-select form-select-sm" name="maintenance_type" required>
+                        {% for mt in maintenance_types %}
+                        <option value="{{ mt }}">{{ mt|replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-0"><small>Description</small></label>
+                    <input type="text" class="form-control form-control-sm" name="description" placeholder="Brief description">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Products Used</small></label>
+                    <input type="text" class="form-control form-control-sm" name="products_used" placeholder="e.g., 10-10-10 fertilizer">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label mb-0"><small>Cost</small></label>
+                    <input type="number" step="0.01" class="form-control form-control-sm" name="cost" placeholder="0.00">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0"><small>Notes</small></label>
+                    <input type="text" class="form-control form-control-sm" name="notes" placeholder="Notes">
+                </div>
+                <div class="col-12 text-end mt-2">
+                    <button type="submit" id="maint-submit-btn" class="btn btn-success btn-sm">
+                        <i class="bi bi-check-circle"></i> <span id="maint-submit-text">Save Record</span>
+                    </button>
+                    <button type="button" id="maint-cancel-btn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        {% if maintenance_records %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle" style="font-size:0.85rem">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Products</th>
+                        <th>Cost</th>
+                        <th>Notes</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rec in maintenance_records %}
+                    <tr>
+                        <td class="text-nowrap">{{ rec.maintenance_date }}</td>
+                        <td><span class="badge bg-secondary">{{ rec.maintenance_type|replace('_', ' ')|title }}</span></td>
+                        <td>{{ rec.description or '' }}</td>
+                        <td>{{ rec.products_used or '' }}</td>
+                        <td>{{ '$' ~ rec.cost if rec.cost else '' }}</td>
+                        <td>{{ rec.notes or '' }}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-secondary p-0 px-1 edit-maint-btn" data-rec='{{ rec | tojson }}' title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger p-0 px-1 delete-maint-btn" data-id="{{ rec.id }}" title="Delete">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No orchard maintenance records yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+var orchardId = '{{ orchard.id }}';
+
+document.getElementById('maint-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = e.target;
+    var data = new FormData(form);
+    var editId = document.getElementById('edit-maint-id').value;
+    var url, method;
+    if (editId) {
+        url = '/orchard/' + orchardId + '/maintenance/' + editId;
+        method = 'PUT';
+    } else {
+        url = '/orchard/' + orchardId + '/maintenance/add';
+        method = 'POST';
+    }
+    fetch(url, {
+        method: method, body: data, credentials: 'include',
+        headers: {'Accept': 'application/json'}
+    }).then(function(r) {
+        if (r.ok) window.location.reload();
+        else return r.json().then(function(d) { alert(d.detail || 'Error'); });
+    }).catch(function() { alert('Request failed'); });
+});
+
+function resetMaintForm() {
+    document.getElementById('maint-form').reset();
+    document.getElementById('edit-maint-id').value = '';
+    document.getElementById('maint-submit-text').textContent = 'Save Record';
+    document.getElementById('maint-submit-btn').className = 'btn btn-success btn-sm';
+    document.getElementById('maint-cancel-btn').style.display = 'none';
+}
+
+document.getElementById('maint-cancel-btn').addEventListener('click', resetMaintForm);
+
+document.querySelectorAll('.edit-maint-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var rec = JSON.parse(btn.getAttribute('data-rec'));
+        document.getElementById('edit-maint-id').value = rec.id;
+        var form = document.getElementById('maint-form');
+        form.querySelector('[name="maintenance_date"]').value = rec.maintenance_date;
+        form.querySelector('[name="maintenance_type"]').value = rec.maintenance_type;
+        form.querySelector('[name="description"]').value = rec.description || '';
+        form.querySelector('[name="products_used"]').value = rec.products_used || '';
+        form.querySelector('[name="cost"]').value = rec.cost || '';
+        form.querySelector('[name="notes"]').value = rec.notes || '';
+        document.getElementById('maint-submit-text').textContent = 'Update';
+        document.getElementById('maint-submit-btn').className = 'btn btn-warning btn-sm';
+        document.getElementById('maint-cancel-btn').style.display = '';
+        var collapse = document.getElementById('add-maintenance-form');
+        if (!collapse.classList.contains('show')) new bootstrap.Collapse(collapse).show();
+        form.scrollIntoView({behavior: 'smooth'});
+    });
+});
+
+document.querySelectorAll('.delete-maint-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        if (!confirm('Delete this record?')) return;
+        var id = btn.getAttribute('data-id');
+        fetch('/orchard/' + orchardId + '/maintenance/' + id, {
+            method: 'DELETE', credentials: 'include', headers: {'Accept': 'application/json'}
+        }).then(function(r) { if (r.ok) btn.closest('tr').remove(); });
+    });
+});
+</script>
+{% endblock %}

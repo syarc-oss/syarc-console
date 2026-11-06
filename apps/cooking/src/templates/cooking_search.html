@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Search Recipes - Cooking{% endblock %}
+
+{% block content %}
+<style>
+    .recipe-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .recipe-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .recipe-card .card-body { padding: 1.25rem; }
+    .recipe-card h5 { font-size: 1.15rem; margin-bottom: 0.5rem; }
+    .recipe-card .card-text { line-height: 1.5; margin-bottom: 0.75rem; }
+    .ingredient-tag {
+        background: #fff3e0;
+        color: #e65100;
+        border: 1px solid #ffcc80;
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin: 2px;
+    }
+    .search-active {
+        background: #fff8e1;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+</style>
+
+<div class="mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/cooking/">Cooking</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Search</li>
+        </ol>
+    </nav>
+    <h3 class="mb-0"><i class="bi bi-search"></i> Recipe Search</h3>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form action="/cooking/search" method="get" id="searchForm">
+            <div class="input-group">
+                <input type="text" class="form-control" name="q" value="{{ query }}" placeholder='Search by name or description. Use "quotes" for phrases like "pinto beans"'>
+                {% if ingredients %}
+                <input type="hidden" name="ingredients" value="{{ ingredients }}">
+                {% endif %}
+                {% if filter_by_supply %}
+                <input type="hidden" name="filter_by_supply" value="true">
+                {% endif %}
+                <button class="btn btn-warning" type="submit"><i class="bi bi-search"></i></button>
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <form action="/cooking/search" method="get" id="ingredientForm">
+            <div class="input-group">
+                <input type="text" class="form-control" name="ingredients" value="{{ ingredients }}" id="ingredientInput" placeholder="Ingredients (comma separated)...">
+                <input type="hidden" name="q" value="{{ query }}">
+                {% if supply_available %}
+                <div class="input-group-text">
+                    <input type="checkbox" class="form-check-input mt-0" name="filter_by_supply" value="true" id="filterSupplyCheck" {% if filter_by_supply %}checked{% endif %}>
+                    <label class="form-check-label ms-2" for="filterSupplyCheck" style="font-size: 0.85rem;">Supply</label>
+                </div>
+                {% endif %}
+                <button class="btn btn-outline-warning" type="submit"><i class="bi bi-funnel"></i></button>
+            </div>
+            <div id="suggestions" class="dropdown-menu" style="position:absolute; z-index:1000;"></div>
+        </form>
+    </div>
+</div>
+
+{% if query or ingredients %}
+<div class="search-active">
+    <strong>Filters:</strong>
+    {% if query %}<span class="badge bg-warning text-dark me-2">Name: "{{ query }}"</span>{% endif %}
+    {% if ingredients %}<span class="badge bg-info me-2">Ingredients: {{ ingredients }}</span>{% endif %}
+    {% if filter_by_supply %}<span class="badge bg-success me-2">Supply Only</span>{% endif %}
+    <span class="badge bg-secondary">{{ total }} results</span>
+</div>
+{% endif %}
+
+{% if recipe_data %}
+<div class="row row-cols-1 row-cols-md-2 g-4">
+    {% for item in recipe_data %}
+    <div class="col">
+        <div class="card recipe-card" onclick="window.location='/cooking/recipes/{{ item.recipe.id }}?q={{ query|urlencode }}&ingredients={{ ingredients|urlencode }}&filter_by_supply={% if filter_by_supply %}true{% else %}false{% endif %}&page={{ page }}'">
+            <div class="card-body">
+                <h5 class="card-title">
+                    {{ item.recipe.title }}
+                    {% if not item.recipe.is_public %}
+                    <span class="badge bg-secondary" style="font-size: 0.6em;">Private</span>
+                    {% endif %}
+                </h5>
+                {% if item.desc_short %}
+                <p class="card-text text-muted" style="font-size: 0.9rem;">{{ item.desc_short }}{% if item.desc_truncated %}...{% endif %}</p>
+                {% endif %}
+                <div>
+                    {% for ing in item.ingredient_names %}
+                    <span class="ingredient-tag">{{ ing }}</span>
+                    {% endfor %}
+                    {% if item.ingredient_count > 12 %}
+                    <span class="ingredient-tag">+{{ item.ingredient_count - 12 }} more</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+            <a class="page-link" href="/cooking/search?q={{ query }}&ingredients={{ ingredients }}&filter_by_supply={% if filter_by_supply %}true{% endif %}&page={{ page - 1 }}">Previous</a>
+        </li>
+        {% for p in pages %}
+            {% if p == -1 %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% elif p == page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+            {% else %}
+            <li class="page-item">
+                <a class="page-link" href="/cooking/search?q={{ query }}&ingredients={{ ingredients }}&filter_by_supply={% if filter_by_supply %}true{% endif %}&page={{ p }}">{{ p }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+            <a class="page-link" href="/cooking/search?q={{ query }}&ingredients={{ ingredients }}&filter_by_supply={% if filter_by_supply %}true{% endif %}&page={{ page + 1 }}">Next</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+{% elif query or ingredients %}
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle"></i> No recipes found matching your search criteria.
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-search"></i> Enter a search term or ingredients to find recipes.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('ingredientInput');
+    const sugDiv = document.getElementById('suggestions');
+    let debounceTimer;
+
+    if (input) {
+        input.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            const val = this.value.trim();
+            const parts = val.split(',');
+            const last = parts[parts.length - 1].trim();
+            if (last.length < 2) { sugDiv.style.display = 'none'; return; }
+
+            debounceTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch('/cooking/api/ingredients/suggest?q=' + encodeURIComponent(last));
+                    const data = await resp.json();
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        sugDiv.innerHTML = data.suggestions.map(s =>
+                            `<a class="dropdown-item" href="#" data-val="${s}">${s}</a>`
+                        ).join('');
+                        sugDiv.style.display = 'block';
+
+                        sugDiv.querySelectorAll('.dropdown-item').forEach(item => {
+                            item.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                parts[parts.length - 1] = ' ' + this.dataset.val;
+                                input.value = parts.join(',') + ',';
+                                sugDiv.style.display = 'none';
+                            });
+                        });
+                    } else {
+                        sugDiv.style.display = 'none';
+                    }
+                } catch(e) { sugDiv.style.display = 'none'; }
+            }, 250);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!sugDiv.contains(e.target) && e.target !== input) sugDiv.style.display = 'none';
+        });
+    }
+});
+</script>
+{% endblock %}

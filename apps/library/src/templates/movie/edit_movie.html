@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ movie.title }} - Movie Library{% endblock %}
+
+{% block content %}
+<style>
+    .current-poster {
+        max-width: 200px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+    }
+    .new-poster-preview {
+        max-width: 200px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+        display: none;
+    }
+</style>
+
+{% set movie_qs = "cat_page=" ~ cat_page ~ "&cat_per_page=" ~ cat_per_page ~ ("&cat_letter=" ~ cat_letter if cat_letter else "") %}
+
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/library/movie/"><i class="bi bi-film"></i> Movies</a></li>
+        <li class="breadcrumb-item"><a href="/library/movie/category/{{ movie.category_id }}?page={{ cat_page }}&per_page={{ cat_per_page }}{% if cat_letter %}&letter={{ cat_letter }}{% endif %}">{{ movie.category.name }}</a></li>
+        <li class="breadcrumb-item"><a href="/library/movie/movie/{{ movie.id }}?{{ movie_qs }}">{{ movie.title }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit Metadata</li>
+    </ol>
+</nav>
+
+<div class="row mt-3">
+    <div class="col-md-8">
+        <h2><i class="bi bi-pencil"></i> Edit Movie Metadata</h2>
+        <p class="text-muted">Update title, year, description, category and poster for this movie</p>
+
+        <div class="card">
+            <div class="card-body">
+                <form id="editMovieForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="movie_id" value="{{ movie.id }}">
+                    <input type="hidden" name="cat_page" value="{{ cat_page }}">
+                    <input type="hidden" name="cat_per_page" value="{{ cat_per_page }}">
+                    <input type="hidden" name="cat_letter" value="{{ cat_letter }}">
+
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title"
+                               value="{{ movie.title }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="year" class="form-label">Year</label>
+                        <input type="number" class="form-control" id="year" name="year"
+                               value="{{ movie.year or '' }}" min="1900" max="2100" placeholder="e.g. 2024">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="4"
+                                  placeholder="Movie synopsis or notes...">{{ movie.description or '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="category_id" class="form-label">Category</label>
+                        <select class="form-select" id="category_id" name="category_id">
+                            {% for cat in own_categories %}
+                            <option value="{{ cat.id }}" {% if cat.id == movie.category_id %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="poster" class="form-label">Poster Image</label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="poster" name="poster"
+                                   accept="image/jpeg,image/png,image/gif,image/webp">
+                            <button type="button" class="btn btn-outline-secondary" id="pastePosterBtn" title="Paste image from clipboard">
+                                <i class="bi bi-clipboard"></i> Paste from Clipboard
+                            </button>
+                        </div>
+                        <div class="form-text">Upload a new poster image or paste from clipboard</div>
+                        <input type="hidden" id="posterData" name="poster_data" value="">
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Current Poster</h6>
+                                {% if movie.poster_filename %}
+                                <img src="/library/movie/poster/{{ movie.id }}"
+                                     class="current-poster" alt="Current poster">
+                                {% else %}
+                                <p class="text-muted">No poster uploaded</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <h6>New Poster Preview</h6>
+                                <img id="newPosterPreview" class="new-poster-preview" alt="New poster preview">
+                                <p class="text-muted" id="noPreviewText">No image selected</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Save Changes
+                        </button>
+                        <a href="/library/movie/movie/{{ movie.id }}?{{ movie_qs }}" class="btn btn-secondary">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4 border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-folder2-open"></i> Move to Category</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Move the movie file to a different category. The file will be moved on disk to the new category directory.</p>
+                <div class="mb-3">
+                    <label for="moveCategorySelect" class="form-label">Target Category</label>
+                    <select class="form-select" id="moveCategorySelect">
+                        <option value="">-- Select a category --</option>
+                        {% for cat in own_categories %}
+                        <option value="{{ cat.id }}" {% if cat.id == movie.category_id %}disabled{% endif %}>
+                            {{ cat.name }}{% if cat.id == movie.category_id %} (current){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="button" class="btn btn-info" id="moveMovieBtn" disabled>
+                    <i class="bi bi-arrow-right-circle"></i> Move Movie
+                </button>
+            </div>
+        </div>
+
+        <div class="card mt-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="bi bi-trash"></i> Delete Movie</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Remove this movie from the library. This action cannot be undone.</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-danger" id="deleteDbOnlyBtn">
+                        <i class="bi bi-database"></i> Delete from Database Only
+                    </button>
+                    <button type="button" class="btn btn-danger" id="deleteWithDiskBtn">
+                        <i class="bi bi-hard-drive"></i> Delete from Database &amp; Disk
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var posterInput = document.getElementById('poster');
+    var posterDataInput = document.getElementById('posterData');
+    var pastePosterBtn = document.getElementById('pastePosterBtn');
+    var newPosterPreview = document.getElementById('newPosterPreview');
+    var noPreviewText = document.getElementById('noPreviewText');
+    var editForm = document.getElementById('editMovieForm');
+
+    function showPreview(dataUrl) {
+        newPosterPreview.src = dataUrl;
+        newPosterPreview.style.display = 'block';
+        noPreviewText.style.display = 'none';
+    }
+
+    function resizeImage(dataUrl, maxWidth, maxHeight, quality) {
+        return new Promise(function(resolve) {
+            var img = new Image();
+            img.onload = function() {
+                var w = img.width, h = img.height;
+                if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+                if (h > maxHeight) { w = w * maxHeight / h; h = maxHeight; }
+                var canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = dataUrl;
+        });
+    }
+
+    function handleImageData(dataUrl) {
+        resizeImage(dataUrl, 400, 600, 0.8).then(function(resized) {
+            posterDataInput.value = resized;
+            showPreview(resized);
+            posterInput.value = '';
+        });
+    }
+
+    posterInput.addEventListener('change', function(e) {
+        posterDataInput.value = '';
+        var file = e.target.files[0];
+        if (file) {
+            var reader = new FileReader();
+            reader.onload = function(e) { handleImageData(e.target.result); };
+            reader.readAsDataURL(file);
+        } else {
+            newPosterPreview.style.display = 'none';
+            noPreviewText.style.display = 'block';
+        }
+    });
+
+    var waitingForPaste = false;
+    pastePosterBtn.addEventListener('click', async function() {
+        try {
+            var clipboardItems = await navigator.clipboard.read();
+            for (var item of clipboardItems) {
+                var imageType = item.types.find(function(t) { return t.startsWith('image/'); });
+                if (imageType) {
+                    var blob = await item.getType(imageType);
+                    var reader = new FileReader();
+                    reader.onload = function(e) { handleImageData(e.target.result); };
+                    reader.readAsDataURL(blob);
+                    return;
+                }
+            }
+            alert('No image found in clipboard. Copy an image first.');
+        } catch (err) {
+            waitingForPaste = true;
+            pastePosterBtn.textContent = 'Press Ctrl+V now...';
+            pastePosterBtn.classList.add('active');
+        }
+    });
+
+    document.addEventListener('paste', function(e) {
+        if (!waitingForPaste) return;
+        waitingForPaste = false;
+        pastePosterBtn.innerHTML = '<i class="bi bi-clipboard"></i> Paste from Clipboard';
+        pastePosterBtn.classList.remove('active');
+
+        var items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (var item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                var blob = item.getAsFile();
+                var reader = new FileReader();
+                reader.onload = function(ev) { handleImageData(ev.target.result); };
+                reader.readAsDataURL(blob);
+                return;
+            }
+        }
+        alert('No image found in clipboard.');
+    });
+
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+        var submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        try {
+            var response = await fetch('/library/movie/movie/edit', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            });
+            if (response.ok) {
+                var result = await response.json();
+                window.location.href = result.redirect || ('/library/movie/movie/' + formData.get('movie_id'));
+            } else {
+                var error = await response.json();
+                alert('Error: ' + (error.detail || 'Failed to update metadata'));
+            }
+        } catch (error) {
+            alert('Error updating metadata: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
+        }
+    });
+
+    async function deleteMovie(fromDisk) {
+        var msg = fromDisk
+            ? 'Permanently delete from database AND disk?'
+            : 'Remove from database only? File stays on disk.';
+        if (!confirm(msg)) return;
+        if (!confirm('Cannot be undone. Proceed?')) return;
+
+        try {
+            var fd = new FormData();
+            fd.append('delete_from_disk', fromDisk ? 'true' : 'false');
+            var response = await fetch('/library/movie/movie/{{ movie.id }}/delete', {
+                method: 'POST', body: new URLSearchParams(fd)
+            });
+            var data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                window.location.href = '/library/movie/category/{{ movie.category_id }}?page={{ cat_page }}&per_page={{ cat_per_page }}{% if cat_letter %}&letter={{ cat_letter }}{% endif %}';
+            } else {
+                alert('Error: ' + (data.detail || 'Failed'));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    document.getElementById('deleteDbOnlyBtn').addEventListener('click', function() { deleteMovie(false); });
+    document.getElementById('deleteWithDiskBtn').addEventListener('click', function() { deleteMovie(true); });
+
+    var moveSelect = document.getElementById('moveCategorySelect');
+    var moveBtn = document.getElementById('moveMovieBtn');
+
+    moveSelect.addEventListener('change', function() {
+        moveBtn.disabled = !this.value;
+    });
+
+    moveBtn.addEventListener('click', async function() {
+        var targetId = moveSelect.value;
+        if (!targetId) return;
+
+        var selectedOption = moveSelect.options[moveSelect.selectedIndex];
+        var catName = selectedOption.textContent.trim();
+
+        if (!confirm('Move this movie to "' + catName + '"? The file will be moved on disk.')) return;
+
+        moveBtn.disabled = true;
+        moveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Moving...';
+
+        try {
+            var fd = new FormData();
+            fd.append('target_category_id', targetId);
+            fd.append('cat_page', '{{ cat_page }}');
+            fd.append('cat_per_page', '{{ cat_per_page }}');
+            fd.append('cat_letter', '{{ cat_letter }}');
+
+            var response = await fetch('/library/movie/movie/{{ movie.id }}/move', {
+                method: 'POST', body: new URLSearchParams(fd)
+            });
+            var data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                window.location.href = data.redirect || ('/library/movie/movie/{{ movie.id }}');
+            } else {
+                alert('Error: ' + (data.detail || 'Failed to move movie'));
+                moveBtn.disabled = false;
+                moveBtn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Move Movie';
+            }
+        } catch (err) {
+            alert('Error moving movie: ' + err.message);
+            moveBtn.disabled = false;
+            moveBtn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Move Movie';
+        }
+    });
+});
+</script>
+{% endblock %}

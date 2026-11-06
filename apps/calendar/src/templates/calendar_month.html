@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}{{ month_name }} {{ year }} - Calendar{% endblock %}
+{% block content %}
+<style>
+    .cal-cell { height: 120px; vertical-align: top; font-size: 0.8em; }
+    .cal-entry { display: block; padding: 1px 5px; border-radius: 5px; margin-bottom: 2px;
+                 text-decoration: none; color: inherit; overflow: hidden; text-overflow: ellipsis;
+                 white-space: nowrap; }
+    .cal-task  { background-color: #f8d7da; color: #842029; }
+    .cal-chore { background-color: #fff3cd; color: #664d03; }
+    .cal-meal  { background-color: #cfe2ff; color: #084298; }
+    .cal-forage { background-color: #d1e7dd; color: #0f5132; }
+    .cal-appointment { background-color: #e2d9ea; color: #532b87; }
+    .cal-meeting { background-color: #cffaf1; color: #0b5f52; }
+    .cal-wx { font-size: 0.75em; color: #6c757d; }
+</style>
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Calendar</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="d-flex gap-2">
+        <a href="/calendar?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-outline-primary">
+            <i class="bi bi-chevron-left"></i> {{ prev_month_name }}
+        </a>
+        <h3 class="mb-0 align-self-center">{{ month_name }} {{ year }}</h3>
+        <a href="/calendar?year={{ next_year }}&month={{ next_month }}" class="btn btn-outline-primary">
+            {{ next_month_name }} <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="/calendar" class="btn btn-outline-secondary"><i class="bi bi-calendar3"></i> Today</a>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/calendar/invites" class="btn btn-outline-danger position-relative">
+            <i class="bi bi-envelope-heart"></i> Invites
+            {% if invite_count %}<span class="badge bg-danger">{{ invite_count }}</span>{% endif %}
+        </a>
+        <a href="/calendar/tasks" class="btn btn-outline-primary"><i class="bi bi-list-task"></i> Tasks</a>
+        <a href="/calendar/events" class="btn btn-outline-secondary"><i class="bi bi-calendar-event"></i> Events</a>
+        <a href="/calendar/chores" class="btn btn-outline-warning"><i class="bi bi-arrow-repeat"></i> Chores</a>
+        <a href="/calendar/weather" class="btn btn-outline-info"><i class="bi bi-cloud-sun"></i> Weather</a>
+    </div>
+</div>
+
+<div class="card" style="border-radius: 12px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+    <div class="card-body p-0">
+        <table class="table table-bordered mb-0" style="table-layout: fixed;">
+            <thead class="table-primary">
+                <tr>
+                    <th class="text-center">Mon</th><th class="text-center">Tue</th>
+                    <th class="text-center">Wed</th><th class="text-center">Thu</th>
+                    <th class="text-center">Fri</th><th class="text-center">Sat</th>
+                    <th class="text-center">Sun</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for week in weeks %}
+                <tr>
+                    {% for cell in week %}
+                    <td class="p-1 cal-cell">
+                        {% if cell %}
+                        <div class="{{ 'bg-primary text-white rounded px-1' if cell.is_today else 'text-muted' }}">
+                            <a href="/calendar/day/{{ cell.date }}" class="text-decoration-none {{ 'text-white' if cell.is_today else 'text-muted' }}"><strong>{{ cell.day }}</strong></a>
+                            {% if cell.wx %}<span class="cal-wx {{ 'text-white-50' if cell.is_today }}">
+                                {{ cell.wx.temp }}{{ cell.wx.unit }} {{ cell.wx.short }}</span>{% endif %}
+                        </div>
+                        {% for entry in cell.entries %}
+                            {% if entry.kind == "task" %}
+                            <a href="/calendar/tasks/{{ entry.id }}/edit" class="cal-entry cal-task"
+                               title="Task ({{ entry.status }}): {{ entry.label }}">
+                                <i class="bi bi-list-task"></i> {{ entry.label }}</a>
+                            {% elif entry.kind == "chore" %}
+                            <a href="/calendar/chores" class="cal-entry cal-chore" title="Chore: {{ entry.label }}">
+                                <i class="bi bi-arrow-repeat"></i> {{ entry.label }}</a>
+                            {% elif entry.kind == "meal" %}
+                            <a href="/cooking/recipes/{{ entry.recipe_id }}" class="cal-entry cal-meal"
+                               title="{{ entry.meal_type|capitalize }}{% if entry.cook %} - cook: {{ entry.cook }}{% endif %}">
+                                <i class="bi bi-egg-fried"></i> {{ entry.label }}{% if entry.cook %} ({{ entry.cook }}){% endif %}</a>
+                            {% elif entry.kind == "appointment" %}
+                            <a href="/calendar/events/{{ entry.id }}/edit" class="cal-entry cal-appointment"
+                               title="Appointment{% if entry.location %} @ {{ entry.location }}{% endif %}: {{ entry.label }}">
+                                <i class="bi bi-pin-angle"></i>{% if entry.time %} {{ entry.time }}{% endif %} {{ entry.label }}</a>
+                            {% elif entry.kind == "meeting" %}
+                            <a href="/calendar/events/{{ entry.id }}/edit" class="cal-entry cal-meeting"
+                               title="Meeting{% if entry.location %} @ {{ entry.location }}{% endif %}: {{ entry.label }}">
+                                <i class="bi bi-people-fill"></i>{% if entry.time %} {{ entry.time }}{% endif %} {{ entry.label }}</a>
+                            {% elif entry.kind == "foraging" %}
+                            <a href="/agriculture/foraging" class="cal-entry cal-forage"
+                               title="Foraging{% if entry.location %} @ {{ entry.location }}{% endif %}">
+                                <i class="bi bi-tree"></i> {{ entry.label }}</a>
+                            {% endif %}
+                        {% endfor %}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-3 d-flex flex-wrap gap-2">
+    <span class="badge cal-task">Tasks</span>
+    <span class="badge cal-chore">Chores</span>
+    <span class="badge cal-meal">Meals</span>
+    <span class="badge cal-forage">Foraging</span>
+    <span class="badge cal-appointment">Appointments</span>
+    <span class="badge cal-meeting">Meetings</span>
+    <span class="text-muted small">Select a day number for the day detail view.</span>
+</div>
+{% endblock %}

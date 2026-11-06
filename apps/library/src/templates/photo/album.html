@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block title %}{{ album.name }} - Photo Album{% endblock %}
+
+{% block content %}
+<style>
+    .photo-grid-item { transition: transform 0.2s; cursor: pointer; }
+    .photo-grid-item:hover { transform: scale(1.03); }
+    .photo-grid-item img {
+        width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 4px;
+    }
+    /* Lightbox */
+    .lightbox-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.95);
+        z-index: 10000;
+        flex-direction: column;
+    }
+    .lightbox-overlay.active { display: flex; }
+    .lightbox-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 16px;
+        background: rgba(0,0,0,0.6);
+        flex-shrink: 0;
+    }
+    .lightbox-toolbar .btn { color: #ccc; border-color: #555; }
+    .lightbox-toolbar .btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .lightbox-counter {
+        color: #aaa;
+        font-size: 0.9rem;
+        margin: 0 12px;
+    }
+    .lightbox-body {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+        min-height: 0;
+    }
+    .lightbox-body img {
+        max-width: 95%;
+        max-height: 100%;
+        object-fit: contain;
+        user-select: none;
+    }
+    .lightbox-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.5rem;
+        transition: background 0.2s;
+        z-index: 10001;
+    }
+    .lightbox-nav:hover { background: rgba(255,255,255,0.2); }
+    .lightbox-nav.disabled { opacity: 0.2; pointer-events: none; }
+    .lightbox-prev { left: 12px; }
+    .lightbox-next { right: 12px; }
+    .lightbox-filename {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #888;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+    .lightbox-loading {
+        color: #888;
+        font-size: 1.2rem;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/library/photo/">Photos</a></li>
+                {% if parent_name %}
+                <li class="breadcrumb-item"><a href="/library/photo/album/{{ album.parent_id }}">{{ parent_name }}</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active" aria-current="page">{{ album.name }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2 class="d-inline"><i class="bi bi-images"></i> {{ album.name }}</h2>
+                {% if album.is_public %}
+                <span class="badge bg-success ms-2">Public</span>
+                {% else %}
+                <span class="badge bg-secondary ms-2">Private</span>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-list-ol"></i> {{ per_page }} per page
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><h6 class="dropdown-header">Thumbnails per page</h6></li>
+                        {% for pp in [24, 48, 72, 96, 120, 150, 200] %}
+                        <li>
+                            <a class="dropdown-item {% if per_page == pp %}active{% endif %} per-page-option" href="?page=1&per_page={{ pp }}">{{ pp }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% if full_access and is_owner %}
+                <form action="/library/photo/album/{{ album.id }}/toggle-visibility" method="POST" class="d-inline" id="toggleVisibilityForm">
+                    <button type="button" class="btn {% if album.is_public %}btn-outline-secondary{% else %}btn-outline-success{% endif %}" id="toggleVisibilityBtn">
+                        {% if album.is_public %}
+                        <i class="bi bi-eye-slash"></i> Make Private
+                        {% else %}
+                        <i class="bi bi-eye"></i> Make Public
+                        {% endif %}
+                    </button>
+                </form>
+                <a href="/library/photo/album/{{ album.id }}/upload" class="btn btn-primary">
+                    <i class="bi bi-cloud-upload"></i> Upload
+                </a>
+                <a href="/library/photo/album/{{ album.id }}/edit" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if album.description %}
+        <p class="text-muted">{{ album.description }}</p>
+        {% endif %}
+
+        <div class="d-flex gap-3 mb-3 text-muted">
+            <span><i class="bi bi-person"></i> by {{ album.owner.username }}</span>
+            <span><i class="bi bi-image"></i> {{ total }} photos</span>
+            {% if total > per_page %}
+            <span>Showing {{ (current_page - 1) * per_page + 1 }}-{{ [current_page * per_page, total]|min }} of {{ total }}</span>
+            {% endif %}
+        </div>
+
+        {% if sections %}
+        <h5 class="mt-4"><i class="bi bi-diagram-3"></i> Sections</h5>
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3 mt-1 mb-3">
+            {% for sec in sections %}
+            <div class="col">
+                <div class="card" style="cursor: pointer;" onclick="window.location='/library/photo/album/{{ sec.id }}'">
+                    <div class="card-body p-2 text-center">
+                        <i class="bi bi-folder2-open" style="font-size: 2rem;"></i>
+                        <h6 class="mt-1 mb-0" style="font-size: 0.85rem;">{{ sec.name }}</h6>
+                        <small class="text-muted">{{ section_photo_counts[sec.id] | default(0) }} photos</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if photos %}
+        <div class="row row-cols-3 row-cols-md-4 row-cols-lg-6 g-2">
+            {% for photo in photos %}
+            <div class="col">
+                <div class="photo-grid-item" data-photo-id="{{ photo.id }}" data-filename="{{ photo.filename }}"
+                     data-caption="{{ photo.caption or '' }}" data-annotation="{{ photo.annotation or '' }}">
+                    {% if photo.thumbnail_filename %}
+                    <img src="/library/photo/photo/{{ photo.id }}/thumbnail" alt="{{ photo.filename }}">
+                    {% else %}
+                    <img src="/library/photo/photo/{{ photo.id }}/file" alt="{{ photo.filename }}">
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info mt-3">
+            <h5>No Photos Yet</h5>
+            {% if is_owner %}
+            <p>Upload photos to get started.</p>
+            <a href="/library/photo/album/{{ album.id }}/upload" class="btn btn-primary">
+                <i class="bi bi-cloud-upload"></i> Upload Photos
+            </a>
+            {% else %}
+            <p>This album is empty.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if total_pages > 1 %}
+        <nav class="mt-4" aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                <li class="page-item"><a class="page-link" href="?page={{ current_page - 1 }}&per_page={{ per_page }}">Previous</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                {% endif %}
+
+                {% set start_page = [1, current_page - 2]|max %}
+                {% set end_page = [total_pages, current_page + 2]|min %}
+
+                {% if start_page > 1 %}
+                <li class="page-item"><a class="page-link" href="?page=1&per_page={{ per_page }}">1</a></li>
+                {% if start_page > 2 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                {% endif %}
+
+                {% for p in range(start_page, end_page + 1) %}
+                <li class="page-item {% if p == current_page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+
+                {% if end_page < total_pages %}
+                {% if end_page < total_pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+                <li class="page-item"><a class="page-link" href="?page={{ total_pages }}&per_page={{ per_page }}">{{ total_pages }}</a></li>
+                {% endif %}
+
+                {% if current_page < total_pages %}
+                <li class="page-item"><a class="page-link" href="?page={{ current_page + 1 }}&per_page={{ per_page }}">Next</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox-overlay" id="lightbox">
+    <div class="lightbox-toolbar">
+        <div class="d-flex align-items-center" style="flex:0 0 auto;">
+            <button class="btn btn-sm" id="lbClose" title="Close (Esc)">
+                <i class="bi bi-x-lg" style="font-size:1.2rem;"></i>
+            </button>
+            <span class="lightbox-counter" id="lbCounter"></span>
+        </div>
+        <div class="d-flex flex-column align-items-center" style="flex:1 1 auto; min-width:0;">
+            <span id="lbCaption" style="color:#ccc; font-size:0.85rem; display:none;"></span>
+            <span id="lbAnnotation" style="color:#999; font-size:0.8rem; font-style:italic; display:none;"></span>
+        </div>
+        <div class="d-flex gap-1 align-items-center" style="flex:0 0 auto;">
+            {% if full_access %}
+            <a href="#" class="btn btn-sm" id="lbEdit" title="Photo details">
+                <i class="bi bi-pencil-square" style="font-size:1.1rem;"></i> Edit
+            </a>
+            {% else %}
+            <a href="#" class="btn btn-sm" id="lbEdit" title="Photo details">
+                <i class="bi bi-info-circle" style="font-size:1.1rem;"></i> Details
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="lightbox-body">
+        <div class="lightbox-nav lightbox-prev" id="lbPrev" title="Previous (Left arrow)">
+            <i class="bi bi-chevron-left"></i>
+        </div>
+        <img id="lbImage" src="" alt="">
+        <div class="lightbox-nav lightbox-next" id="lbNext" title="Next (Right arrow)">
+            <i class="bi bi-chevron-right"></i>
+        </div>
+        <div class="lightbox-filename" id="lbFilename"></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var STORAGE_KEY = 'photo_per_page';
+    var currentPerPage = {{ per_page }};
+    var albumId = '{{ album.id }}';
+
+    /* per-page persistence */
+    var urlParams = new URLSearchParams(window.location.search);
+    var hasPerPageParam = urlParams.has('per_page');
+    if (!hasPerPageParam) {
+        var stored = localStorage.getItem(STORAGE_KEY);
+        if (stored && parseInt(stored) !== currentPerPage) {
+            window.location.replace(window.location.pathname + '?page=1&per_page=' + stored);
+            return;
+        }
+    }
+    document.querySelectorAll('.per-page-option').forEach(function(link) {
+        link.addEventListener('click', function() {
+            var match = this.getAttribute('href').match(/per_page=(\d+)/);
+            if (match) localStorage.setItem(STORAGE_KEY, match[1]);
+        });
+    });
+
+    /* toggle visibility */
+    var toggleBtn = document.getElementById('toggleVisibilityBtn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', async function() {
+            var making = this.textContent.trim().includes('Public') ? 'public' : 'private';
+            if (!confirm('Make this entire album ' + making + '?')) return;
+            this.disabled = true;
+            try {
+                var resp = await fetch('/library/photo/album/' + albumId + '/toggle-visibility', { method: 'POST' });
+                var data = await resp.json();
+                alert(data.message);
+                window.location.reload();
+            } catch(e) { alert('Error: ' + e.message); }
+            this.disabled = false;
+        });
+    }
+
+    /* lightbox state */
+    var allPhotoIds = [];
+    var allFilenames = {};
+    var allCaptions = {};
+    var allAnnotations = {};
+    var currentIndex = -1;
+    var overlay = document.getElementById('lightbox');
+    var lbImage = document.getElementById('lbImage');
+    var lbCounter = document.getElementById('lbCounter');
+    var lbFilename = document.getElementById('lbFilename');
+    var lbEdit = document.getElementById('lbEdit');
+    var lbPrev = document.getElementById('lbPrev');
+    var lbNext = document.getElementById('lbNext');
+    var lbCaption = document.getElementById('lbCaption');
+    var lbAnnotation = document.getElementById('lbAnnotation');
+
+    {% if photos %}
+    /* seed from page photos */
+    {% for photo in photos %}
+    allPhotoIds.push('{{ photo.id }}');
+    allFilenames['{{ photo.id }}'] = '{{ photo.filename }}';
+    allCaptions['{{ photo.id }}'] = '{{ (photo.caption or "")|e }}';
+    allAnnotations['{{ photo.id }}'] = '{{ (photo.annotation or "")|e }}';
+    {% endfor %}
+    {% endif %}
+
+    /* fetch full list if there might be more pages */
+    var totalPhotos = {{ total }};
+    if (totalPhotos > allPhotoIds.length) {
+        fetch('/library/photo/album/' + albumId + '/photo-ids')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                allPhotoIds = data.photo_ids;
+                /* keep filenames we already have */
+            });
+    }
+
+    function findIndex(photoId) {
+        for (var i = 0; i < allPhotoIds.length; i++) {
+            if (allPhotoIds[i] === photoId) return i;
+        }
+        return -1;
+    }
+
+    function preload(direction) {
+        var idx = currentIndex + direction;
+        if (idx >= 0 && idx < allPhotoIds.length) {
+            var img = new Image();
+            img.src = '/library/photo/photo/' + allPhotoIds[idx] + '/file';
+        }
+    }
+
+    function showPhoto(index) {
+        if (index < 0 || index >= allPhotoIds.length) return;
+        currentIndex = index;
+        var id = allPhotoIds[index];
+        lbImage.src = '/library/photo/photo/' + id + '/file';
+        lbCounter.textContent = (index + 1) + ' / ' + allPhotoIds.length;
+        lbFilename.textContent = allFilenames[id] || '';
+        lbEdit.href = '/library/photo/photo/' + id;
+
+        var caption = allCaptions[id] || '';
+        var annotation = allAnnotations[id] || '';
+        if (caption) { lbCaption.textContent = caption; lbCaption.style.display = ''; }
+        else { lbCaption.style.display = 'none'; }
+        if (annotation) { lbAnnotation.textContent = annotation; lbAnnotation.style.display = ''; }
+        else { lbAnnotation.style.display = 'none'; }
+
+        lbPrev.classList.toggle('disabled', index === 0);
+        lbNext.classList.toggle('disabled', index === allPhotoIds.length - 1);
+
+        preload(1);
+        preload(-1);
+    }
+
+    function openLightbox(photoId) {
+        var idx = findIndex(photoId);
+        if (idx === -1) {
+            allPhotoIds.unshift(photoId);
+            idx = 0;
+        }
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        showPhoto(idx);
+    }
+
+    function closeLightbox() {
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+        lbImage.src = '';
+    }
+
+    function navPrev() {
+        if (currentIndex > 0) showPhoto(currentIndex - 1);
+    }
+
+    function navNext() {
+        if (currentIndex < allPhotoIds.length - 1) showPhoto(currentIndex + 1);
+    }
+
+    /* click thumbnails */
+    document.querySelectorAll('.photo-grid-item').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            var pid = this.getAttribute('data-photo-id');
+            var fname = this.getAttribute('data-filename');
+            if (!allFilenames[pid]) allFilenames[pid] = fname;
+            openLightbox(pid);
+        });
+    });
+
+    /* toolbar buttons */
+    document.getElementById('lbClose').addEventListener('click', closeLightbox);
+    lbPrev.addEventListener('click', navPrev);
+    lbNext.addEventListener('click', navNext);
+
+    /* click dark area to close (but not the image) */
+    overlay.querySelector('.lightbox-body').addEventListener('click', function(e) {
+        if (e.target === this) closeLightbox();
+    });
+
+    /* keyboard */
+    document.addEventListener('keydown', function(e) {
+        if (!overlay.classList.contains('active')) return;
+        if (e.key === 'Escape') { closeLightbox(); e.preventDefault(); }
+        else if (e.key === 'ArrowLeft') { navPrev(); e.preventDefault(); }
+        else if (e.key === 'ArrowRight') { navNext(); e.preventDefault(); }
+    });
+})();
+</script>
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

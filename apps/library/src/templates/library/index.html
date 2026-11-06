@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Library{% endblock %}
+
+{% block content %}
+<style>
+    .library-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .library-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .library-card .card-body {
+        padding: 2rem;
+        text-align: center;
+    }
+    .library-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+    .library-card .stat {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    .library-card.ebook { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .library-card.music { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; }
+    .library-card.audiobook { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; }
+    .library-card.movie { background: linear-gradient(135deg, #e65100 0%, #ff6d00 100%); color: white; }
+    .library-card.photo { background: linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%); color: white; }
+    .library-card.kiwix { background: linear-gradient(135deg, #0d47a1 0%, #546e7a 100%); color: white; }
+    .library-card .card-body a { color: white; text-decoration: none; }
+    .library-card .btn-outline-light { border-width: 2px; }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <h2><i class="bi bi-collection"></i> Library</h2>
+        <p class="text-muted">Your media collections — ebooks, music, and audiobooks</p>
+
+        <div class="row row-cols-1 row-cols-md-3 g-4 mt-3">
+            {% if 'ebook' in allowed_sub_apps %}
+            <div class="col">
+                <div class="card library-card ebook" onclick="window.location='/library/ebook/'">
+                    <div class="card-body">
+                        <div class="library-icon">
+                            <i class="bi bi-book-fill"></i>
+                        </div>
+                        <h4>Ebooks</h4>
+                        <p class="card-text">Browse and read your EPUB and PDF collection</p>
+                        <div class="stat mb-3">{{ book_count }}</div>
+                        <p class="mb-3">Books</p>
+                        <a href="/library/ebook/" class="btn btn-outline-light btn-lg">
+                            Open Ebooks <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if 'music' in allowed_sub_apps %}
+            <div class="col">
+                <div class="card library-card music" onclick="window.location='/library/music/'">
+                    <div class="card-body">
+                        <div class="library-icon">
+                            <i class="bi bi-music-note-beamed"></i>
+                        </div>
+                        <h4>Music</h4>
+                        <p class="card-text">Browse and stream your music collection</p>
+                        <div class="stat mb-3">{{ music_count }}</div>
+                        <p class="mb-3">Albums</p>
+                        <a href="/library/music/" class="btn btn-outline-light btn-lg">
+                            Open Music <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if 'audiobook' in allowed_sub_apps %}
+            <div class="col">
+                <div class="card library-card audiobook" onclick="window.location='/library/audiobook/'">
+                    <div class="card-body">
+                        <div class="library-icon">
+                            <i class="bi bi-headphones"></i>
+                        </div>
+                        <h4>Audiobooks</h4>
+                        <p class="card-text">Browse and listen to your audiobook collection</p>
+                        <div class="stat mb-3">{{ audiobook_count }}</div>
+                        <p class="mb-3">Books</p>
+                        <a href="/library/audiobook/" class="btn btn-outline-light btn-lg">
+                            Open Audiobooks <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if 'movie' in allowed_sub_apps %}
+            <div class="col">
+                <div class="card library-card movie" onclick="window.location='/library/movie/'">
+                    <div class="card-body">
+                        <div class="library-icon">
+                            <i class="bi bi-film"></i>
+                        </div>
+                        <h4>Movies</h4>
+                        {% if movie_full_access %}
+                        <p class="card-text">Browse and manage movie categories</p>
+                        <div class="stat mb-3">{{ movie_count }}</div>
+                        <p class="mb-3">Movies</p>
+                        {% else %}
+                        <p class="card-text">Browse public movie categories</p>
+                        <div class="stat mb-3">{{ movie_count }}</div>
+                        <p class="mb-3">Public Movies</p>
+                        {% endif %}
+                        <a href="/library/movie/" class="btn btn-outline-light btn-lg">
+                            Open Movies <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if 'photo' in allowed_sub_apps %}
+            <div class="col">
+                <div class="card library-card photo" onclick="window.location='/library/photo/'">
+                    <div class="card-body">
+                        <div class="library-icon">
+                            <i class="bi bi-camera"></i>
+                        </div>
+                        <h4>Photos</h4>
+                        {% if photo_full_access %}
+                        <p class="card-text">Browse and manage photo albums</p>
+                        <div class="stat mb-3">{{ photo_count }}</div>
+                        <p class="mb-3">Albums</p>
+                        {% else %}
+                        <p class="card-text">Browse public photo albums</p>
+                        <div class="stat mb-3">{{ photo_count }}</div>
+                        <p class="mb-3">Public Albums</p>
+                        {% endif %}
+                        <a href="/library/photo/" class="btn btn-outline-light btn-lg">
+                            Open Photos <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="col">
+                <div class="card library-card kiwix" onclick="window.open('/knowledge', '_blank')">
+                    <div class="card-body">
+                        <div class="library-icon">
+                            <i class="bi bi-globe2"></i>
+                        </div>
+                        <h4>Knowledge</h4>
+                        <p class="card-text">Offline encyclopedia and reference library (Kiwix)</p>
+                        <p class="card-text small">Emergency medicine, survival, Appropedia and more</p>
+                        <a href="/knowledge" target="_blank" class="btn btn-outline-light btn-lg">
+                            Open Knowledge <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            {% if not allowed_sub_apps %}
+            <div class="col-md-12">
+                <div class="alert alert-warning">
+                    <h4>No Library Apps Available</h4>
+                    <p>Contact your administrator to request access to ebooks, music, or audiobooks.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

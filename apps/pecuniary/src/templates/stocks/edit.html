@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Update Transaction{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow">
+                <div class="card-body p-4">
+                    <h3 class="card-title mb-4">Update Transaction</h3>
+                    
+                    <!-- Action points to the update route with the specific ID -->
+                    <form action="/pecuniary/stocks/update/{{ transaction.id }}" method="post">
+                        
+                        <!-- Hidden field to remember where to go back to (the detail page) -->
+                        <input type="hidden" name="next" value="{{ next }}">
+
+                        <div class="mb-3">
+                            <label for="symbol" class="form-label">Symbol</label>
+                            <!-- Pre-filled value -->
+                            <input type="text" class="form-control form-control-lg" id="symbol" name="symbol" value="{{ transaction.symbol }}" required style="text-transform: uppercase;">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="broker" class="form-label">Broker</label>
+                            <input type="text" class="form-control" id="broker" name="broker" value="{{ transaction.broker }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="type" class="form-label">Type</label>
+                            <select class="form-select form-select-lg" id="type" name="type" required>
+                                <!-- We check the value against the current transaction type to select the right option -->
+                                <option value="BUY" {% if transaction.type == 'BUY' %}selected{% endif %}>Buy</option>
+                                <option value="SELL" {% if transaction.type == 'SELL' %}selected{% endif %}>Sell</option>
+                                <option value="DIVIDEND" {% if transaction.type == 'DIVIDEND' %}selected{% endif %}>Dividend</option>
+                                <option value="FEE" {% if transaction.type == 'FEE' %}selected{% endif %}>Fee</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="transaction_date" class="form-label">Date</label>
+                            <!-- Convert date object to YYYY-MM-DD string for HTML input -->
+                            <input type="date" class="form-control" id="transaction_date" name="transaction_date" value="{{ transaction.transaction_date }}" required>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="shares" class="form-label">Shares</label>
+                                <input type="number" step="any" class="form-control" id="shares" name="shares" value="{{ transaction.shares }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="price_per_share" class="form-label">Price per Share</label>
+                                <input type="number" step="any" class="form-control" id="price_per_share" name="price_per_share" value="{{ transaction.price_per_share }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="total_value" class="form-label fw-bold">Total Value ($)</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="any" class="form-control" id="total_value" name="total_value" value="{{ transaction.total_value }}">
+                            </div>
+                            <div class="form-text">Auto-calculated from Shares × Price. Enter manually to override.</div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">Update Transaction</button>
+                            
+                            <!-- Cancel button goes back to the previous page (detail view) -->
+                            <a href="{{ next }}" class="btn btn-light">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Track if user manually modified the total field
+    let totalManuallyModified = false;
+
+    // Auto-calculate total value when shares and price per share are entered
+    function calculateTotal() {
+        const sharesInput = document.getElementById('shares');
+        const priceInput = document.getElementById('price_per_share');
+        const totalInput = document.getElementById('total_value');
+
+        const shares = parseFloat(sharesInput.value);
+        const pricePerShare = parseFloat(priceInput.value);
+        const currentTotal = parseFloat(totalInput.value) || 0;
+
+        console.log(`Calculation check - shares: ${shares}, price: ${pricePerShare}, currentTotal: ${currentTotal}, manualModified: ${totalManuallyModified}`);
+
+        // Only auto-calculate if:
+        // 1. Both shares and price are valid numbers
+        // 2. User hasn't manually modified the total field
+        // 3. OR total is empty (0)
+        if (!isNaN(shares) && !isNaN(pricePerShare) && shares > 0 && pricePerShare > 0) {
+            if (!totalManuallyModified || currentTotal === 0) {
+                const calculatedTotal = shares * pricePerShare;
+                totalInput.value = calculatedTotal.toFixed(2);
+                console.log(`Auto-calculated total: ${shares} × ${pricePerShare} = ${totalInput.value}`);
+            } else {
+                console.log(`Skipping auto-calculation - user manually entered total: ${currentTotal}`);
+            }
+        }
+    }
+
+    // Mark total as manually modified when user types in it
+    document.getElementById('total_value').addEventListener('input', function() {
+        const value = parseFloat(this.value) || 0;
+        // Only mark as manually modified if user entered a non-zero value
+        if (value > 0) {
+            totalManuallyModified = true;
+            console.log('Total field manually modified - will respect this value');
+        } else {
+            totalManuallyModified = false;
+            console.log('Total cleared - will auto-calculate again');
+        }
+    });
+
+    // Reset manual modification flag when shares or price changes if total is 0
+    function checkIfCanResetManualFlag() {
+        const currentTotal = parseFloat(document.getElementById('total_value').value) || 0;
+        if (currentTotal === 0) {
+            totalManuallyModified = false;
+            console.log('Reset manual flag - total is 0');
+        }
+    }
+
+    document.getElementById('shares').addEventListener('input', function() {
+        checkIfCanResetManualFlag();
+        calculateTotal();
+    });
+    document.getElementById('price_per_share').addEventListener('input', function() {
+        checkIfCanResetManualFlag();
+        calculateTotal();
+    });
+</script>
+{% endblock %}

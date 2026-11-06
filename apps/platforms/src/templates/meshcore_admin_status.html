@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Status — {{ node.name or node.node_id[:12] }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/platforms/messaging/">Messages</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/messaging/mesh/">Mesh Bridge</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/">MeshCore</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts">Contacts</a></li>
+    <li class="breadcrumb-item"><a href="/platforms/meshcore/contacts/{{ node.node_id }}">{{ node.name or node.node_id[:12] }}</a></li>
+    <li class="breadcrumb-item active">Status</li>
+  </ol>
+</nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0"><i class="bi bi-activity"></i> Node status
+    <small class="text-muted">{{ node.name or node.node_id[:12] }}</small></h2>
+  <div class="btn-group btn-group-sm">
+    <a class="btn btn-primary" href="#"><i class="bi bi-activity"></i> Status</a>
+    <a class="btn btn-outline-primary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/console"><i class="bi bi-terminal"></i> Console</a>
+    <a class="btn btn-outline-primary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/settings"><i class="bi bi-gear"></i> Settings</a>
+    <form method="post" action="/platforms/meshcore/contacts/{{ node.node_id }}/admin/logout">
+      <button class="btn btn-outline-danger"><i class="bi bi-box-arrow-right"></i> Log out</button>
+    </form>
+  </div>
+</div>
+
+{% if ver %}<p class="text-muted small mb-3">{{ ver }}</p>{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Power &amp; time</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-50">Battery</th><td>{{ status.battery_mv }} mV (~{{ status.battery_pct }}%)</td></tr>
+      <tr><th>Temperature</th><td><span class="text-muted">— (not reported in the status frame)</span></td></tr>
+      <tr><th>Clock</th><td class="font-monospace">{{ clock or "—" }}</td></tr>
+      <tr><th>Uptime</th><td>{{ status.uptime_hms }} ({{ status.uptime }} s)</td></tr>
+    </table>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Airtime</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-50">Total airtime</th><td>{{ status.airtime_hms }} ({{ "%.3f"|format(status.airtime_pct) }}% duty)</td></tr>
+      <tr><th>RX airtime</th><td>{{ status.rx_airtime }} s</td></tr>
+      <tr><th>Queue length</th><td>{{ status.tx_queue_len }}</td></tr>
+      <tr><th>Debug flags</th><td class="font-monospace">{{ status.full_evts_hex }} ({{ status.full_evts }})</td></tr>
+    </table>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Radio link</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-50">Last RSSI</th><td>{{ status.last_rssi }} dBm</td></tr>
+      <tr><th>Last SNR</th><td>{{ status.last_snr }} dB</td></tr>
+      <tr><th>Noise floor</th><td>{{ status.noise_floor }} dBm</td></tr>
+    </table>
+  </div></div></div>
+
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
+    <h6 class="text-muted">Packets</h6>
+    <table class="table table-sm mb-0">
+      <tr><th class="w-50">Sent</th><td>{{ status.nb_sent }} (flood {{ status.sent_flood }}, direct {{ status.sent_direct }})</td></tr>
+      <tr><th>Received</th><td>{{ status.nb_recv }} (flood {{ status.recv_flood }}, direct {{ status.recv_direct }})</td></tr>
+      <tr><th>Duplicates seen</th><td>{{ status.duplicates }} (flood {{ status.flood_dups }}, direct {{ status.direct_dups }})</td></tr>
+      <tr><th>Receive errors</th><td>{% if status.recv_errors >= 0 %}{{ status.recv_errors }}{% else %}<span class="text-muted">not reported</span>{% endif %}</td></tr>
+    </table>
+  </div></div></div>
+</div>
+<a class="btn btn-sm btn-outline-secondary" href="/platforms/meshcore/contacts/{{ node.node_id }}/admin/status"><i class="bi bi-arrow-clockwise"></i> Refresh</a>
+{% endblock %}

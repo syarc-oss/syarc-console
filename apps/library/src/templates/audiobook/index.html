@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Audiobook Library{% endblock %}
+
+{% block content %}
+<style>
+    .feature-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .feature-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .book-card {
+        transition: transform 0.2s;
+        height: 100%;
+    }
+    .book-card:hover {
+        transform: translateY(-3px);
+    }
+    .book-cover {
+        aspect-ratio: 1/1;
+        object-fit: cover;
+        background: #e9ecef;
+    }
+</style>
+
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Audiobooks</li>
+            </ol>
+        </nav>
+        <h2><i class="bi bi-headphones"></i> Audiobook Library</h2>
+        <p class="text-muted">Browse audiobook topics</p>
+
+        <!-- Library Stats -->
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ all_books_count }}</h2>
+                            <p class="mb-0">Total Books</p>
+                        </div>
+                        <i class="bi bi-headphones" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ total_authors }}</h2>
+                            <p class="mb-0">Authors</p>
+                        </div>
+                        <i class="bi bi-people-fill" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-0">{{ public_books_count }}</h2>
+                            <p class="mb-0">Public Books</p>
+                        </div>
+                        <i class="bi bi-globe" style="font-size: 3rem; opacity: 0.5;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Cards -->
+        <div class="row row-cols-1 row-cols-md-3 row-cols-lg-5 g-4 mt-3 mb-4">
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/audiobook/browse/topics'">
+                    <div class="card-body">
+                        <div class="feature-icon text-success"><i class="bi bi-tags-fill"></i></div>
+                        <h5 class="card-title">Browse Topics</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/audiobook/browse/authors'">
+                    <div class="card-body">
+                        <div class="feature-icon text-warning"><i class="bi bi-person-fill"></i></div>
+                        <h5 class="card-title">Authors</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/audiobook/browse/albums'">
+                    <div class="card-body">
+                        <div class="feature-icon text-info"><i class="bi bi-collection-fill"></i></div>
+                        <h5 class="card-title">All Books</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/audiobook/playlists'">
+                    <div class="card-body">
+                        <div class="feature-icon" style="color: #9b59b6;"><i class="bi bi-music-note-list"></i></div>
+                        <h5 class="card-title">My Playlists</h5>
+                    </div>
+                </div>
+            </div>
+            {% if write_access %}
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/audiobook/topic/new'">
+                    <div class="card-body">
+                        <div class="feature-icon text-danger"><i class="bi bi-plus-circle"></i></div>
+                        <h5 class="card-title">New Topic</h5>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% if user.is_superuser %}
+            <div class="col">
+                <div class="card feature-card text-center" onclick="window.location='/library/audiobook/admin'">
+                    <div class="card-body">
+                        <div class="feature-icon text-dark"><i class="bi bi-shield-lock"></i></div>
+                        <h5 class="card-title">Admin</h5>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Quick Add Books -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5><i class="bi bi-plus-circle"></i> Add Books</h5>
+                <p class="text-muted small">Enter the path to a folder under your audiobook library to import new books without a full rescan.</p>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="addBooksPath"
+                           placeholder="/usr/local/library/audiobooks/{{ user.username }}/topic/">
+                    <button class="btn btn-outline-secondary" type="button" id="dirBrowserSelectBtn">
+                        <i class="bi bi-folder2-open"></i>
+                    </button>
+                    <button class="btn btn-success" type="button" id="addBooksBtn">
+                        <i class="bi bi-plus-lg"></i> Add Books
+                    </button>
+                </div>
+                <div id="addBooksResult" class="mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5><i class="bi bi-search"></i> Search</h5>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="quickSearchInput" placeholder="Search authors, books, chapters...">
+                    <button class="btn btn-primary" id="quickSearchBtn"><i class="bi bi-search"></i></button>
+                </div>
+                <div id="searchResults" class="mt-3" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Recently Added Books -->
+        {% if recent_books %}
+        <div class="mt-5">
+            <h4><i class="bi bi-clock-history"></i> Recently Added</h4>
+            <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3 mt-2">
+                {% for book in recent_books %}
+                <div class="col">
+                    <div class="card book-card">
+                        <a href="/library/audiobook/album/{{ book.id }}">
+                            {% if book.image_filename %}
+                            <img src="/library/audiobook/book/{{ book.id }}/art?t={{ book.updated_at | default(0) }}"
+                                 class="card-img-top book-cover" alt="{{ book.title }}">
+                            {% else %}
+                            <div class="card-img-top book-cover d-flex align-items-center justify-content-center bg-light">
+                                <i class="bi bi-headphones text-muted" style="font-size: 3rem;"></i>
+                            </div>
+                            {% endif %}
+                        </a>
+                        <div class="card-body p-2">
+                            <h6 class="card-title mb-1" style="font-size: 0.85rem; line-height: 1.2;">
+                                <a href="/library/audiobook/album/{{ book.id }}" class="text-decoration-none">
+                                    {{ book.title[:50] }}{% if book.title|length > 50 %}...{% endif %}
+                                </a>
+                            </h6>
+                            <p class="card-text text-muted mb-0" style="font-size: 0.75rem;">{{ book.author.name }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const searchInput = document.getElementById('quickSearchInput');
+const searchBtn = document.getElementById('quickSearchBtn');
+const searchResults = document.getElementById('searchResults');
+
+async function doSearch() {
+    const q = searchInput.value.trim();
+    if (!q) return;
+
+    const res = await fetch(`/library/audiobook/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+
+    let html = '';
+    if (data.authors.length) {
+        html += '<h6>Authors</h6><div class="list-group mb-2">';
+        for (const a of data.authors) {
+            html += `<a href="/library/audiobook/author/${a.id}" class="list-group-item list-group-item-action"><i class="bi bi-person"></i> ${a.name}</a>`;
+        }
+        html += '</div>';
+    }
+    if (data.albums.length) {
+        html += '<h6>Books</h6><div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-2 mb-2">';
+        for (const a of data.albums) {
+            const imgSrc = a.image ? `/library/audiobook/book/${a.id}/art?t=${a.updated_at || 0}` : '';
+            html += `<div class="col"><a href="/library/audiobook/album/${a.id}" class="text-decoration-none">
+                <div class="card h-100">
+                    ${imgSrc ? `<img src="${imgSrc}" class="card-img-top" style="aspect-ratio:1/1;object-fit:cover;">` : '<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="aspect-ratio:1/1;"><i class="bi bi-headphones text-muted" style="font-size:2rem;"></i></div>'}
+                    <div class="card-body p-1"><small class="text-dark">${a.title}</small></div>
+                </div></a></div>`;
+        }
+        html += '</div>';
+    }
+    if (data.tracks.length) {
+        html += '<h6>Chapters</h6><div class="list-group">';
+        for (const t of data.tracks) {
+            html += `<div class="list-group-item list-group-item-action" style="cursor:pointer;" onclick="window.open('/library/audiobook/player?source=song:${t.id}&shuffle=false','_blank')"><i class="bi bi-play-circle"></i> ${t.title} <small class="text-muted">(${t.album_title})</small></div>`;
+        }
+        html += '</div>';
+    }
+    if (!data.authors.length && !data.albums.length && !data.tracks.length) {
+        html = '<div class="alert alert-info">No results found.</div>';
+    }
+    searchResults.innerHTML = html;
+    searchResults.style.display = '';
+}
+
+if (searchBtn) searchBtn.addEventListener('click', doSearch);
+if (searchInput) searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') doSearch(); });
+</script>
+<script>
+var addBooksBtnEl = document.getElementById('addBooksBtn');
+if (addBooksBtnEl) {
+    addBooksBtnEl.addEventListener('click', async function() {
+        var path = document.getElementById('addBooksPath').value.trim();
+        var resultDiv = document.getElementById('addBooksResult');
+        if (!path) {
+            resultDiv.innerHTML = '<div class="alert alert-warning">Please enter a folder path.</div>';
+            resultDiv.style.display = 'block';
+            return;
+        }
+        addBooksBtnEl.disabled = true;
+        addBooksBtnEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Adding...';
+        try {
+            var fd = new FormData();
+            fd.append('file_path', path);
+            var response = await fetch('/library/audiobook/add', { method: 'POST', body: new URLSearchParams(fd) });
+            var data = await response.json();
+            if (response.ok && data.success) {
+                resultDiv.innerHTML = '<div class="alert alert-success">' + data.message + ' <a href="/library/audiobook/browse/topics">Refresh topics</a></div>';
+            } else {
+                resultDiv.innerHTML = '<div class="alert alert-danger">' + (data.message || data.detail || 'Failed to add books') + '</div>';
+            }
+        } catch (err) {
+            resultDiv.innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
+        }
+        resultDiv.style.display = 'block';
+        addBooksBtnEl.disabled = false;
+        addBooksBtnEl.innerHTML = '<i class="bi bi-plus-lg"></i> Add Books';
+    });
+}
+var DIR_BROWSER_ROOT = "audiobook";
+var DIR_BROWSER_INPUT_ID = "addBooksPath";
+var DIR_BROWSER_SELECT_BTN_ID = "dirBrowserSelectBtn";
+var DIR_BROWSER_START = "/usr/local/library/audiobooks/{{ user.username }}";
+</script>
+{% include "library/dir_browser.html" %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+{% endblock %}

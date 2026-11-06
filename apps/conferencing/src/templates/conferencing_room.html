@@ -1,0 +1,986 @@
+{% extends "base.html" %}
+
+{% block title %}Conference Room{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="/conferencing/"><i class="bi bi-house"></i> Conferencing</a></li>
+                <li class="breadcrumb-item active">Room</li>
+            </ol>
+        </nav>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>
+                <i class="bi bi-people-fill"></i> Conference Room
+            </h3>
+            <span class="d-flex align-items-center gap-3">
+                <span id="participant-count" class="badge bg-info">1 participant</span>
+                <span id="room-timer" class="font-monospace text-muted">00:00</span>
+                <span id="recording-indicator"
+                      style="display:none;background:#dc3545;color:#fff;padding:4px 10px;border-radius:14px;align-items:center;gap:6px;">
+                    <span style="display:inline-block;width:8px;height:8px;background:#fff;border-radius:50%;animation:pulse 1s infinite;"></span>
+                    <span id="recording-timer" class="font-monospace">0:00</span>
+                </span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-body p-2" style="min-height:480px;background:#1a1a1a;">
+                <!-- Participant tile grid -->
+                <div id="tile-grid" class="d-flex flex-wrap gap-2 justify-content-center align-items-stretch"
+                     style="min-height:480px;"></div>
+            </div>
+            <div class="card-footer d-flex justify-content-center gap-3">
+                <button class="btn btn-outline-light btn-lg rounded-circle" id="mute-btn" title="Mute"
+                        style="width:56px;height:56px;background:#444;">
+                    <i class="bi bi-mic-fill"></i>
+                </button>
+                {% if media_type == 'video' %}
+                <button class="btn btn-outline-light btn-lg rounded-circle" id="camera-btn" title="Toggle camera"
+                        style="width:56px;height:56px;background:#444;">
+                    <i class="bi bi-camera-video-fill"></i>
+                </button>
+                {% endif %}
+                <button class="btn btn-outline-light btn-lg rounded-circle" id="record-btn" title="Record"
+                        style="width:56px;height:56px;background:#444;">
+                    <i class="bi bi-record-circle"></i>
+                </button>
+                <button class="btn btn-danger btn-lg rounded-circle" id="leave-btn" title="Leave room"
+                        style="width:64px;height:64px;">
+                    <i class="bi bi-box-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-people"></i> Participants</div>
+            <ul class="list-group list-group-flush" id="participant-list">
+                <li class="list-group-item py-2 small text-muted">Connecting…</li>
+            </ul>
+        </div>
+        <div class="card mt-3" id="pending-invites-card" style="display:none;">
+            <div class="card-header">
+                <i class="bi bi-hourglass-split"></i> Pending Invites
+            </div>
+            <ul class="list-group list-group-flush" id="pending-invites-list"></ul>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header"><i class="bi bi-link-45deg"></i> Share</div>
+            <div class="card-body">
+                <button class="btn btn-primary btn-sm w-100 mb-2" id="invite-btn">
+                    <i class="bi bi-person-plus"></i> Invite Users
+                </button>
+                <p class="small text-muted mb-2 mt-2">Or share this link:</p>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" id="room-url-input" readonly value="">
+                    <button class="btn btn-outline-secondary" id="copy-url-btn" type="button">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invite Users Modal -->
+<div class="modal fade" id="inviteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus"></i> Invite to Room</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Select users to ring into this room. They'll get an incoming notification.</p>
+                <div id="invite-user-list" class="list-group" style="max-height:300px;overflow-y:auto;">
+                    <div class="text-center text-muted py-3"><small>Loading…</small></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="send-invites-btn">
+                    <i class="bi bi-telephone"></i> Ring Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden local preview source (mirrored into the tile grid) -->
+<video id="local-source" autoplay playsinline muted style="display:none;"></video>
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+.tile {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    flex: 1 1 320px;
+    min-width: 280px;
+    min-height: 200px;
+    max-width: 480px;
+}
+.tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.tile .tile-label {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+}
+.tile .tile-avatar {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 3rem;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script>
+(function() {
+    var ROOM_ID = "{{ room.id }}";
+    var MY_ID = "{{ user.id }}";
+    var MY_USERNAME = "{{ user.username }}";
+    var MEDIA_TYPE = "{{ media_type }}";
+    var ICE_CONFIG = {{ ice_config | tojson }};
+    var INITIAL_ROSTER = {{ participants | tojson }};
+
+    // ---- DOM ----
+    var tileGrid = document.getElementById('tile-grid');
+    var participantList = document.getElementById('participant-list');
+    var participantCount = document.getElementById('participant-count');
+    var roomTimerEl = document.getElementById('room-timer');
+    var muteBtn = document.getElementById('mute-btn');
+    var cameraBtn = document.getElementById('camera-btn');
+    var leaveBtn = document.getElementById('leave-btn');
+    var recordBtn = document.getElementById('record-btn');
+    var recordingIndicator = document.getElementById('recording-indicator');
+    var recordingTimerEl = document.getElementById('recording-timer');
+    var roomUrlInput = document.getElementById('room-url-input');
+    var copyUrlBtn = document.getElementById('copy-url-btn');
+
+    roomUrlInput.value = window.location.origin + '/conferencing/room/' + ROOM_ID;
+
+    // ---- State ----
+    var ws = null;
+    var localStream = null;
+    var startedAt = Date.now();
+    var timerHandle = null;
+    var ended = false;
+
+    // Per-peer state. Keyed by peer_user_id (string).
+    // Each entry: { pc, readyPending, offerSent, peerReady, pendingCandidates, username }
+    var peers = {};
+
+    // ---- Recording state ----
+    var recorder = null;
+    var recorderChunks = [];
+    var recorderStartTime = 0;
+    var recorderTimerHandle = null;
+
+    // ---- Wake Lock (prevent phone from sleeping during a call) ----
+    var wakeLock = null;
+
+    async function acquireWakeLock() {
+        if (!('wakeLock' in navigator)) return;
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', function() {
+                acquireWakeLock();
+            });
+        } catch (err) {}
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock) {
+            try { wakeLock.release(); } catch (e) {}
+            wakeLock = null;
+        }
+    }
+
+    // ---- Connect WS ----
+    var mediaPromise = null;
+
+    function acquireMediaAsync() {
+        // Fire media acquisition early so it's ready by the time the
+        // roster arrives and we need to negotiate.
+        if (!mediaPromise) {
+            mediaPromise = acquireMedia().catch(function(err) {
+                console.error('Media acquisition failed:', err);
+                mediaPromise = null;
+                alert('Could not access microphone/camera: ' + err.message);
+            });
+        }
+        return mediaPromise;
+    }
+
+    var keepaliveHandle = null;
+
+    function connectWs() {
+        var proto = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+        ws = new WebSocket(proto + '//' + window.location.host + '/conferencing/ws');
+        ws.onopen = function() {
+            // Acquire media immediately — before the roster arrives and
+            // triggers negotiation. Without this, maybeInitiate bails on
+            // the !localStream check and the offer is never sent.
+            acquireMediaAsync();
+            // Prevent phone from sleeping during the call.
+            acquireWakeLock();
+            // Keep the WS alive on mobile browsers.
+            if (!keepaliveHandle) {
+                keepaliveHandle = setInterval(function() {
+                    sendSignal({type: 'ping'});
+                }, 20000);
+            }
+            // Tell server we've joined (idempotent).
+            fetch('/conferencing/api/room/' + ROOM_ID + '/join', {
+                method: 'POST', credentials: 'include',
+            }).catch(function() {});
+        };
+        ws.onclose = function() {
+            if (keepaliveHandle) { clearInterval(keepaliveHandle); keepaliveHandle = null; }
+            if (!ended) setTimeout(connectWs, 2000);
+        };
+        ws.onerror = function() {};
+        ws.onmessage = function(ev) {
+            var msg;
+            try { msg = JSON.parse(ev.data); } catch (e) { return; }
+            handleMessage(msg);
+        };
+    }
+
+    function sendSignal(msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(msg));
+        }
+    }
+
+    // Safety net: re-broadcast peer_ready to all known peers every 5 seconds
+    // until we have a remote description from each. This catches any edge
+    // case where the initial exchange was lost.
+    var readyRetryHandle = setInterval(function() {
+        Object.keys(peers).forEach(function(pid) {
+            var peer = peers[pid];
+            if (!peer.pc || !peer.pc.remoteDescription) {
+                sendSignal({type: 'peer_ready', to: pid});
+            }
+        });
+    }, 5000);
+
+    function handleMessage(msg) {
+        if (msg.type === 'roster') {
+            applyRoster(msg.participants || []);
+        } else if (msg.type === 'peer_ready') {
+            handlePeerReady(msg.from);
+        } else if (msg.type === 'sdp_offer') {
+            handleSdpOffer(msg.from, msg.sdp);
+        } else if (msg.type === 'sdp_answer') {
+            handleSdpAnswer(msg.from, msg.sdp);
+        } else if (msg.type === 'ice_candidate') {
+            handleIceCandidate(msg.from, msg.candidate);
+        } else if (msg.type === 'invite_declined') {
+            // An invited user declined — refresh the pending invites list
+            // and re-render the invite modal if it's open.
+            if (typeof refreshPendingInvites === 'function') {
+                refreshPendingInvites();
+            }
+            // If the invite modal is visible, refresh it to show "Declined".
+            var inviteModalEl = document.getElementById('inviteModal');
+            if (inviteModalEl && inviteModalEl.classList.contains('show') && inviteBtn) {
+                inviteBtn.click();
+            }
+        } else if (msg.type === 'call_ended') {
+            // Room was ended (creator left or all participants gone).
+            // Stop recording if active, flush the upload, then redirect.
+            if (recorder && recorder.state === 'recording') {
+                // Patch onstop to flush with regular fetch, then redirect
+                // AFTER the upload completes.
+                recorder.onstop = function() {
+                    stopRecorderTimer();
+                    flushRecording(false).then(function() {
+                        redirectAfterRoomEnd();
+                    });
+                };
+                try { recorder.stop(); } catch (e) {
+                    redirectAfterRoomEnd();
+                }
+            } else {
+                redirectAfterRoomEnd();
+            }
+        }
+    }
+
+    function redirectAfterRoomEnd() {
+        releaseWakeLock();
+        if (!ended) {
+            ended = true;
+            Object.keys(peers).forEach(dropPeer);
+            if (localStream) {
+                localStream.getTracks().forEach(function(t) { t.stop(); });
+                localStream = null;
+            }
+            if (ws) { try { ws.close(); } catch (e) {} }
+        }
+        window.location.href = '/conferencing/';
+    }
+
+    // ---- Roster management ----
+
+    function applyRoster(roster) {
+        var seenIds = {};
+        roster.forEach(function(p) {
+            seenIds[p.id] = true;
+            if (p.id !== MY_ID) {
+                var existing = peers[p.id];
+                if (!existing) {
+                    // New peer — set up state.
+                    peers[p.id] = {
+                        pc: null,
+                        peerReady: false,
+                        offerSent: false,
+                        pendingCandidates: [],
+                        username: p.username,
+                    };
+                } else {
+                    existing.username = p.username;
+                    // Check if the old peer connection is dead (closed,
+                    // failed, or disconnected). If so, reset so we can
+                    // re-negotiate from scratch.
+                    if (existing.pc) {
+                        var state = existing.pc.iceConnectionState;
+                        if (state === 'closed' || state === 'failed' || state === 'disconnected') {
+                            try { existing.pc.close(); } catch (e) {}
+                            existing.pc = null;
+                            existing.peerReady = false;
+                            existing.offerSent = false;
+                            existing.pendingCandidates = [];
+                        }
+                    } else {
+                        // pc is null — reset negotiation flags.
+                        existing.peerReady = false;
+                        existing.offerSent = false;
+                        existing.pendingCandidates = [];
+                    }
+                }
+                // ALWAYS (re-)announce ourselves on every roster update.
+                sendSignal({type: 'peer_ready', to: p.id});
+                maybeInitiate(p.id);
+            }
+        });
+        // Drop peers no longer in roster.
+        Object.keys(peers).forEach(function(pid) {
+            if (!seenIds[pid]) {
+                dropPeer(pid);
+            }
+        });
+        renderParticipantList(roster);
+    }
+
+    function renderParticipantList(roster) {
+        var n = roster.length;
+        participantCount.textContent = n + (n === 1 ? ' participant' : ' participants');
+        participantList.innerHTML = roster.map(function(p) {
+            var isSelf = p.id === MY_ID;
+            return '<li class="list-group-item py-2 small d-flex align-items-center">' +
+                '<span class="presence-dot" style="display:inline-block;width:8px;height:8px;background:#28a745;border-radius:50%;margin-right:8px;"></span>' +
+                (isSelf ? '<strong>' + p.username + '</strong> (you)' : p.username) +
+                '</li>';
+        }).join('');
+    }
+
+    // ---- Per-peer negotiation (mesh) ----
+
+    function getPeer(pid) {
+        if (!peers[pid]) {
+            peers[pid] = {
+                pc: null,
+                peerReady: false,
+                offerSent: false,
+                pendingCandidates: [],
+                username: pid,
+            };
+        }
+        return peers[pid];
+    }
+
+    // Perfect-negotiation lite: the lexicographically smaller user_id
+    // initiates the offer. This avoids glare without any polite/impolite dance.
+    function shouldInitiate(pid) {
+        return MY_ID < pid;
+    }
+
+    async function maybeInitiate(pid) {
+        var peer = getPeer(pid);
+        if (!shouldInitiate(pid)) return;
+        if (peer.offerSent) return;
+        if (!peer.peerReady) return;  // wait for their announcement
+        // Wait for media to be ready (acquired on WS open) instead of bailing.
+        await acquireMediaAsync();
+        await ensurePeerConnection(pid);
+        await sendOffer(pid);
+    }
+
+    function handlePeerReady(pid) {
+        var peer = getPeer(pid);
+        peer.peerReady = true;
+        maybeInitiate(pid);
+    }
+
+    async function ensurePeerConnection(pid) {
+        var peer = getPeer(pid);
+        if (peer.pc) return;
+        if (!localStream) await acquireMedia();
+        var pc = new RTCPeerConnection(ICE_CONFIG);
+        peer.pc = pc;
+
+        pc.onicecandidate = function(event) {
+            if (event.candidate) {
+                sendSignal({
+                    type: 'ice_candidate',
+                    to: pid,
+                    candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate,
+                });
+            }
+        };
+        pc.ontrack = function(event) {
+            attachRemoteStream(pid, event.streams[0]);
+        };
+        pc.oniceconnectionstatechange = function() {
+            var s = pc.iceConnectionState;
+            console.log('peer', pid.slice(0,8), 'ICE:', s);
+            if (s === 'failed') {
+                // Try restart
+                try { pc.restartIce(); } catch (e) {}
+            }
+        };
+        if (localStream) {
+            localStream.getTracks().forEach(function(t) {
+                pc.addTrack(t, localStream);
+            });
+        }
+    }
+
+    async function sendOffer(pid) {
+        var peer = getPeer(pid);
+        if (!peer.pc || peer.offerSent) return;
+        peer.offerSent = true;
+        var offer = await peer.pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: MEDIA_TYPE === 'video',
+        });
+        await peer.pc.setLocalDescription(offer);
+        sendSignal({type: 'sdp_offer', to: pid, sdp: offer});
+    }
+
+    async function handleSdpOffer(pid, sdp) {
+        var peer = getPeer(pid);
+        await ensurePeerConnection(pid);
+        try {
+            await peer.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+            await flushPendingCandidates(pid);
+            var answer = await peer.pc.createAnswer();
+            await peer.pc.setLocalDescription(answer);
+            sendSignal({type: 'sdp_answer', to: pid, sdp: answer});
+        } catch (err) {
+            console.error('Error handling SDP offer from', pid, err);
+        }
+    }
+
+    async function handleSdpAnswer(pid, sdp) {
+        var peer = getPeer(pid);
+        if (!peer.pc) return;
+        try {
+            await peer.pc.setRemoteDescription(new RTCSessionDescription(sdp));
+            await flushPendingCandidates(pid);
+        } catch (err) {
+            console.error('Error handling SDP answer from', pid, err);
+        }
+    }
+
+    async function handleIceCandidate(pid, candidate) {
+        var peer = getPeer(pid);
+        if (!peer.pc) return;
+        try {
+            if (peer.pc.remoteDescription) {
+                await peer.pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } else {
+                peer.pendingCandidates.push(candidate);
+            }
+        } catch (err) {
+            console.warn('Error adding ICE candidate from', pid, err);
+        }
+    }
+
+    async function flushPendingCandidates(pid) {
+        var peer = getPeer(pid);
+        while (peer.pendingCandidates.length > 0) {
+            var c = peer.pendingCandidates.shift();
+            try { await peer.pc.addIceCandidate(new RTCIceCandidate(c)); }
+            catch (e) { console.warn('flush candidate err', e); }
+        }
+    }
+
+    function dropPeer(pid) {
+        var peer = peers[pid];
+        if (!peer) return;
+        if (peer.pc) {
+            try { peer.pc.close(); } catch (e) {}
+        }
+        delete peers[pid];
+        removeTile(pid);
+    }
+
+    // ---- Media acquisition ----
+
+    async function acquireMedia() {
+        var constraints = {
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1,           // mono reduces cross-device feedback
+            },
+            video: MEDIA_TYPE === 'video' ? {width: 1280, height: 720} : false,
+        };
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Camera/mic unavailable: this page must be accessed over HTTPS (or localhost), not plain HTTP');
+        }
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Render our own local tile.
+        attachLocalTile();
+    }
+
+    // ---- Tile rendering ----
+
+    function attachLocalTile() {
+        if (!localStream) return;
+        var tile = ensureTile(MY_ID);
+        var video = tile.querySelector('video');
+        video.srcObject = localStream;
+        video.muted = true;
+        tile.querySelector('.tile-label').textContent = MY_USERNAME + ' (you)';
+        tile.querySelector('.tile-avatar').style.display = 'none';
+    }
+
+    function attachRemoteStream(pid, stream) {
+        var peer = getPeer(pid);
+        var tile = ensureTile(pid);
+        var video = tile.querySelector('video');
+        video.srcObject = stream;
+        tile.querySelector('.tile-label').textContent = peer.username || 'Participant';
+        tile.querySelector('.tile-avatar').style.display = 'none';
+        // Explicitly trigger playback — some browsers block autoplay on
+        // dynamically created elements until .play() is called.
+        var playPromise = video.play();
+        if (playPromise && playPromise.catch) {
+            playPromise.catch(function(e) {
+                console.warn('Autoplay blocked for peer', pid.slice(0,8), e);
+                // Retry on first user interaction.
+                var retry = function() {
+                    video.play().catch(function() {});
+                    document.removeEventListener('click', retry);
+                };
+                document.addEventListener('click', retry);
+            });
+        }
+    }
+
+    function ensureTile(pid) {
+        var id = 'tile-' + pid;
+        var existing = document.getElementById(id);
+        if (existing) return existing;
+        var tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.id = id;
+        var avatar = document.createElement('div');
+        avatar.className = 'tile-avatar';
+        avatar.innerHTML = '<i class="bi bi-person-circle"></i>';
+        var video = document.createElement('video');
+        video.autoplay = true;
+        video.playsInline = true;
+        var label = document.createElement('div');
+        label.className = 'tile-label';
+        label.textContent = 'Connecting…';
+        tile.appendChild(avatar);
+        tile.appendChild(video);
+        tile.appendChild(label);
+        tileGrid.appendChild(tile);
+        return tile;
+    }
+
+    function removeTile(pid) {
+        var t = document.getElementById('tile-' + pid);
+        if (t) t.remove();
+    }
+
+    // ---- Timer ----
+
+    function startTimer() {
+        if (timerHandle) return;
+        function tick() {
+            var sec = Math.floor((Date.now() - startedAt) / 1000);
+            var m = Math.floor(sec / 60).toString().padStart(2, '0');
+            var s = (sec % 60).toString().padStart(2, '0');
+            roomTimerEl.textContent = m + ':' + s;
+        }
+        tick();
+        timerHandle = setInterval(tick, 1000);
+    }
+
+    // ---- Controls ----
+
+    function toggleMute() {
+        if (!localStream) return;
+        localStream.getAudioTracks().forEach(function(t) { t.enabled = !t.enabled; });
+        var muted = localStream.getAudioTracks().some(function(t) { return !t.enabled; });
+        muteBtn.innerHTML = muted
+            ? '<i class="bi bi-mic-mute-fill"></i>'
+            : '<i class="bi bi-mic-fill"></i>';
+        muteBtn.classList.toggle('btn-danger', muted);
+        muteBtn.classList.toggle('btn-outline-light', !muted);
+    }
+
+    function toggleCamera() {
+        if (!localStream) return;
+        localStream.getVideoTracks().forEach(function(t) { t.enabled = !t.enabled; });
+        var off = localStream.getVideoTracks().every(function(t) { return !t.enabled; });
+        cameraBtn.innerHTML = off
+            ? '<i class="bi bi-camera-video-off-fill"></i>'
+            : '<i class="bi bi-camera-video-fill"></i>';
+        cameraBtn.classList.toggle('btn-danger', off);
+        cameraBtn.classList.toggle('btn-outline-light', !off);
+    }
+
+    function leaveRoom(permanent) {
+        if (ended) return;
+        ended = true;
+        releaseWakeLock();
+        // Flush recording BEFORE stopping media.
+        if (recorder && recorder.state === 'recording') {
+            try { recorder.stop(); } catch (e) {}
+        }
+        Object.keys(peers).forEach(dropPeer);
+        if (localStream) {
+            localStream.getTracks().forEach(function(t) { t.stop(); });
+            localStream = null;
+        }
+        if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+        // Tell server we're leaving.
+        try {
+            navigator.sendBeacon('/conferencing/api/room/' + ROOM_ID + '/leave', new Blob([], {type: 'application/json'}));
+        } catch (e) {}
+        try {
+            fetch('/conferencing/api/room/' + ROOM_ID + '/leave', {
+                method: 'POST', credentials: 'include', keepalive: true,
+            }).catch(function() {});
+        } catch (e) {}
+        setTimeout(function() { window.location.href = '/conferencing/'; }, 1500);
+    }
+
+    // ---- In-room recording (same pattern as 1:1 call page) ----
+
+    function toggleRecording() {
+        if (recorder && recorder.state === 'recording') {
+            recorder.stop();
+            return;
+        }
+        try {
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            var ctx = new AudioCtx();
+            var destination = ctx.createMediaStreamDestination();
+            if (localStream) {
+                localStream.getAudioTracks().forEach(function(t) {
+                    ctx.createMediaStreamSource(new MediaStream([t])).connect(destination);
+                });
+            }
+            Object.keys(peers).forEach(function(pid) {
+                var pc = peers[pid].pc;
+                if (!pc) return;
+                pc.getReceivers().forEach(function(r) {
+                    if (r.track && r.track.kind === 'audio') {
+                        ctx.createMediaStreamSource(new MediaStream([r.track])).connect(destination);
+                    }
+                });
+            });
+            var tracks = destination.stream.getAudioTracks();
+            if (MEDIA_TYPE === 'video') {
+                Object.keys(peers).forEach(function(pid) {
+                    var pc = peers[pid].pc;
+                    if (!pc) return;
+                    pc.getReceivers().forEach(function(r) {
+                        if (r.track && r.track.kind === 'video') tracks.push(r.track);
+                    });
+                });
+            }
+            var recordStream = new MediaStream(tracks);
+            var mimeType = MEDIA_TYPE === 'video' ? 'video/webm' : 'audio/webm';
+            if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = '';
+            recorder = new MediaRecorder(recordStream, mimeType ? {mimeType: mimeType} : undefined);
+            recorderChunks = [];
+            recorder.ondataavailable = function(e) { if (e.data && e.data.size > 0) recorderChunks.push(e.data); };
+            recorder.onstop = function() {
+                stopRecorderTimer();
+                flushRecording(false);
+                recordBtn.classList.remove('btn-danger');
+                recordBtn.classList.add('btn-outline-light');
+                recordBtn.innerHTML = '<i class="bi bi-record-circle"></i>';
+                recordingIndicator.style.display = 'none';
+                try { ctx.close(); } catch (e) {}
+            };
+            recorder.start();
+            recorderStartTime = Date.now();
+            recordBtn.classList.remove('btn-outline-light');
+            recordBtn.classList.add('btn-danger');
+            recordBtn.innerHTML = '<i class="bi bi-stop-circle"></i>';
+            recordingIndicator.style.display = 'flex';
+            startRecorderTimer();
+        } catch (err) {
+            alert('Could not start recording: ' + err.message);
+        }
+    }
+
+    function startRecorderTimer() {
+        stopRecorderTimer();
+        recorderTimerHandle = setInterval(function() {
+            var sec = Math.floor((Date.now() - recorderStartTime) / 1000);
+            var m = Math.floor(sec / 60);
+            var s = sec % 60;
+            if (recordingTimerEl) recordingTimerEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+        }, 500);
+    }
+
+    function stopRecorderTimer() {
+        if (recorderTimerHandle) { clearInterval(recorderTimerHandle); recorderTimerHandle = null; }
+    }
+
+    function flushRecording(keepalive) {
+        if (recorderChunks.length === 0) return Promise.resolve();
+        var blob = new Blob(recorderChunks, {type: MEDIA_TYPE === 'video' ? 'video/webm' : 'audio/webm'});
+        var duration = (Date.now() - recorderStartTime) / 1000;
+        var fd = new FormData();
+        fd.append('file', blob, 'room_recording.webm');
+        fd.append('call_id', ROOM_ID);
+        fd.append('kind', 'call');
+        fd.append('media_type', MEDIA_TYPE);
+        fd.append('duration_seconds', String(Math.round(duration)));
+        // Always use regular fetch (no keepalive) — keepalive has a 64KB
+        // body limit in Chrome which silently drops larger recordings.
+        // We delay the redirect until the upload completes instead.
+        return fetch('/conferencing/api/recordings/upload', {
+            method: 'POST', body: fd, credentials: 'include',
+        }).then(function(r) {
+            if (!r.ok) console.warn('Recording upload failed:', r.status);
+            recorderChunks = [];
+        }).catch(function(err) {
+            console.warn('Recording upload error:', err);
+        });
+    }
+
+    // ---- Wire up ----
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Prevent the auth.js session timeout from redirecting to login
+        // and dropping the room. auth.js loads AFTER this script, so
+        // we poll for it briefly and kill it once it appears.
+        function killAuthTimeout() {
+            if (window.sessionManager) {
+                clearTimeout(window.sessionManager.timeoutId);
+                clearTimeout(window.sessionManager.warningId);
+                window.sessionManager.onTimeout = function() {};
+                window.sessionManager.redirectToLogin = function() {};
+                return true;
+            }
+            return false;
+        }
+        var _rh = setInterval(function() {
+            if (killAuthTimeout()) {
+                clearInterval(_rh);
+                var _af = window.fetch;
+                window.fetch = function() {
+                    return _af.apply(this, arguments).then(function(r) {
+                        if (r.status === 401) {
+                            return new Response(r.body, {status: 200, statusText: 'OK', headers: r.headers});
+                        }
+                        return r;
+                    });
+                };
+            }
+        }, 200);
+        setTimeout(function() { clearInterval(_rh); }, 10000);
+
+        muteBtn.addEventListener('click', toggleMute);
+        if (cameraBtn) cameraBtn.addEventListener('click', toggleCamera);
+        leaveBtn.addEventListener('click', function() {
+            leaveRoom(false);
+        });
+        if (recordBtn) recordBtn.addEventListener('click', toggleRecording);
+        copyUrlBtn.addEventListener('click', function() {
+            roomUrlInput.select();
+            try {
+                navigator.clipboard.writeText(roomUrlInput.value);
+                copyUrlBtn.innerHTML = '<i class="bi bi-check2"></i>';
+                setTimeout(function() { copyUrlBtn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500);
+            } catch (e) {}
+        });
+
+        // --- Invite users ---
+        var inviteModal = new bootstrap.Modal(document.getElementById('inviteModal'));
+        var inviteBtn = document.getElementById('invite-btn');
+        var inviteUserList = document.getElementById('invite-user-list');
+        var sendInvitesBtn = document.getElementById('send-invites-btn');
+
+        inviteBtn.addEventListener('click', function() {
+            inviteUserList.innerHTML = '<div class="text-center text-muted py-3"><small>Loading…</small></div>';
+            inviteModal.show();
+            fetch('/conferencing/api/room/' + ROOM_ID + '/eligible-invitees', {credentials: 'include'})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var users = data.users || [];
+                    if (users.length === 0) {
+                        inviteUserList.innerHTML = '<div class="text-center text-muted py-3"><small>No eligible users.</small></div>';
+                        return;
+                    }
+                    inviteUserList.innerHTML = users.map(function(u) {
+                        var status = u.invite_status;
+                        var disabled = '';
+                        var label = '';
+                        var cls = '';
+                        if (u.in_room) {
+                            disabled = ' disabled';
+                            label = ' <em class="text-success">(in room)</em>';
+                        } else if (status === 'pending') {
+                            disabled = ' disabled checked';
+                            label = ' <em class="text-warning">(ringing…)</em>';
+                        } else if (status === 'rejected') {
+                            disabled = ' disabled';
+                            label = ' <span class="badge bg-danger">Declined</span>';
+                            cls = ' text-danger';
+                        } else if (status === 'accepted') {
+                            disabled = ' disabled';
+                            label = ' <em class="text-success">(in room)</em>';
+                        } else if (status === 'left') {
+                            label = ' <em class="text-muted">(left)</em>';
+                        } else if (status === 'missed') {
+                            label = ' <em class="text-muted">(no answer)</em>';
+                        }
+                        return '<label class="list-group-item py-2 d-flex align-items-center' + cls + '">' +
+                            '<input type="checkbox" class="form-check-input me-2 invite-check" value="' + u.id + '"' + disabled + '>' +
+                            '<span>' + u.username + label + '</span>' +
+                            '</label>';
+                    }).join('');
+                })
+                .catch(function() {
+                    inviteUserList.innerHTML = '<div class="text-center text-danger py-3"><small>Failed to load users.</small></div>';
+                });
+        });
+
+        sendInvitesBtn.addEventListener('click', function() {
+            var ids = Array.from(document.querySelectorAll('.invite-check:checked')).map(function(c) { return c.value; });
+            if (ids.length === 0) return;
+            sendInvitesBtn.disabled = true;
+            sendInvitesBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Ringing…';
+            fetch('/conferencing/api/room/' + ROOM_ID + '/invite', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({recipient_ids: ids}),
+                credentials: 'include',
+            }).then(function(r) { return r.json(); })
+              .then(function(data) {
+                  sendInvitesBtn.disabled = false;
+                  sendInvitesBtn.innerHTML = '<i class="bi bi-telephone"></i> Ring Selected';
+                  inviteModal.hide();
+              }).catch(function() {
+                  sendInvitesBtn.disabled = false;
+                  sendInvitesBtn.innerHTML = '<i class="bi bi-telephone"></i> Ring Selected';
+                  alert('Failed to send invites.');
+              });
+        });
+
+        // --- Pending invites list + cancel ---
+        var pendingInvitesCard = document.getElementById('pending-invites-card');
+        var pendingInvitesList = document.getElementById('pending-invites-list');
+        var pendingInvitesHandle = null;
+
+        function refreshPendingInvites() {
+            fetch('/conferencing/api/room/' + ROOM_ID + '/pending-invites', {credentials: 'include'})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var invites = data.invites || [];
+                    if (invites.length === 0) {
+                        pendingInvitesCard.style.display = 'none';
+                        return;
+                    }
+                    pendingInvitesCard.style.display = '';
+                    pendingInvitesList.innerHTML = invites.map(function(inv) {
+                        return '<li class="list-group-item py-2 small d-flex justify-content-between align-items-center">' +
+                            '<span><i class="bi bi-hourglass-split text-warning"></i> ' + inv.username + '</span>' +
+                            '<button class="btn btn-sm btn-outline-danger cancel-invite-btn" data-id="' + inv.invitation_id + '">' +
+                            '<i class="bi bi-x-lg"></i></button>' +
+                            '</li>';
+                    }).join('');
+                    document.querySelectorAll('.cancel-invite-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            fetch('/conferencing/api/room/' + ROOM_ID + '/cancel-invite/' + btn.dataset.id, {
+                                method: 'POST', credentials: 'include',
+                            }).then(function() { refreshPendingInvites(); })
+                              .catch(function() {});
+                        });
+                    });
+                })
+                .catch(function() {});
+        }
+
+        // Poll pending invites every 10s; also refresh after sending invites.
+        pendingInvitesHandle = setInterval(refreshPendingInvites, 10000);
+        var originalSendInvites = sendInvitesBtn.onclick;
+        sendInvitesBtn.addEventListener('click', function() {
+            setTimeout(refreshPendingInvites, 1000);
+        }, true);
+
+        // Do NOT register beforeunload/pagehide. Android Chrome fires both
+        // when the OS suspends a background tab, which kills the local media
+        // stream and breaks the WebRTC mesh. The Wake Lock API prevents the
+        // phone from sleeping. If the tab is genuinely closed, the server-
+        // side disconnect watchdog handles the call teardown.
+
+        // Reconnect WS when returning to foreground.
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && !ended) {
+                if (!ws || ws.readyState !== WebSocket.OPEN) connectWs();
+            }
+        });
+
+        startTimer();
+        connectWs();
+        // Do NOT apply the initial roster here — the WS isn't connected yet
+        // and sendSignal would silently drop all peer_ready messages. The
+        // server will broadcast a roster when our join completes, and that
+        // arrives after the WS is open.
+    });
+})();
+</script>
+{% endblock %}

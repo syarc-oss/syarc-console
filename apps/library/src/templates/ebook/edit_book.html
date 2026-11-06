@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ book.title }} - Library{% endblock %}
+
+{% block content %}
+<style>
+    .current-cover {
+        max-width: 200px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+    }
+    .new-cover-preview {
+        max-width: 200px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+        display: none;
+    }
+</style>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <nav aria-label="breadcrumb" class="mb-2">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/library/ebook/"><i class="bi bi-book"></i> Ebooks</a></li>
+                {% if topic %}
+                <li class="breadcrumb-item"><a href="/library/ebook/browse/topics">Browse Topics</a></li>
+                {% if topic.parent_id %}
+                <li class="breadcrumb-item"><a href="/library/ebook/topic/{{ topic.parent_id }}{% if from_letter %}?letter={{ from_letter }}{% endif %}">{{ parent_name }}</a></li>
+                {% endif %}
+                <li class="breadcrumb-item"><a href="/library/ebook/topic/{{ topic.id }}{% if from_letter %}?letter={{ from_letter }}{% endif %}">{{ topic.name }}</a></li>
+                {% endif %}
+                <li class="breadcrumb-item"><a href="/library/ebook/book/{{ book.id }}{% if from_letter %}?from_letter={{ from_letter }}{% endif %}">{{ book.title[:40] }}{% if book.title|length > 40 %}...{% endif %}</a></li>
+                <li class="breadcrumb-item active">Edit Metadata</li>
+            </ol>
+        </nav>
+        <h2><i class="bi bi-pencil"></i> Edit Book Metadata</h2>
+        <p class="text-muted">Update title and cover image for this book</p>
+
+        <div class="card">
+            <div class="card-body">
+                <form id="editBookForm" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="book_id" value="{{ book.id }}">
+
+                    <!-- Title -->
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title"
+                               value="{{ book.title }}" required>
+                        <div class="form-text">Enter the correct book title</div>
+                    </div>
+
+                    <!-- Author -->
+                    <div class="mb-3">
+                        <label for="author" class="form-label">Author</label>
+                        <input type="text" class="form-control" id="author" name="author"
+                               value="{{ book.author.name }}" required>
+                        <div class="form-text">Enter the correct author name</div>
+                    </div>
+
+                    <!-- Topic -->
+                    <div class="mb-3">
+                        <label for="topic_id" class="form-label">Topic</label>
+                        <select class="form-select" id="topic_id" name="topic_id">
+                            <option value="">-- No Topic --</option>
+                            {% for t in all_topics %}
+                            <option value="{{ t.id }}"
+                                {% if book.topic_id and book.topic_id == t.id %}selected{% endif %}>
+                                {{ t.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if book.topic_id %}
+                        <div class="form-text">Current: {{ topic.name if topic else 'Unknown' }}. Changing this will move the book file.</div>
+                        {% else %}
+                        <div class="form-text">No topic assigned. Select a topic to move the book into your library.</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Cover Upload -->
+                    <div class="mb-3">
+                        <label for="cover" class="form-label">Cover Image</label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="cover" name="cover"
+                                   accept="image/jpeg,image/png,image/gif,image/webp">
+                            <button type="button" class="btn btn-outline-secondary" id="pasteCoverBtn" title="Paste image from clipboard">
+                                <i class="bi bi-clipboard"></i> Paste from Clipboard
+                            </button>
+                        </div>
+                        <div class="form-text">Upload a new cover image (JPG, PNG, GIF, WebP) or paste from clipboard</div>
+                        <input type="hidden" id="coverData" name="cover_data" value="">
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="mb-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Current Cover</h6>
+                                {% if book.cover_filename %}
+                                <img src="/library/ebook/cover/{{ book.id }}"
+                                     class="current-cover" alt="Current cover">
+                                {% else %}
+                                <p class="text-muted">No cover uploaded</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <h6>New Cover Preview</h6>
+                                <img id="newCoverPreview" class="new-cover-preview" alt="New cover preview">
+                                <p class="text-muted" id="noPreviewText">No image selected</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> Save Changes
+                        </button>
+                        <a href="/library/ebook/book/{{ book.id }}{% if from_letter %}?from_letter={{ from_letter }}{% endif %}" class="btn btn-secondary"
+                           onclick="event.preventDefault(); location.replace(this.href)">
+                            <i class="bi bi-x-lg"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Book Details Reference -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">Current Metadata</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="150">Topic:</th>
+                        <td>
+                            {% if topic %}
+                            <a href="/library/ebook/topic/{{ topic.id }}">{{ topic.name }}</a>
+                            {% else %}
+                            <span class="text-muted">No topic assigned</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Author:</th>
+                        <td>{{ book.author.name }}</td>
+                    </tr>
+                    {% if book.isbn or book.isbn13 %}
+                    <tr>
+                        <th>ISBN:</th>
+                        <td>{{ book.isbn13 or book.isbn }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if book.publisher %}
+                    <tr>
+                        <th>Publisher:</th>
+                        <td>{{ book.publisher }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if book.published_date %}
+                    <tr>
+                        <th>Published:</th>
+                        <td>{{ book.published_date }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if book.language %}
+                    <tr>
+                        <th>Language:</th>
+                        <td>{{ book.language }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>File Type:</th>
+                        <td>
+                            {% if book.file_type == 'pdf' %}
+                            <span class="badge bg-warning">PDF</span>
+                            {% else %}
+                            <span class="badge bg-info">EPUB</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>File Path:</th>
+                        <td><code>{{ book.file_path }}</code></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Delete Book -->
+        <div class="card mt-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="bi bi-trash"></i> Delete Book</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Remove this book from the library. This action cannot be undone.</p>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-danger" id="deleteDbOnlyBtn">
+                        <i class="bi bi-database"></i> Delete from Database Only
+                    </button>
+                    <button type="button" class="btn btn-danger" id="deleteWithDiskBtn">
+                        <i class="bi bi-hard-drive"></i> Delete from Database &amp; Disk
+                    </button>
+                </div>
+                <div class="form-text mt-2">
+                    <strong>Database Only:</strong> Removes the book record and cover image. The file remains on disk.<br>
+                    <strong>Database &amp; Disk:</strong> Also permanently deletes the book file from disk.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const coverInput = document.getElementById('cover');
+    const coverDataInput = document.getElementById('coverData');
+    const pasteCoverBtn = document.getElementById('pasteCoverBtn');
+    const newCoverPreview = document.getElementById('newCoverPreview');
+    const noPreviewText = document.getElementById('noPreviewText');
+    const editForm = document.getElementById('editBookForm');
+
+    function showPreview(dataUrl) {
+        newCoverPreview.src = dataUrl;
+        newCoverPreview.style.display = 'block';
+        noPreviewText.style.display = 'none';
+    }
+
+    function resizeImage(dataUrl, maxWidth, maxHeight, quality) {
+        return new Promise(function(resolve) {
+            var img = new Image();
+            img.onload = function() {
+                var w = img.width, h = img.height;
+                if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+                if (h > maxHeight) { w = w * maxHeight / h; h = maxHeight; }
+                var canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = dataUrl;
+        });
+    }
+
+    function handleImageData(dataUrl) {
+        resizeImage(dataUrl, 600, 900, 0.8).then(function(resized) {
+            coverDataInput.value = resized;
+            showPreview(resized);
+            coverInput.value = '';
+        });
+    }
+
+    // Cover preview from file input
+    coverInput.addEventListener('change', function(e) {
+        coverDataInput.value = '';
+        var file = e.target.files[0];
+        if (file) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                handleImageData(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            newCoverPreview.style.display = 'none';
+            noPreviewText.style.display = 'block';
+        }
+    });
+
+    // Paste from clipboard
+    var waitingForPaste = false;
+    pasteCoverBtn.addEventListener('click', async function() {
+        try {
+            var clipboardItems = await navigator.clipboard.read();
+            for (var item of clipboardItems) {
+                var imageType = item.types.find(function(t) { return t.startsWith('image/'); });
+                if (imageType) {
+                    var blob = await item.getType(imageType);
+                    var reader = new FileReader();
+                    reader.onload = function(e) { handleImageData(e.target.result); };
+                    reader.readAsDataURL(blob);
+                    return;
+                }
+            }
+            alert('No image found in clipboard. Copy an image first.');
+        } catch (err) {
+            waitingForPaste = true;
+            pasteCoverBtn.textContent = 'Press Ctrl+V now...';
+            pasteCoverBtn.classList.add('active');
+        }
+    });
+
+    document.addEventListener('paste', function(e) {
+        if (!waitingForPaste) return;
+        waitingForPaste = false;
+        pasteCoverBtn.innerHTML = '<i class="bi bi-clipboard"></i> Paste from Clipboard';
+        pasteCoverBtn.classList.remove('active');
+
+        var items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (var item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                var blob = item.getAsFile();
+                var reader = new FileReader();
+                reader.onload = function(ev) { handleImageData(ev.target.result); };
+                reader.readAsDataURL(blob);
+                return;
+            }
+        }
+        alert('No image found in clipboard. Copy an image first.');
+    });
+
+    // Form submission
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+        try {
+            const response = await fetch('/library/ebook/book/edit', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            });
+
+            if (response.ok) {
+                alert('Book metadata updated successfully!');
+                window.location.href = `/library/ebook/book/${formData.get('book_id')}{% if from_letter %}?from_letter={{ from_letter }}{% endif %}`;
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.detail || 'Failed to update metadata'));
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating metadata: ' + error.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
+        }
+    });
+
+    // Delete book
+    async function deleteBook(fromDisk) {
+        var msg = fromDisk
+            ? 'This will permanently delete this book from the database AND remove the file from disk. Are you sure?'
+            : 'This will remove this book from the database. The file will remain on disk. Are you sure?';
+        if (!confirm(msg)) return;
+        if (!confirm('This cannot be undone. Proceed?')) return;
+
+        try {
+            var fd = new FormData();
+            fd.append('delete_from_disk', fromDisk ? 'true' : 'false');
+            var response = await fetch('/library/ebook/book/{{ book.id }}/delete', {
+                method: 'POST',
+                body: new URLSearchParams(fd)
+            });
+            var data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                window.location.href = '/library/ebook/';
+            } else {
+                alert('Error: ' + (data.detail || 'Failed to delete book'));
+            }
+        } catch (err) {
+            alert('Error deleting book: ' + err.message);
+        }
+    }
+
+    document.getElementById('deleteDbOnlyBtn').addEventListener('click', function() { deleteBook(false); });
+    document.getElementById('deleteWithDiskBtn').addEventListener('click', function() { deleteBook(true); });
+});
+</script>
+{% endblock %}

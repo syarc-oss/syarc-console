@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — syarc console{% endblock %}
+{% block content %}
+<h2>Dashboard</h2>
+<div class="row row-cols-1 row-cols-md-3 g-3">
+  {% for app in apps %}
+  <div class="col">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title"><a href="{{ app.url }}">{{ app.name }}</a></h5>
+        <p class="card-text text-muted">{{ app.id }}</p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

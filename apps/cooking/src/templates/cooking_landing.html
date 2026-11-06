@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Cooking{% endblock %}
+
+{% block content %}
+<style>
+    .cooking-hero {
+        background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #fcb045 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+    }
+    .recipe-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        height: 100%;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .recipe-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .stat-card {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        text-align: center;
+        padding: 1.5rem;
+    }
+    .stat-card .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #ff6b35;
+    }
+    .ingredient-tag {
+        background: #fff3e0;
+        color: #e65100;
+        border: 1px solid #ffcc80;
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin: 2px;
+    }
+    .badge-public { background-color: #28a745; }
+    .badge-private { background-color: #6c757d; }
+</style>
+
+<div class="cooking-hero">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h2><i class="bi bi-cup-hot-fill"></i> Cooking</h2>
+            <p class="lead mb-0">Search recipes by name, description, or ingredients</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/cooking/recipes/new" class="btn btn-outline-light"><i class="bi bi-plus-circle"></i> New Recipe</a>
+            <a href="/cooking/menu" class="btn btn-outline-light"><i class="bi bi-calendar3"></i> Menu</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form action="/cooking/search" method="get">
+            <div class="input-group input-group-lg">
+                <input type="text" class="form-control" name="q" placeholder='Search recipes... Use &quot;quotes&quot; for phrases like &quot;pinto beans&quot;'>
+                <button class="btn btn-warning" type="submit">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <form action="/cooking/search" method="get">
+            <div class="input-group">
+                <input type="text" class="form-control" name="ingredients" placeholder="Filter by ingredients (comma separated)...">
+                {% if supply_available %}
+                <div class="input-group-text">
+                    <input type="checkbox" class="form-check-input mt-0" name="filter_by_supply" value="true" id="filterSupplyCheck">
+                    <label class="form-check-label ms-2" for="filterSupplyCheck" style="font-size: 0.85rem;">Supply only</label>
+                </div>
+                {% endif %}
+                <button class="btn btn-outline-warning" type="submit">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ recipe_count }}</div>
+            <div class="text-muted">Recipes</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ ingredient_count }}</div>
+            <div class="text-muted">Ingredients</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            {% if supply_available %}
+            <div class="stat-number"><i class="bi bi-check-circle-fill text-success"></i></div>
+            <div class="text-muted">Supply Integration Active</div>
+            {% else %}
+            <div class="stat-number"><i class="bi bi-box text-muted"></i></div>
+            <div class="text-muted">Supply App Not Installed</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if recent_recipes %}
+<h4 class="mb-3">Recent Recipes</h4>
+<div class="row row-cols-1 row-cols-md-3 g-4">
+    {% for item in recent_recipes %}
+    <div class="col">
+        <div class="card recipe-card" onclick="window.location='/cooking/recipes/{{ item.recipe.id }}'">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <h5 class="card-title">{{ item.recipe.title }}</h5>
+                    {% if not item.recipe.is_public %}
+                    <span class="badge badge-private">Private</span>
+                    {% endif %}
+                </div>
+                {% if item.desc_short %}
+                <p class="card-text text-muted" style="font-size: 0.9rem;">{{ item.desc_short }}{% if item.desc_truncated %}...{% endif %}</p>
+                {% endif %}
+                <div>
+                    {% for ing in item.ingredients_preview %}
+                    <span class="ingredient-tag">{{ ing }}</span>
+                    {% endfor %}
+                    {% if item.ingredient_count > 5 %}
+                    <span class="ingredient-tag">+{{ item.ingredient_count - 5 }} more</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif recipe_count == 0 %}
+<div class="alert alert-info">
+    <h5><i class="bi bi-info-circle"></i> No recipes loaded</h5>
+    <p>No recipes have been added yet.</p>
+</div>
+{% endif %}
+{% endblock %}

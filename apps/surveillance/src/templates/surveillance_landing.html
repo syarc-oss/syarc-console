@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Surveillance{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item active">Surveillance</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-camera-video"></i> Surveillance</h2>
+    <a href="/surveillance/zone/new" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle"></i> New Zone
+    </a>
+</div>
+
+{% if zone_data %}
+<div class="row">
+    {% for item in zone_data %}
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <a href="/surveillance/zone/{{ item.zone.id }}" class="text-decoration-none fw-bold">
+                    <i class="bi bi-camera-video"></i> {{ item.zone.name }}
+                </a>
+                {% if not item.is_owner %}
+                <span class="badge bg-info">Shared</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if item.zone.description %}
+                <p class="card-text text-muted">{{ item.zone.description }}</p>
+                {% endif %}
+                <p class="card-text">
+                    <i class="bi bi-camera"></i> {{ item.camera_count }} camera{{ "s" if item.camera_count != 1 }}
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+    No surveillance zones yet. Create one to get started.
+</div>
+{% endif %}
+{% endblock %}

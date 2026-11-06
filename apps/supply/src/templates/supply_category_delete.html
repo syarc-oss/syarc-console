@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ category.name }} - Supply{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/supply/">Supply</a></li>
+        <li class="breadcrumb-item"><a href="/supply/categories/{{ category.id }}">{{ category.name }}</a></li>
+        <li class="breadcrumb-item active">Delete</li>
+    </ol>
+</nav>
+
+<div class="alert alert-warning">
+    <h4><i class="bi bi-exclamation-triangle"></i> Cannot directly delete "{{ category.name }}"</h4>
+    <p>This category contains <strong>{{ item_count }} item{{ 's' if item_count != 1 }}</strong>
+       and <strong>{{ child_count }} sub-categor{{ 'y' if child_count == 1 else 'ies' }}</strong>.</p>
+    <p>Please select a category to move them to before deleting:</p>
+</div>
+
+<form method="post" action="/supply/categories/{{ category.id }}/delete">
+    <div class="mb-3">
+        <label for="move_to_id" class="form-label">Move all items and sub-categories to:</label>
+        <select class="form-select" id="move_to_id" name="move_to_id" required>
+            <option value="">-- Select category --</option>
+            {% for cat in other_categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-danger">
+        <i class="bi bi-trash"></i> Move & Delete
+    </button>
+    <a href="/supply/categories/{{ category.id }}" class="btn btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}

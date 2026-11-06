@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} - Milk{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/milk/">Milk</a></li>
+        <li class="breadcrumb-item active">{{ group.name }}</li>
+    </ol>
+</nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-cup-straw"></i> {{ group.name }}</h2>
+    {% if is_owner %}
+    <a href="/milk/group/{{ group.id }}/edit" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-pencil"></i> Edit
+    </a>
+    {% endif %}
+</div>
+
+{% if is_owner %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6>Share with Users</h6>
+        <form action="/milk/groups/{{ group.id }}/share" method="post" class="d-flex gap-2">
+            <select name="share_with_user_id" class="form-select" style="max-width:300px" required>
+                <option value="">Select user...</option>
+                {% for u in all_users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn btn-success btn-sm">Share</button>
+        </form>
+        {% if shared_users %}
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            {% for share, shared_user in shared_users %}
+            <span class="badge bg-light text-dark border">
+                {{ shared_user.username }}
+                <form action="/milk/groups/{{ group.id }}/revoke/{{ share.id }}" method="post" class="d-inline">
+                    <button type="submit" class="btn-close btn-close-sm ms-1" title="Revoke"></button>
+                </form>
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-heart-pulse display-6 text-primary"></i>
+                <h5 class="mt-2">Manage Members</h5>
+                <p class="text-muted small">Add animals, track producing status</p>
+                <a href="/milk/groups/{{ group.id }}/members" class="btn btn-primary">Manage</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-droplet-half display-6 text-success"></i>
+                <h5 class="mt-2">Production</h5>
+                <p class="text-muted small">Record daily milk production</p>
+                <a href="/milk/groups/{{ group.id }}/production" class="btn btn-success">Enter</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="bi bi-graph-up display-6 text-info"></i>
+                <h5 class="mt-2">Reports</h5>
+                <p class="text-muted small">View production statistics and export data</p>
+                <a href="/milk/groups/{{ group.id }}/reports" class="btn btn-info">View Reports</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h4>Quick Stats</h4>
+<div class="row text-center">
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h3 id="stat-total">-</h3><p class="mb-0 text-muted">Total Animals</p>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h3 id="stat-producing">-</h3><p class="mb-0 text-muted">Producing</p>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h3 id="stat-today">-</h3><p class="mb-0 text-muted">Today (gal)</p>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h3 id="stat-week">-</h3><p class="mb-0 text-muted">This Week (gal)</p>
+        </div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('/milk/groups/{{ group.id }}/stats')
+    .then(r => r.json())
+    .then(d => {
+        document.getElementById('stat-total').textContent = d.total_animals;
+        document.getElementById('stat-producing').textContent = d.producing;
+        document.getElementById('stat-today').textContent = d.today_total;
+        document.getElementById('stat-week').textContent = d.week_total;
+    });
+</script>
+{% endblock %}

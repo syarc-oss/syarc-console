@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Ledger - Select Book{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/pecuniary">Pecuniary</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Ledger</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-journal-text"></i> Ledger Books</h2>
+        <a href="/pecuniary/ledger/book/new" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> New Book
+        </a>
+    </div>
+
+    {% if books %}
+    <div class="row g-3">
+        {% for item in books %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 {% if item.is_owner %}border-primary{% else %}border-info{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">{{ item.book.name }}</h5>
+                    {% if item.book.description %}
+                    <p class="text-muted small">{{ item.book.description }}</p>
+                    {% endif %}
+                    <p class="mb-1">
+                        <span class="badge bg-secondary">{{ item.entry_count }} entries</span>
+                    </p>
+                    {% if not item.is_owner %}
+                    <p class="text-muted small mb-0">Shared by {{ item.owner_username }}</p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="/pecuniary/ledger/?book_id={{ item.book.id }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-book"></i> Open
+                    </a>
+                    {% if item.is_owner %}
+                    <a href="/pecuniary/ledger/book/{{ item.book.id }}/edit" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="/pecuniary/ledger/book/{{ item.book.id }}/delete" class="d-inline"
+                          onsubmit="return confirm('Delete this book and all its entries?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <h5>No Ledger Books</h5>
+        <p>Create a ledger book to start tracking income and liabilities.</p>
+        <a href="/pecuniary/ledger/book/new" class="btn btn-primary">Create Your First Book</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

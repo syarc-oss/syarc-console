@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Import Playlist{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1000px;">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/library/">Library</a></li>
+            <li class="breadcrumb-item"><a href="/library/audiobook/">Audiobooks</a></li>
+            <li class="breadcrumb-item"><a href="/library/audiobook/playlists">Playlists</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Import</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-file-earmark-plus"></i> Import to Playlist</h2>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form id="importForm">
+                <!-- Playlist Selection -->
+                <div class="mb-4">
+                    <h5 class="mb-3">Select Playlist</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="playlistOption" id="existingPlaylist" value="existing" checked>
+                        <label class="form-check-label" for="existingPlaylist">
+                            Add to existing playlist
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <select class="form-select mt-2" id="existingPlaylistSelect" name="playlist_name">
+                            <option value="">Select a playlist...</option>
+                            {% for playlist in playlists %}
+                            <option value="{{ playlist.name }}">{{ playlist.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="playlistOption" id="newPlaylist" value="new">
+                        <label class="form-check-label" for="newPlaylist">
+                            Create new playlist
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" class="form-control mt-2" id="newPlaylistName" name="new_playlist_name"
+                               placeholder="Enter new playlist name" disabled>
+                    </div>
+                </div>
+
+                <!-- Import Text -->
+                <div class="mb-4">
+                    <h5 class="mb-3">Paste Import List</h5>
+                    <p class="text-muted small">
+                        Enter one item per line. Use format:
+                        <br>• <strong>Author - Book</strong> to import an entire book
+                        <br>• <strong>Author - Book - Chapter</strong> to import a specific chapter
+                    </p>
+                    <textarea class="form-control" id="importText" name="import_text" rows="15"
+                              placeholder="Author Name - Book Title&#10;Author Name - Book Title - Chapter Title&#10;Another Author - Another Book"></textarea>
+                </div>
+
+                <!-- Submit -->
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary btn-lg" id="importButton">
+                        <i class="bi bi-upload"></i> Import Items
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsContainer" class="d-none">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Import Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success" id="successMessage"></div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-success">Found and Added (<span id="foundCount">0</span>)</h6>
+                        <div id="foundList" class="list-group mb-3" style="max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-danger">Not Found (<span id="notFoundCount">0</span>)</h6>
+                        <div id="notFoundList" class="list-group mb-3" style="max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <a href="/library/audiobook/playlists" class="btn btn-primary">
+                        <i class="bi bi-list-check"></i> View Playlists
+                    </a>
+                    <a href="/library/audiobook/playlists/import" class="btn btn-secondary">
+                        <i class="bi bi-arrow-clockwise"></i> Import More
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toggle playlist selection fields
+document.querySelectorAll('input[name="playlistOption"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        if (this.value === 'existing') {
+            document.getElementById('existingPlaylistSelect').disabled = false;
+            document.getElementById('newPlaylistName').disabled = true;
+        } else {
+            document.getElementById('existingPlaylistSelect').disabled = true;
+            document.getElementById('newPlaylistName').disabled = false;
+        }
+    });
+});
+
+// Handle form submission
+document.getElementById('importForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const createNew = document.getElementById('newPlaylist').checked;
+    const playlistName = document.getElementById('existingPlaylistSelect').value;
+    const newPlaylistName = document.getElementById('newPlaylistName').value;
+    const importText = document.getElementById('importText').value;
+
+    if (!createNew && !playlistName) {
+        alert('Please select an existing playlist');
+        return;
+    }
+
+    if (createNew && !newPlaylistName.trim()) {
+        alert('Please enter a new playlist name');
+        return;
+    }
+
+    if (!importText.trim()) {
+        alert('Please enter items to import');
+        return;
+    }
+
+    // Disable submit button
+    const submitButton = document.getElementById('importButton');
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Importing...';
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('create_new', createNew ? 'true' : 'false');
+    formData.append('playlist_name', playlistName);
+    formData.append('new_playlist_name', newPlaylistName);
+    formData.append('import_text', importText);
+
+    try {
+        const response = await fetch('/library/audiobook/playlists/import/process', {
+            method: 'POST',
+            body: new URLSearchParams(formData)
+        });
+
+        const result = await response.json();
+
+        // Display results
+        document.getElementById('resultsContainer').classList.remove('d-none');
+
+        if (result.success) {
+            document.getElementById('successMessage').textContent = result.message;
+        } else {
+            document.getElementById('successMessage').textContent = 'Import completed with errors';
+            document.getElementById('successMessage').className = 'alert alert-warning';
+        }
+
+        document.getElementById('foundCount').textContent = result.found_count;
+        document.getElementById('notFoundCount').textContent = result.not_found_count;
+
+        const foundList = document.getElementById('foundList');
+        foundList.innerHTML = '';
+        result.found.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'list-group-item';
+            div.textContent = item;
+            foundList.appendChild(div);
+        });
+
+        const notFoundList = document.getElementById('notFoundList');
+        notFoundList.innerHTML = '';
+        result.not_found.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'list-group-item list-group-item-danger';
+            div.textContent = item;
+            notFoundList.appendChild(div);
+        });
+
+        // Scroll to results
+        document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (error) {
+        alert('Error importing: ' + error.message);
+    } finally {
+        // Re-enable submit button
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="bi bi-upload"></i> Import Items';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Medical - {{ animal.name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/husbandry/">Husbandry</a></li>
+        <li class="breadcrumb-item"><a href="/milk/">Milk</a></li>
+        <li class="breadcrumb-item"><a href="/milk/groups/{{ group_id }}">{{ group_name }}</a></li>
+        <li class="breadcrumb-item"><a href="/milk/groups/{{ group_id }}/members">Members</a></li>
+        <li class="breadcrumb-item active">{{ animal.name }} - Medical</li>
+    </ol>
+</nav>
+<h2><i class="bi bi-heart-pulse"></i> Medical: {{ animal.name }}</h2>
+<p class="text-muted">{{ animal.animal_type }} &middot; {{ animal.breed or '' }}</p>
+
+<!-- Add Medical Record Form -->
+<div class="card mb-3">
+    <div class="card-header py-2"><i class="bi bi-plus-circle"></i> <span id="formTitle">Add Medical Record</span></div>
+    <div class="card-body">
+        <form id="medForm" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Date *</small></label>
+                <input type="date" class="form-control form-control-sm" name="record_date" id="record_date" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label mb-0"><small>Description *</small></label>
+                <input type="text" class="form-control form-control-sm" name="description" id="description" placeholder="e.g., Deworming, attacked by coyotes" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-0"><small>Cost</small></label>
+                <input type="number" step="0.01" class="form-control form-control-sm" name="cost" id="cost" placeholder="0.00">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-0"><small>Notes</small></label>
+                <input type="text" class="form-control form-control-sm" name="notes" id="notes">
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-sm"><i class="bi bi-check"></i> <span id="submitText">Add</span></button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Medical Records -->
+<h5>Medical History</h5>
+{% if medical_records %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr><th>Date</th><th>Description</th><th>Cost</th><th>Notes</th><th>By</th><th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for r in medical_records %}
+            <tr>
+                <td class="text-nowrap">{{ r.record_date }}</td>
+                <td>{{ r.description }}</td>
+                <td>{{ '$' ~ r.cost if r.cost else '' }}</td>
+                <td>{{ r.notes or '' }}</td>
+                <td><small>{{ r.recorded_by }}</small></td>
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick='editMed({{ r|tojson }})' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteMed('{{ r.id }}')" title="Delete"><i class="bi bi-x"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">No medical records yet.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const groupId = '{{ group_id }}';
+const animalId = '{{ animal.id }}';
+let editingId = null;
+
+document.getElementById('medForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var url, method;
+    if (editingId) {
+        url = '/milk/groups/' + groupId + '/animals/' + animalId + '/medical/' + editingId;
+        method = 'PUT';
+    } else {
+        url = '/milk/groups/' + groupId + '/animals/' + animalId + '/medical/add';
+        method = 'POST';
+    }
+    fetch(url, {method: method, body: new FormData(this), credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+});
+
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+function editMed(r) {
+    editingId = r.id;
+    document.getElementById('record_date').value = r.record_date;
+    document.getElementById('description').value = r.description;
+    document.getElementById('cost').value = r.cost || '';
+    document.getElementById('notes').value = r.notes || '';
+    document.getElementById('formTitle').textContent = 'Edit Medical Record';
+    document.getElementById('submitText').textContent = 'Update';
+    document.getElementById('submitBtn').className = 'btn btn-warning btn-sm';
+    document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('medForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetForm() {
+    document.getElementById('medForm').reset();
+    editingId = null;
+    document.getElementById('formTitle').textContent = 'Add Medical Record';
+    document.getElementById('submitText').textContent = 'Add';
+    document.getElementById('submitBtn').className = 'btn btn-success btn-sm';
+    document.getElementById('cancelBtn').style.display = 'none';
+}
+
+function deleteMed(id) {
+    if (!confirm('Delete this record?')) return;
+    fetch('/milk/groups/' + groupId + '/animals/' + animalId + '/medical/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+</script>
+{% endblock %}

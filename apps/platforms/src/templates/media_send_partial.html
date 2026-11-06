@@ -1,0 +1,258 @@
+{# Media clip send forms (voice + photo). Optional `fixed_chan` locks the
+   destination channel (channel room modal); otherwise a channel select
+   is rendered (Media Clips page). #}
+<div class="card bg-white shadow-sm mb-3">
+  <div class="card-body">
+    <h5 class="card-title"><i class="bi bi-mic"></i> Record &amp; Send a Voice Clip{% if fixed_chan %} to {{ fixed_chan }}{% endif %}</h5>
+    <p class="text-muted small mb-2">Records from your microphone, encodes with Codec2 in the browser, and floods the clip over radio2 via the Bear Den bridge. Requires HTTPS. Max ~2 minutes (RF-paced at ~1.2s per packet — a 30s clip at mode 1200 takes about 6 minutes of airtime to send).</p>
+    <div class="row g-2 align-items-center">
+      {% if not fixed_chan %}
+      <div class="col-auto">
+        <label class="col-form-label form-label" for="mmChan">Channel</label>
+        <select id="mmChan" class="form-select form-select-sm">
+          <option value="bears" selected>Bears (private)</option>
+          <option value="public">Public</option>
+          <option value="bears2">Bears2 (private)</option>
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-auto">
+        <label class="col-form-label form-label" for="mmMode">Codec</label>
+        <select id="mmMode" class="form-select form-select-sm">
+          <option value="1200" selected>Codec2 1200 (OT mode 1)</option>
+          <option value="700C">Codec2 700C (OT mode 0)</option>
+          <option value="3200">Codec2 3200 (OT mode 6)</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="col-form-label form-label" for="mmCaption">Caption</label>
+        <input type="text" id="mmCaption" class="form-control form-control-sm" maxlength="40" placeholder="Optional caption…">
+      </div>
+      <div class="col-auto">
+        <button id="mmRec" class="btn btn-sm btn-danger"><i class="bi bi-record-circle"></i> Record</button>
+      </div>
+      <div class="col-auto">
+        <button id="mmSend" class="btn btn-sm btn-primary" disabled>Encode &amp; Send</button>
+      </div>
+      <div class="col-auto">
+        <span id="mmStatus" class="small text-muted">Idle.</span>
+      </div>
+    </div>
+    <audio id="mmPreview" class="mt-2 w-100" controls style="display:none"></audio>
+  </div>
+</div>
+
+<div class="card bg-white shadow-sm mb-3">
+  <div class="card-body">
+    <h5 class="card-title"><i class="bi bi-image"></i> Send a Photo{% if fixed_chan %} to {{ fixed_chan }}{% endif %}</h5>
+    <p class="text-muted small mb-2">Upload any phone photo (JPEG/PNG/WebP). The server downscales it and re-encodes it as a tiny AV1 still image (Open TAK wire format) so it fits the radio2 budget. Sending is RF-paced (~1.2s per packet; smaller budgets = far less airtime and mesh load).</p>
+    <div class="row g-2 align-items-center">
+      {% if not fixed_chan %}
+      <div class="col-auto">
+        <label class="col-form-label form-label" for="phChan">Channel</label>
+        <select id="phChan" class="form-select form-select-sm">
+          <option value="bears" selected>Bears (private)</option>
+          <option value="public">Public</option>
+          <option value="bears2">Bears2 (private)</option>
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-auto">
+        <label class="col-form-label form-label" for="phBudget">Quality</label>
+        <select id="phBudget" class="form-select form-select-sm">
+          <option value="2750">Basic (~2.7 KB, ~23 pkts, ~30s)</option>
+          <option value="5500" selected>Standard (~5.5 KB, ~46 pkts, ~1min)</option>
+          <option value="11000">Detailed (~11 KB, ~92 pkts, ~2min)</option>
+          <option value="22950">Max (~23 KB, ~190 pkts, ~4min)</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="col-form-label form-label" for="phCaption">Caption</label>
+        <input type="text" id="phCaption" class="form-control form-control-sm" maxlength="40" placeholder="Optional caption…">
+      </div>
+      <div class="col-auto">
+        <input type="file" id="phFile" accept="image/*" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <button id="phSend" class="btn btn-sm btn-primary" disabled><i class="bi bi-send"></i> Send Photo</button>
+      </div>
+      <div class="col-auto">
+        <span id="phStatus" class="small text-muted">Idle.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/vendor/codec2/c2enc.js"></script>
+<script>
+(function () {
+  const MAX_BYTES = 22950;          // bridge hard cap: 255 packets x 90 bytes
+  const C2_BYTES_PER_SEC = { "1200": 150, "700C": 88, "3200": 400 };
+  const OT_MODE = { "1200": 1, "700C": 0, "3200": 6 };
+  const FIXED_CHAN = {% if fixed_chan %}"{{ fixed_chan }}"{% else %}null{% endif %};
+  const chanVal = (sel) => { const el = document.getElementById(sel); return el ? el.value : FIXED_CHAN; };
+  // When embedded in a channel room modal, close it and refresh the
+  // timeline after a successful send.
+  const afterSend = () => {
+    if (!FIXED_CHAN) return;
+    const m = document.getElementById('mediaModal');
+    if (m && window.bootstrap) { bootstrap.Modal.getOrCreateInstance(m).hide(); }
+    setTimeout(() => window.location.reload(), 700);
+  };
+  const phFile = document.getElementById("phFile");
+  const phSend = document.getElementById("phSend");
+  const phChan = document.getElementById("phChan");
+  const phBudget = document.getElementById("phBudget");
+  const phStatus = document.getElementById("phStatus");
+  if (phFile && phSend) {
+    phFile.addEventListener("change", () => { phSend.disabled = !phFile.files.length; });
+    phSend.addEventListener("click", async () => {
+      const f = phFile.files[0];
+      if (!f) return;
+      phSend.disabled = true;
+      phStatus.textContent = "Compressing " + f.name + " (" + Math.round(f.size / 1024) + " KB)…";
+      try {
+        const b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(",")[1]);
+          r.onerror = rej;
+          r.readAsDataURL(f);
+        });
+        phStatus.textContent = "Compressed. Sending over radio2…";
+        const resp = await fetch("/platforms/meshcore/media/photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image_b64: b64, chan: chanVal("phChan"), budget: parseInt(phBudget.value, 10), caption: (document.getElementById("phCaption").value || "").trim() }),
+        });
+        const data = await resp.json();
+        const msg = data.error || data.detail || null;
+        if (!resp.ok || data.ok === false) { phStatus.innerHTML = '<span class="text-danger"></span>'; phStatus.firstChild.textContent = msg ? ("Send failed: " + msg) : "Send failed (HTTP " + resp.status + ")."; return; }
+        const kb = data.produced_bytes ? Math.round(data.produced_bytes / 1024) : null;
+        const eta = data.eta_secs ? Math.round(data.eta_secs / 60 * 10) / 10 : null;
+        phStatus.textContent = "Sent! Session " + data.sid + (kb ? ", " + kb + " KB image" : "") + (data.packets ? ", " + data.packets + " packets" : "") + (eta ? ", ~" + eta + " min of airtime" : "") + ".";
+        phFile.value = ""; phSend.disabled = true;
+        afterSend();
+      } catch (e) {
+        phStatus.innerHTML = '<span class="text-danger"></span>';
+        phStatus.firstChild.textContent = "Error: " + (e.message || e);
+      }
+      phSend.disabled = !phFile.files.length;
+    });
+  }
+
+  const recBtn = document.getElementById("mmRec");
+  const sendBtn = document.getElementById("mmSend");
+  const statusEl = document.getElementById("mmStatus");
+  const modeEl = document.getElementById("mmMode");
+  const chanEl = document.getElementById("mmChan");
+  const preview = document.getElementById("mmPreview");
+  const say = (t) => { statusEl.textContent = t; };
+  const fail = (t) => { statusEl.innerHTML = '<span class="text-danger"></span>'; statusEl.firstChild.textContent = t; };
+
+  let ctx = null, node = null, stream = null, chunks = [], sampleRate = 0, recording = false, timer = null, pcm = null;
+
+  function downsample(input, fromRate) {
+    const outRate = 8000, ratio = fromRate / outRate, n = Math.floor(input.length / ratio);
+    const out = new Int16Array(n);
+    for (let i = 0; i < n; i++) {
+      let sum = 0, cnt = 0;
+      for (let j = Math.floor(i * ratio); j < Math.floor((i + 1) * ratio); j++) { sum += input[j]; cnt++; }
+      let v = cnt ? sum / cnt : 0;
+      v = Math.max(-1, Math.min(1, v));
+      out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+    }
+    return out;
+  }
+
+  function stopAudio() {
+    if (node) { node.disconnect(); node = null; }
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    if (ctx) { ctx.close(); ctx = null; }
+    if (timer) { clearInterval(timer); timer = null; }
+    recording = false;
+    recBtn.classList.remove("btn-outline-danger");
+    recBtn.innerHTML = '<i class="bi bi-record-circle"></i> Record';
+  }
+
+  recBtn.addEventListener("click", async () => {
+    if (recording) { stopAudio(); say("Stopped. Ready to encode."); sendBtn.disabled = false; return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      fail("Microphone unavailable — this page must be loaded over HTTPS."); return;
+    }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { fail("Microphone access denied: " + e.message); return; }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    sampleRate = ctx.sampleRate;
+    chunks = []; pcm = null; preview.style.display = "none";
+    const proc = ctx.createScriptProcessor(4096, 1, 1);
+    node = proc;
+    proc.onaudioprocess = (ev) => {
+      if (!recording) return;
+      chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0)));
+    };
+    ctx.createMediaStreamSource(stream).connect(proc);
+    const mute = ctx.createGain(); mute.gain.value = 0; // keep processing without speaker feedback
+    proc.connect(mute); mute.connect(ctx.destination);
+    recording = true;
+    recBtn.classList.add("btn-outline-danger");
+    recBtn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop';
+    const t0 = Date.now();
+    const mode = modeEl.value;
+    const maxSec = Math.min(120, Math.floor(MAX_BYTES / C2_BYTES_PER_SEC[mode]));
+    say("Recording… (max " + maxSec + "s at " + mode + ")");
+    timer = setInterval(() => {
+      const el = Math.round((Date.now() - t0) / 1000);
+      if (el >= maxSec) { stopAudio(); say("Max length reached (" + maxSec + "s). Ready to encode."); sendBtn.disabled = false; return; }
+      say("Recording… " + el + "s (max " + maxSec + "s)");
+    }, 1000);
+  });
+
+  function runEncode(mode, rawBytes) {
+    return new Promise((resolve, reject) => {
+      const module = {
+        arguments: [mode, "input.raw", "output.bit"],
+        preRun: () => { module.FS.writeFile("input.raw", rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength)); },
+        postRun: () => { resolve(module.FS.readFile("output.bit", { encoding: "binary" })); },
+      };
+      try { createC2Enc(module); } catch (e) { reject(e); }
+    });
+  }
+
+  function b64(bytes) {
+    let s = "";
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s);
+  }
+
+  sendBtn.addEventListener("click", async () => {
+    sendBtn.disabled = true;
+    try {
+      if (!chunks.length) { fail("Nothing recorded yet."); return; }
+      const mode = modeEl.value;
+      say("Encoding with Codec2 " + mode + "…");
+      let total = 0; for (const c of chunks) total += c.length;
+      const all = new Float32Array(total);
+      let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+      pcm = downsample(all, sampleRate);
+      say("Encoded input: " + (pcm.length / 8000).toFixed(1) + "s of 8kHz PCM.");
+      const bit = await runEncode(mode, pcm);
+      if (!bit.length) { fail("Encoder produced no output."); return; }
+      if (bit.length > MAX_BYTES) { fail("Clip too large (" + bit.length + " B > " + MAX_BYTES + " B) — record shorter."); return; }
+      say("Sending " + bit.length + " bytes over radio2…");
+      const res = await fetch("/platforms/meshcore/media/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ b64: b64(bit), kind: "voice", mode: OT_MODE[mode], chan: chanVal("mmChan"), caption: (document.getElementById("mmCaption").value || "").trim() }),
+      });
+      const data = await res.json();
+      const msg = data.error || data.detail || null;
+      if (!res.ok || data.ok === false) { fail(msg ? ("Send failed: " + msg) : "Send failed (HTTP " + res.status + ")."); return; }
+      const eta = data.eta_secs ? Math.round(data.eta_secs / 60 * 10) / 10 : null;
+      say("Sent! Session " + data.sid + ", " + data.packets + " packets" + (eta ? ", ~" + eta + " min of airtime" : "") + ". Receivers will show it complete as packets arrive.");
+      chunks = [];
+      afterSend();
+    } catch (e) { fail("Error: " + (e.message || e)); }
+    sendBtn.disabled = false;
+  });
+})();
+</script>

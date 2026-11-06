@@ -1,0 +1,236 @@
+{
+ "spokane": {
+  "name": "Mount Spokane",
+  "elev_m": 1782.0,
+  "lat": 47.9237,
+  "lon": -117.1123
+ },
+ "stevens": {
+  "name": "Abercrombie Mountain",
+  "elev_m": 2208.0,
+  "lat": 48.9281,
+  "lon": -117.4601
+ },
+ "whitman": {
+  "name": "Tekoa Mountain",
+  "elev_m": 1221.0,
+  "lat": 47.2582,
+  "lon": -117.0898
+ },
+ "skamania": {
+  "name": "Mount Adams",
+  "elev_m": 3743.0,
+  "lat": 46.2024,
+  "lon": -121.4908
+ },
+ "benton": {
+  "name": "Lookout",
+  "elev_m": 1099.0,
+  "lat": 46.4476,
+  "lon": -119.84
+ },
+ "snohomish": {
+  "name": "Glacier Peak",
+  "elev_m": 3182.0,
+  "lat": 48.1117,
+  "lon": -121.1129
+ },
+ "clark": {
+  "name": "Larch Mountain",
+  "elev_m": 1071.0,
+  "lat": 45.7168,
+  "lon": -122.296
+ },
+ "kittitas": {
+  "name": "Mount Daniel",
+  "elev_m": 2329.0,
+  "lat": 47.5626,
+  "lon": -121.1719
+ },
+ "san juan": {
+  "name": "Mount Constitution",
+  "elev_m": 719.0,
+  "lat": 48.6776,
+  "lon": -122.8313
+ },
+ "grays harbor": {
+  "name": "Discovery Peak",
+  "elev_m": 1437.0,
+  "lat": 47.5163,
+  "lon": -123.5613
+ },
+ "thurston": {
+  "name": "Clam Mountain",
+  "elev_m": 830.0,
+  "lat": 46.764,
+  "lon": -122.5341
+ },
+ "lewis": {
+  "name": "Johnson Peak",
+  "elev_m": 2197.0,
+  "lat": 46.5387,
+  "lon": -121.5017
+ },
+ "yakima": {
+  "name": "Mount Adams",
+  "elev_m": 3736.0,
+  "lat": 46.2024,
+  "lon": -121.4908
+ },
+ "garfield": {
+  "name": "Diamond Peak",
+  "elev_m": 1937.0,
+  "lat": 46.1156,
+  "lon": -117.5399
+ },
+ "pend oreille": {
+  "name": "Gypsy Peak",
+  "elev_m": 2215.0,
+  "lat": 48.9456,
+  "lon": -117.1522
+ },
+ "lincoln": {
+  "name": "Lilienthal Mountain",
+  "elev_m": 1068.0,
+  "lat": 47.9102,
+  "lon": -118.2331
+ },
+ "adams": {
+  "name": "Marengo Hills",
+  "elev_m": 587.0,
+  "lat": 47.0554,
+  "lon": -118.1938
+ },
+ "ferry": {
+  "name": "Copper Butte",
+  "elev_m": 2173.0,
+  "lat": 48.7023,
+  "lon": -118.4656
+ },
+ "columbia": {
+  "name": "Oregon Butte",
+  "elev_m": 1940.0,
+  "lat": 46.1103,
+  "lon": -117.6796
+ },
+ "okanogan": {
+  "name": "Mount Bigelow",
+  "elev_m": 2559.0,
+  "lat": 48.2181,
+  "lon": -120.3541
+ },
+ "pierce": {
+  "name": "Mount Rainier (Columbia Crest)",
+  "elev_m": 4392.0,
+  "lat": 46.8528,
+  "lon": -121.7604
+ },
+ "franklin": {
+  "name": "Fryxell Overlook",
+  "elev_m": 277.0,
+  "lat": 46.6638,
+  "lon": -118.2275
+ },
+ "wahkiakum": {
+  "name": "Elk Mountain",
+  "elev_m": 458.0,
+  "lat": 46.328,
+  "lon": -123.551
+ },
+ "jefferson": {
+  "name": "Mount Olympus",
+  "elev_m": 2368.0,
+  "lat": 47.8013,
+  "lon": -123.7106
+ },
+ "king": {
+  "name": "Overcoat Peak",
+  "elev_m": 2133.0,
+  "lat": 47.5138,
+  "lon": -121.2921
+ },
+ "island": {
+  "name": "Hoypus Hill",
+  "elev_m": 149.0,
+  "lat": 48.4026,
+  "lon": -122.606
+ },
+ "pacific": {
+  "name": "Walville Peak",
+  "elev_m": 749.0,
+  "lat": 46.5895,
+  "lon": -123.4163
+ },
+ "walla walla": {
+  "name": "Lewis Peak",
+  "elev_m": 1488.0,
+  "lat": 46.0616,
+  "lon": -117.9983
+ },
+ "clallam": {
+  "name": "Gray Wolf",
+  "elev_m": 2176.0,
+  "lat": 47.8809,
+  "lon": -123.2064
+ },
+ "chelan": {
+  "name": "Bonanza Peak",
+  "elev_m": 2837.0,
+  "lat": 48.2382,
+  "lon": -120.8663
+ },
+ "cowlitz": {
+  "name": "Goat Mountain",
+  "elev_m": 1486.0,
+  "lat": 46.1637,
+  "lon": -122.3008
+ },
+ "douglas": {
+  "name": "Badger Mountain",
+  "elev_m": 1295.0,
+  "lat": 47.5837,
+  "lon": -120.1793
+ },
+ "whatcom": {
+  "name": "Mount Baker",
+  "elev_m": 3263.0,
+  "lat": 48.7766,
+  "lon": -121.8145
+ },
+ "skagit": {
+  "name": "Black Peak",
+  "elev_m": 2700.0,
+  "lat": 48.5233,
+  "lon": -120.8162
+ },
+ "asotin": {
+  "name": "Saddle Butte",
+  "elev_m": 1789.0,
+  "lat": 46.0706,
+  "lon": -117.4622
+ },
+ "klickitat": {
+  "name": "Indian Rock",
+  "elev_m": 1775.0,
+  "lat": 45.9891,
+  "lon": -120.823
+ },
+ "grant": {
+  "name": "Monument Hill",
+  "elev_m": 869.0,
+  "lat": 47.3203,
+  "lon": -119.8011
+ },
+ "mason": {
+  "name": "Mount Stone",
+  "elev_m": 1922.0,
+  "lat": 47.6062,
+  "lon": -123.2666
+ },
+ "kitsap": {
+  "name": "Gold Mountain",
+  "elev_m": 536.0,
+  "lat": 47.5486,
+  "lon": -122.7866
+ }
+}

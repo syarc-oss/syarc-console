@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Invites - Calendar{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="/calendar">Calendar</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Invites</li>
+    </ol>
+</nav>
+
+<h2 class="mb-3"><i class="bi bi-envelope-heart"></i> Invites &amp; assignments</h2>
+
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-list-task"></i> Task crew invitations</div>
+    <ul class="list-group list-group-flush">
+        {% for c in crew %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <a href="/calendar/tasks/{{ c.task_id }}/edit">{{ c.description }}</a>
+                <div class="text-muted small">
+                    invited by {{ c.owner }} on {{ c.assigned_at }}
+                    {% if c.due_date %} · due {{ c.due_date }}{% endif %}
+                    {% if c.location %} · {{ c.location }}{% endif %}
+                </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                {% if c.status == "pending" %}
+                <a href="/calendar/invites/task/{{ c.id }}/accept" class="btn btn-sm btn-success">Accept</a>
+                <a href="/calendar/invites/task/{{ c.id }}/decline" class="btn btn-sm btn-outline-secondary">Decline</a>
+                {% else %}
+                <span class="badge {{ 'bg-success' if c.status == 'confirmed' else 'bg-secondary' }}">{{ c.status }}</span>
+                {% endif %}
+            </div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No task invitations.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-calendar-event"></i> Event invitations</div>
+    <ul class="list-group list-group-flush">
+        {% for e in event_invites %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <a href="/calendar/events/{{ e.event_id }}/edit">{{ e.title }}</a>
+                <span class="badge {{ 'cal-appointment' if e.category == 'appointment' else 'cal-meeting' }}">{{ e.category }}</span>
+                <div class="text-muted small">
+                    {{ e.event_date }}{% if e.event_time %} {{ e.event_time }}{% endif %}{% if e.duration_mins %} · {{ e.duration_mins }}m{% endif %}
+                    {% if e.location %} · {{ e.location }}{% endif %} · from {{ e.owner }}
+                </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                {% if e.status == "pending" %}
+                <form method="post" action="/calendar/events/{{ e.event_id }}/invitees/{{ e.id }}/respond">
+                    <input type="hidden" name="action" value="accept">
+                    <input type="hidden" name="back" value="/calendar/invites">
+                    <button class="btn btn-sm btn-success" type="submit">Accept</button>
+                </form>
+                <form method="post" action="/calendar/events/{{ e.event_id }}/invitees/{{ e.id }}/respond">
+                    <input type="hidden" name="action" value="decline">
+                    <input type="hidden" name="back" value="/calendar/invites">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Decline</button>
+                </form>
+                {% else %}
+                <span class="badge {{ 'bg-success' if e.status == 'confirmed' else 'bg-secondary' }}">{{ e.status }}</span>
+                {% endif %}
+            </div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No event invitations.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-camera-video"></i> Conferencing invitations</div>
+    <ul class="list-group list-group-flush">
+        {% for i in conferencing %}
+        <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <strong>{{ i.media_type }}</strong> call from {{ i.inviter }}
+                <div class="text-muted small">invited {{ i.created_at }} · room {{ i.call_status }}</div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                {% if i.status == "pending" and i.call_status not in ["ended", "missed"] %}
+                <a href="/calendar/invites/conferencing/{{ i.id }}/accept" class="btn btn-sm btn-success">Join</a>
+                <a href="/calendar/invites/conferencing/{{ i.id }}/decline" class="btn btn-sm btn-outline-secondary">Decline</a>
+                {% else %}
+                <span class="badge bg-secondary">{{ i.status }}</span>
+                {% endif %}
+            </div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No conferencing invitations.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-tree"></i> Foraging outings shared with you</div>
+    <ul class="list-group list-group-flush">
+        {% for f in foraging %}
+        <li class="list-group-item d-flex justify-content-between">
+            <span><a href="/agriculture/foraging">{{ f.outing_type }}</a>
+                {% if f.location %} @ {{ f.location }}{% endif %}</span>
+            <span class="text-muted">{{ f.outing_date }} · from {{ f.owner }}</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">No shared outings upcoming.</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="bi bi-egg-fried"></i> Cooking this week{% if false %}{% endif %}</div>
+    <ul class="list-group list-group-flush">
+        {% for m in cooking %}
+        <li class="list-group-item d-flex justify-content-between">
+            <span><span class="badge bg-primary">{{ m.meal_type|capitalize }}</span> {{ m.title }}</span>
+            <span class="text-muted">{{ m.menu_date }}{% if m.cook %} · you're cooking{% else %} · no cook assigned{% endif %}</span>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">Nothing on the menu this week (or all meals have cooks).</li>
+        {% endfor %}
+    </ul>
+    <div class="card-footer text-muted small">
+        Assign cooks from the <a href="/cooking/menu">Cooking menu calendar</a>.
+    </div>
+</div>
+{% endblock %}

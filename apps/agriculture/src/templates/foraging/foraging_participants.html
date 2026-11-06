@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Participants - {{ outing.outing_date[5:7] ~ '/' ~ outing.outing_date[8:10] ~ '/' ~ outing.outing_date[0:4] }} {{ outing.outing_type|title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/agriculture/">Agriculture</a></li>
+        <li class="breadcrumb-item"><a href="/agriculture/foraging/">Foraging</a></li>
+        <li class="breadcrumb-item active">Participants</li>
+    </ol>
+</nav>
+<h2><i class="bi bi-people"></i> Participants</h2>
+<p class="text-muted">{{ outing.outing_date[5:7] ~ '/' ~ outing.outing_date[8:10] ~ '/' ~ outing.outing_date[0:4] }} &middot; {{ outing.outing_type|title }}{% if outing.location %} &middot; {{ outing.location }}{% endif %}</p>
+
+{% if is_owner %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h6>Share with Users</h6>
+        <form action="/agriculture/foraging/{{ outing_id }}/share" method="post" class="d-flex gap-2">
+            <select name="share_with_user_id" class="form-select" style="max-width:300px" required>
+                <option value="">Select user...</option>
+                {% for u in all_users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn btn-success btn-sm">Share</button>
+        </form>
+        {% if shared_users %}
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            {% for share, shared_user in shared_users %}
+            <span class="badge bg-light text-dark border">
+                {{ shared_user.username }}
+                <form action="/agriculture/foraging/{{ outing_id }}/revoke/{{ share.id }}" method="post" class="d-inline">
+                    <button type="submit" class="btn-close btn-close-sm ms-1" title="Revoke"></button>
+                </form>
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Add/Edit Participant Form -->
+<div class="card mb-3">
+    <div class="card-header py-2"><i class="bi bi-plus-circle"></i> <span id="formTitle">Add Participant</span></div>
+    <div class="card-body">
+        <form id="partForm" class="row g-2 align-items-end">
+            <input type="hidden" id="editId" value="">
+            <div class="col-md-6">
+                <label class="form-label mb-0"><small>Name *</small></label>
+                <input type="text" class="form-control form-control-sm" id="name" name="name" required>
+            </div>
+            <div class="col-md-auto">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-sm"><i class="bi bi-plus"></i> <span id="submitText">Add</span></button>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-sm" style="display:none">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<h5>Participant List</h5>
+{% if participants %}
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:0.85rem">
+        <thead class="table-light">
+            <tr><th>Name</th><th class="text-end">Actions</th></tr>
+        </thead>
+        <tbody>
+            {% for p in participants %}
+            <tr>
+                <td class="fw-bold">{{ p.name }}</td>
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary py-0" onclick='editParticipant({{ p.id|string|tojson }}, {{ p.name|tojson }})' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteParticipant('{{ p.id }}')" title="Delete"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="alert alert-info">No participants yet.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const outingId = '{{ outing_id }}';
+let editingId = null;
+
+document.getElementById('partForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var data = new FormData(this);
+    if (editingId) {
+        fetch('/agriculture/foraging/' + outingId + '/participants/' + editingId, {method: 'PUT', body: data, credentials: 'include'})
+            .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    } else {
+        fetch('/agriculture/foraging/' + outingId + '/participants/add', {method: 'POST', body: data, credentials: 'include'})
+            .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail || 'Error')));
+    }
+});
+
+document.getElementById('cancelBtn').addEventListener('click', resetForm);
+
+function editParticipant(id, name) {
+    editingId = id;
+    document.getElementById('editId').value = id;
+    document.getElementById('name').value = name;
+    document.getElementById('formTitle').textContent = 'Edit Participant';
+    document.getElementById('submitText').textContent = 'Update';
+    document.getElementById('submitBtn').className = 'btn btn-warning btn-sm';
+    document.getElementById('cancelBtn').style.display = '';
+    document.getElementById('partForm').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetForm() {
+    document.getElementById('partForm').reset();
+    editingId = null;
+    document.getElementById('editId').value = '';
+    document.getElementById('formTitle').textContent = 'Add Participant';
+    document.getElementById('submitText').textContent = 'Add';
+    document.getElementById('submitBtn').className = 'btn btn-success btn-sm';
+    document.getElementById('cancelBtn').style.display = 'none';
+}
+
+function deleteParticipant(id) {
+    if (!confirm('Remove this participant?')) return;
+    fetch('/agriculture/foraging/' + outingId + '/participants/' + id, {method: 'DELETE', credentials: 'include'})
+        .then(r => r.ok ? location.reload() : r.json().then(d => alert(d.detail)));
+}
+</script>
+{% endblock %}
