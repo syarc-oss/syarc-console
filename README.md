@@ -1,5 +1,12 @@
 # syarc-console
 
+Self-hosted Rust web console for an off-grid homestead/community network:
+accounts and messaging, LoRa mesh (MeshCore) tooling and MediaMesh clip
+relay, a family library (ebooks/audiobooks/music/photos with on-the-fly
+transcoding), calendar and chores, SQLCipher-encrypted financial ledgers,
+surveillance cameras, and an offline AI/knowledge assistant. Runs on plain
+SQLite, no cloud dependencies.
+
 Rust rewrite of the fastmain control console: authentication, sessions,
 authorization, and the app-plugin host. Apps live as workspace crates under
 `apps/` and are linked in statically via the compile-time registry.
