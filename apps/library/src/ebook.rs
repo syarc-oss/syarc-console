@@ -34,6 +34,29 @@ pub(crate) fn sibling_cover_path(book_path: &str) -> std::path::PathBuf {
 /// sibling file next to the book (all newly generated covers).
 pub(crate) const COVER_SIBLING: &str = "sibling";
 
+/// Write a cover as `<book>.cover.jpg` next to the book file; falls back
+/// to the central covers dir when the library tree is unwritable (e.g.
+/// NFS-mounted on a host whose console user cannot write there). Returns
+/// the cover_filename value to store, or None if both writes failed.
+pub(crate) fn write_book_cover(
+    book_path: &str,
+    book_id: i64,
+    ext: &str,
+    data: &[u8],
+) -> Option<String> {
+    if !book_path.is_empty() {
+        let p = sibling_cover_path(book_path);
+        if std::fs::write(&p, data).is_ok() {
+            return Some(COVER_SIBLING.to_string());
+        }
+    }
+    let dir = covers_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let filename = format!("book_{book_id}.{ext}");
+    std::fs::write(dir.join(&filename), data).ok()?;
+    Some(filename)
+}
+
 
 /// Remove a book's cover file: the sibling next to the book if present,
 /// otherwise the legacy covers_dir entry.
@@ -2718,7 +2741,6 @@ async fn update_book(
     }
 
     let book_file = book["file_path"].as_str().unwrap_or("").to_string();
-    let out_path = sibling_cover_path(&book_file);
     let mut new_cover: Option<String> = None;
     if let Some(data) = cover_data.filter(|d| d.starts_with("data:image")) {
         let Some((header, b64)) = data.split_once(',') else {
@@ -2739,16 +2761,15 @@ async fn update_book(
             return err400("Invalid image format from clipboard");
         }
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) {
-            let _ = std::fs::write(&out_path, bytes);
-            new_cover = Some(COVER_SIBLING.to_string());
+            new_cover = write_book_cover(&book_file, book_id, &ext, &bytes);
         }
     } else if let Some((filename, bytes)) = cover_file {
         let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-        if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif" | "webp") {
+        let ext = if ext == "jpeg" { "jpg".to_string() } else { ext };
+        if !matches!(ext.as_str(), "jpg" | "png" | "gif" | "webp") {
             return err400("Invalid image format");
         }
-        let _ = std::fs::write(&out_path, bytes);
-        new_cover = Some(COVER_SIBLING.to_string());
+        new_cover = write_book_cover(&book_file, book_id, &ext, &bytes);
     }
     if let Some(filename) = new_cover {
         remove_book_cover(

@@ -46,6 +46,9 @@
         <a class="btn btn-sm btn-outline-success" href="/platforms/meshcore/media/{{ e.id }}/play" target="_blank" rel="noopener">
           {%- if e.kind == 'photo' -%}View{%- else -%}Play{%- endif -%}
         </a>
+        {%- if e.kind == 'photo' %}
+        <a class="btn btn-sm btn-outline-success" href="/platforms/meshcore/media/{{ e.id }}/play?scale=2" target="_blank" rel="noopener">Enlarge</a>
+        {%- endif %}
         <a class="btn btn-sm btn-outline-primary" href="/platforms/meshcore/media/{{ e.id }}/file">Download</a>
       </td>
       {% else %}

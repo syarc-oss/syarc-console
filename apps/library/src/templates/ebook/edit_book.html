@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('/library/ebook/book/edit', {
                 method: 'POST',
-                body: new URLSearchParams(formData)
+                body: new FormData(this)
             });
 
             if (response.ok) {

@@ -17,7 +17,7 @@ use std::sync::{Mutex, OnceLock};
 
 use base64::Engine as _;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect};
 use axum::routing::{get, post};
@@ -418,9 +418,32 @@ fn parse_envelope(raw: &str) -> Option<(u32, &str, u32, u32, u32, String)> {
         "VI1" => "photo",
         _ => return None,
     };
-    let mut fields = rest.splitn(5, char::is_whitespace);
-    let spec = fields.next()?.trim();
-    let caption = fields.next().unwrap_or("").trim().to_string();
+    let (spec_raw, tail) = match rest.split_once(char::is_whitespace) {
+        Some((s, t)) => (s, t.trim()),
+        None => (rest.trim(), ""),
+    };
+    let spec = spec_raw;
+    // Newer Open TAK sends "LABEL <caption>" after the envelope fields
+    // (e.g. "VI1:... IMAGE Look at this"). Keep the user caption; drop the
+    // generic kind label and older bare/bracketed label-only forms.
+    let mut caption = tail.to_string();
+    let bare = caption.trim_matches(|c| c == '[' || c == ']').to_string();
+    if bare.eq_ignore_ascii_case("image")
+        || bare.eq_ignore_ascii_case("photo")
+        || bare.eq_ignore_ascii_case("voice")
+        || bare.eq_ignore_ascii_case("video")
+        || bare.eq_ignore_ascii_case("clip")
+        || bare.eq_ignore_ascii_case("ptt")
+    {
+        caption.clear();
+    } else if let Some((first, rest)) = bare.split_once(' ') {
+        if matches!(
+            first.trim_matches(|c| c == '[' || c == ']').to_ascii_lowercase().as_str(),
+            "image" | "photo" | "voice" | "video" | "clip" | "ptt"
+        ) {
+            caption = rest.trim().to_string();
+        }
+    }
     let mut it = spec.split(':');
     let sid = b36(it.next()?)?;
     let mode = b36(it.next().unwrap_or(""))?;
@@ -677,6 +700,28 @@ pub fn handle_data(chan_idx: u8, payload: &[u8]) {
 /// render in the room timeline as playable noise. Decode via ffmpeg and
 /// check the flat factor (speech < 5, junk > 15 in practice). None = probe
 /// unavailable/failed; keep the clip in that case.
+/// Open TAK photo payloads carry a distinctive wire header the codec2
+/// voice streams never have: v1 = [1][OBUs...] or v2 = [2][thumb_len]
+/// [thumb][OBUs...], where the first OBU byte is 0x0a (sequence header)
+/// or 0x12 (temporal delimiter). Announce-less photo sessions arrive
+/// labeled kind=voice; sniffing the payload keeps the noise probe (which
+/// would decode AV1 as codec2 and flag it error) off real photos.
+fn sniff_photo(b: &[u8]) -> bool {
+    if b.len() < 3 {
+        return false;
+    }
+    if b[0] == 1 && matches!(b[1], 0x0a | 0x12) {
+        return true;
+    }
+    if b[0] == 2 {
+        let tl = b[1] as usize;
+        if 2 + tl < b.len() && matches!(b[2 + tl], 0x0a | 0x12) {
+            return true;
+        }
+    }
+    false
+}
+
 fn voice_clip_is_noise(path: &std::path::Path, mode: u32) -> Option<bool> {
     // Two views: the clip HEAD (1.5 s — junk companion sessions are static
     // from the first samples) and the WHOLE file (some junk twins are quiet
@@ -799,7 +844,9 @@ async fn store_complete(sid_hex: &str, sess: &Session) {
     let write = std::fs::write(&path, &buf)
         .map_err(|e| e.to_string())
         .and_then(|_| path.metadata().map(|m| m.len() as i64).map_err(|e| e.to_string()));
-    let noise = if sess.kind == "voice" && sess.mode != 32 {
+    let is_photo = sess.kind == "photo" || sniff_photo(&buf);
+    let kind_eff = if is_photo { "photo" } else { &sess.kind };
+    let noise = if !is_photo && sess.mode != 32 {
         voice_clip_is_noise(&path, sess.mode).unwrap_or(false)
     } else {
         false
@@ -962,7 +1009,12 @@ pub async fn ingest_broker(media: &serde_json::Value) {
         sessions().lock().unwrap().remove(&s);
     }
     let mode_v = media.get("mode").and_then(|v| v.as_i64()).unwrap_or(0);
-    let noise = if kind == "voice" && mode_v != 32 {
+    // Bridge pushes may label photos as voice (pre-VI1 builds, or guess_mode
+    // fallbacks); sniff the wire header so AV1 payloads never hit the codec2
+    // noise probe.
+    let is_photo = kind == "photo" || sniff_photo(&bytes);
+    let kind_eff = if is_photo { "photo" } else { kind };
+    let noise = if !is_photo && mode_v != 32 {
         voice_clip_is_noise(&path, mode_v as u32).unwrap_or(false)
     } else {
         false
@@ -977,7 +1029,7 @@ pub async fn ingest_broker(media: &serde_json::Value) {
          caption=CASE WHEN length(excluded.caption) > length(mesh_media.caption) THEN excluded.caption ELSE mesh_media.caption END",
     )
     .bind(sid)
-    .bind(kind)
+    .bind(kind_eff)
     .bind(mode_v)
     .bind(media.get("total").and_then(|v| v.as_i64()).unwrap_or(0))
     .bind(media.get("total").and_then(|v| v.as_i64()).unwrap_or(0))
@@ -1505,7 +1557,17 @@ async fn photo_send(
 /// transcoded to WAV with ffmpeg (libcodec2); photo clips are served as
 /// AVIF when containerized (ftyp header) or decoded from raw AV1 OBU to
 /// PNG with ffmpeg (libdav1d).
-async fn play(_user: RequireUser, Path(id): Path<i64>, State(state): State<SharedState>) -> axum::response::Response {
+async fn play(
+    _user: RequireUser,
+    Path(id): Path<i64>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> axum::response::Response {
+    let scale: f32 = q
+        .get("scale")
+        .and_then(|v| v.parse().ok())
+        .filter(|v| (1.0..=6.0).contains(v))
+        .unwrap_or(1.0);
     let row = sqlx::query("SELECT kind, mode, filename FROM mesh_media WHERE id = ?")
         .bind(id)
         .fetch_optional(&state.db)
@@ -1526,8 +1588,9 @@ async fn play(_user: RequireUser, Path(id): Path<i64>, State(state): State<Share
         Err(_) => return (StatusCode::NOT_FOUND, "file missing").into_response(),
     };
 
-    // Photos: AVIF containers render natively; pass through with the right type.
-    if kind == "photo" && bytes.len() > 12 && &bytes[4..8] == b"ftyp" {
+    // Photos: AVIF containers render natively; pass through with the right
+    // type (unless an upscale was requested, in which case decode below).
+    if kind == "photo" && scale <= 1.0 && bytes.len() > 12 && &bytes[4..8] == b"ftyp" {
         let mut headers = HeaderMap::new();
         headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("image/avif"));
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
@@ -1537,8 +1600,10 @@ async fn play(_user: RequireUser, Path(id): Path<i64>, State(state): State<Share
     // Open TAK wire format: [1][photo OBUs] or [2][thumb_len][thumb][photo OBUs].
     // Strip the header and re-add the temporal delimiter ffmpeg's obu demuxer
     // demands (Open TAK encoders strip it; their decoder re-adds it too).
+    // AVIF containers (upscale path only) skip this and demux by extension.
+    let is_avif = bytes.len() > 12 && &bytes[4..8] == b"ftyp";
     let mut bytes = bytes;
-    if kind == "photo" && !bytes.is_empty() && bytes.len() > 12 && &bytes[4..8] != b"ftyp" {
+    if kind == "photo" && !is_avif && !bytes.is_empty() && bytes.len() > 12 {
         let skip = if bytes[0] == 1 {
             1
         } else if bytes[0] == 2 && bytes.len() > 1 && (2 + bytes[1] as usize) < bytes.len() {
@@ -1551,13 +1616,27 @@ async fn play(_user: RequireUser, Path(id): Path<i64>, State(state): State<Share
         bytes = v;
     }
 
-    // Everything else goes through ffmpeg.
+    // Everything else goes through ffmpeg. Photos upscale with lanczos when
+    // ?scale=N is given (MeshMesh photos are small, ~288px long side).
+    let vf = if kind == "photo" && scale > 1.0 {
+        Some(format!("scale=trunc(iw*{scale}/2)*2:trunc(ih*{scale}/2)*2:flags=lanczos"))
+    } else {
+        None
+    };
     let args: Vec<String> = if kind == "photo" {
-        vec![
-            "-f".into(), "obu".into(), "-i".into(), "pipe:0".into(),
+        let mut a = vec!["-i".into(), "pipe:0".into()];
+        if !is_avif {
+            a = vec!["-f".into(), "obu".into(), "-i".into(), "pipe:0".into()];
+        }
+        if let Some(vf) = &vf {
+            a.push("-vf".into());
+            a.push(vf.clone());
+        }
+        a.extend([
             "-frames:v".into(), "1".into(),
             "-f".into(), "image2".into(), "-c:v".into(), "png".into(), "pipe:1".into(),
-        ]
+        ]);
+        a
     } else if (0..8).contains(&mode) {
         vec![
             "-f".into(), "codec2raw".into(), "-mode".into(), c2_mode(mode as u32).into(),
@@ -1656,6 +1735,24 @@ mod tests {
         assert!(parse_envelope("Bear Den: VI1:kdqlcj:4:2:150").is_some());
         assert!(parse_envelope("Stray Bear: z3sd").is_none());
         assert!(parse_envelope("Luke: @[EtherApe] hi").is_none());
+    }
+
+    #[test]
+    fn envelope_caption_labels() {
+        // Newer Open TAK: "LABEL <caption>" after the fields.
+        let (_, kind, _, _, _, cap) = parse_envelope("VI1:1ps9wxb:k:i:4b IMAGE Look at this")
+            .expect("label+caption parses");
+        assert_eq!(kind, "photo");
+        assert_eq!(cap, "Look at this");
+        // Bare label only -> empty caption.
+        let (_, _, _, _, _, cap) = parse_envelope("VI1:1ps9wxb:k:i:4b IMAGE").unwrap();
+        assert_eq!(cap, "");
+        // Older bracket label only -> empty caption.
+        let (_, _, _, _, _, cap) = parse_envelope("VM1:kdqlcj:4:2:1 [VOICE]").unwrap();
+        assert_eq!(cap, "");
+        // Bare envelope unchanged.
+        let (_, _, _, _, _, cap) = parse_envelope("VE3:abc:1:8:4").unwrap();
+        assert_eq!(cap, "");
     }
 
     #[test]
